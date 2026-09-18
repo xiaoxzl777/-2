@@ -1,0 +1,40 @@
+# Web
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+sse-starlette>=2.1
+
+# 数据
+sqlalchemy>=2.0.30
+pymysql>=1.1
+cryptography>=42          # PyMySQL caching_sha2_password 认证需要
+redis>=5.0
+chromadb>=0.5.5
+
+# 配置 / 校验 / 认证
+pydantic>=2.7
+pydantic-settings>=2.3
+pyjwt>=2.8
+bcrypt>=4.1
+
+# 解析
+pymupdf>=1.24
+python-docx>=1.1
+rapidfuzz>=3.9
+
+# LLM
+langchain>=0.3
+langchain-core>=0.3
+langchain-deepseek>=0.1
+langchain-openai>=0.2     # 硅基流动 OpenAI 兼容接口（embedding）
+langgraph>=0.2.50
+httpx>=0.27
+
+# 评测 / 脚本
+numpy>=1.26
+scipy>=1.13
+scikit-learn>=1.5
+
+# 开发
+pytest>=8.2
+pytest-cov>=5.0
