@@ -1,0 +1,40 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# ---- Node / 前端 ----
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.local
+
+# ---- 环境与密钥 ----
+.env
+.env.*
+!.env.example
+
+# ---- 运行时数据（可重建 / 含个人信息，不进仓库）----
+data/uploads/*
+data/chroma/*
+data/eval_runs/*
+!data/uploads/.gitkeep
+!data/chroma/.gitkeep
+!data/eval_runs/.gitkeep
+# 简历样本含个人信息，默认不提交；脱敏后手动 git add -f
+data/resumes/*
+!data/resumes/.gitkeep
+
+# ---- 编辑器 / 系统 ----
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
