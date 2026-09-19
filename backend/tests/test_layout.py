@@ -100,6 +100,22 @@ def test_wrapped_lines_merge_but_bullets_split(tmp_path):
     assert texts[2] == "3. short item" and texts[3] == "4. another short item"
 
 
+def test_labeled_list_items_split_even_when_the_previous_item_fills_the_line(tmp_path):
+    full = "掌握服务注册发现与远程调用以及网关路由转发并且使用过限流组件实现接口降级与限流保护整体稳定"
+    items = [
+        (40, 100, f"微服务：{full}", 10.5, "china-s"),              # 写满整行，但它已经是完整的一项
+        (40, 116, f"缓存与分布式：{full}", 10.5, "china-s"),         # 下一项：以"标签："开头 → 另起一块
+        (40, 132, "并建立多级缓存减少数据库压力", 10.5, "china-s"),   # 这才是折行
+        (40, 148, f"在此期间我们还{full}", 10.5, "china-s"),      # 普通段落（短行之后另起）
+        (40, 164, "模块：用户与订单", 10.5, "china-s"),               # 段落里碰巧以"xx："起头的折行 → 不拆
+    ]
+    r = analyze_layout(extract_pdf(make_pdf(tmp_path / "labels.pdf", items)))
+    texts = [b.text for b in r.blocks]
+    assert texts == [f"微服务：{full}", f"缓存与分布式：{full}并建立多级缓存减少数据库压力",
+                     f"在此期间我们还{full}模块：用户与订单"]
+    _assert_contract(r)
+
+
 def test_title_row_with_right_aligned_date_does_not_swallow_next_line(tmp_path):
     body = "y" * 100
     items = [

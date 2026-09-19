@@ -44,6 +44,8 @@ WRAP_SLACK_EM = 2.5           # 行尾距栏右边界不超过 2.5 个字宽，�
 WRAP_SLACK_RATIO = 0.08       # …或不超过栏宽的 8%（英文按词折行，行尾会空出一个长单词）
 
 _BULLET = re.compile(r"^(?:[•·▪■◆●○◦*➢➤►▶✓☑\-–—]|\d{1,2}[.、)）]|[（(]\d{1,2}[)）]|[①-⑩])\s*")
+# "缓存与分布式：熟练使用 Redis…" 这种"短标签 + 冒号"开头的行；纯数字（10:30）与网址（http://）不算
+_LABEL = re.compile(r"^(?!\d+[：:])(?![A-Za-z]+://)[^\s：:，。、,；;()（）]{2,16}[：:]")
 _PAGE_NO = re.compile(r"^\s*(?:第?\s*\d+\s*页?|\d+\s*/\s*\d+|-\s*\d+\s*-|Page\s*\d+(?:\s*of\s*\d+)?)\s*$", re.I)
 
 
@@ -374,8 +376,8 @@ def _line_was_full(p: _Placed) -> bool:
     return p.line.x1 >= p.leaf_x1 - slack
 
 
-def _starts_new_block(prev: _Placed | None, cur: _Placed, body_size: float) -> bool:
-    """cur 是另起一块，还是上一行的折行？任何一条成立就另起一块。"""
+def _starts_new_block(prev: _Placed | None, cur: _Placed, body_size: float, head: _Placed | None = None) -> bool:
+    """cur 是另起一块，还是上一行的折行？任何一条成立就另起一块。head 是当前块的第一行。"""
     if prev is None:
         return True
     a, b = prev.line, cur.line
@@ -384,15 +386,22 @@ def _starts_new_block(prev: _Placed | None, cur: _Placed, body_size: float) -> b
     explicit_start = _BULLET.match(b.text) is not None or _is_heading_like(b, body_size)
     prev_is_complete = _is_heading_like(a, body_size) or prev.tabular or not _line_was_full(prev)
     paragraph_gap = b.y0 - a.y1 > PARAGRAPH_GAP * b.height
-    return different_place or different_style or explicit_start or prev_is_complete or paragraph_gap
+    # "标签：内容"列表的下一项：上一项恰好写满整行时，光看行宽会把它误判成折行。
+    # 要求当前块也以标签开头，普通段落里碰巧以"xx："起头的折行不受影响
+    next_labeled_item = (head is not None and _LABEL.match(head.line.text) is not None
+                         and _LABEL.match(b.text) is not None)
+    return (different_place or different_style or explicit_start or prev_is_complete or paragraph_gap
+            or next_labeled_item)
 
 
 def _to_blocks(placed: list[_Placed], body_size: float) -> list[Block]:
     blocks: list[Block] = []
     prev: _Placed | None = None
+    head: _Placed | None = None          # 当前块的第一行
     for cur in placed:
         l = cur.line
-        if _starts_new_block(prev, cur, body_size):
+        if _starts_new_block(prev, cur, body_size, head):
+            head = cur
             blocks.append(Block(len(blocks), l.page_no, cur.col, l.x0, l.y0, l.x1, l.y1,
                                 l.text, l.font_size, l.is_bold))
         else:
