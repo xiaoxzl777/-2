@@ -82,4 +82,5 @@ def test_password_hash_is_salted_and_verifiable():
 
 def test_health_is_reachable_without_login(client):
     r = client.get("/api/v1/health")
-    assert r.status_code == 200 and "mysql" in r.json()["data"]
+    assert r.status_code in (200, 503)  # 503 = 本机没开 MySQL / Redis，接口本身仍然可达
+    assert {"mysql", "redis", "version"} <= set(r.json()["data"])

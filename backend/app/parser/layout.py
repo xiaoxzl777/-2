@@ -26,14 +26,28 @@ from dataclasses import dataclass, field
 from app.config import settings
 from app.parser.extract import ExtractResult, Line, PageInfo
 
-MIN_SIDE_LINES = 3        # 空白带每一侧至少要有这么多行，才算"一栏"
-MIN_SIDE_CHAR_RATIO = 0.12  # 每一侧的字数至少占区域的这个比例（挡掉右对齐日期这类假右栏）
-GRID_STEP = 2.0           # 滑动窗口步长（pt）
-Y_CUT_FACTOR = 1.5        # 水平留白 ≥ 1.5 倍行高才横切
-MAX_DEPTH = 6
+# ── 分栏 ──
+MIN_SIDE_LINES = 3            # 空白带每一侧至少要有这么多行，才算"一栏"
+MIN_SIDE_CHAR_RATIO = 0.12    # 每一侧的字数至少占区域的这个比例（挡掉右对齐日期这类假右栏）
+GRID_STEP = 2.0               # 滑动窗口步长（pt）
+EDGE_EPS = 0.5                # 判断"在空白带一侧"时的坐标容差（pt）
+Y_CUT_FACTOR = 1.5            # 水平留白 ≥ 1.5 倍行高才横切
+MAX_DEPTH = 6                 # 递归深度上限
+COLUMN_PAGE_RATIO = 0.3       # 分栏 / unknown 的行数占全页比例达到这个值，才据此给整页定性
+
+# ── 分块 ──
+HEADING_EXTRA_SIZE = 1.0      # 字号比正文大这么多 → 像标题
+HEADING_MAX_LEN = 20          # 加粗且不超过这么多字 → 像标题
+PARAGRAPH_GAP = 0.7           # 行间留白超过 0.7 倍行高 → 新段落
+TABULAR_GAP = 2.0             # 同一行内两个片段相隔超过 2 倍字号 → 表格式的行（如「项目名 …… 日期」）
+WRAP_SLACK_EM = 2.5           # 行尾距栏右边界不超过 2.5 个字宽，才算"写满了所以折行"
+WRAP_SLACK_RATIO = 0.08       # …或不超过栏宽的 8%（英文按词折行，行尾会空出一个长单词）
 
 _BULLET = re.compile(r"^(?:[•·▪■◆●○◦*➢➤►▶✓☑\-–—]|\d{1,2}[.、)）]|[（(]\d{1,2}[)）]|[①-⑩])\s*")
 _PAGE_NO = re.compile(r"^\s*(?:第?\s*\d+\s*页?|\d+\s*/\s*\d+|-\s*\d+\s*-|Page\s*\d+(?:\s*of\s*\d+)?)\s*$", re.I)
+
+
+# ───────────────────────── 对外的数据结构 ─────────────────────────
 
 
 @dataclass(slots=True)
@@ -79,84 +93,108 @@ class LayoutResult:
         return self.layout_confidence < settings.LAYOUT_FALLBACK_CONF
 
 
+# ───────────────────────── 内部数据结构 ─────────────────────────
+
+
+@dataclass(slots=True)
+class _Band:
+    """一条候选的栏间空白带。"""
+
+    x0: float
+    x1: float
+    blocked: set[int]   # 压住这条空白带的行（在区域内的下标）
+    clearness: float    # 即文档里的 c：1 − 压住的行数 / 区域行数
+
+
 @dataclass(slots=True)
 class _Placed:
+    """一行文字，连同它在版面里的归属。"""
+
     line: Line
     col: int
-    leaf: int
+    leaf: int           # 所属叶子区域的编号；折行只在同一叶子内合并
     leaf_x0: float
     leaf_x1: float
-    tabular: bool = False  # 该行由相隔较远的多个片段拼成（如「项目名 …… 日期」），不是一句被折断的话
+    tabular: bool = False  # 由相隔较远的多个片段拼成（如「项目名 …… 日期」），不是一句被折断的话
 
 
 @dataclass(slots=True)
 class _PageStats:
+    """递归过程中顺手记下的统计，用来给整页定性、算置信度。"""
+
     total: int = 0
-    in_columns: int = 0
-    unknown: int = 0
-    cut_c: list[float] = field(default_factory=list)
-    leaf_c: list[float] = field(default_factory=list)
-    gap: tuple[float, float] | None = None
-    gap_lines: int = 0
+    unknown_lines: int = 0
+    cut_clearness: list[float] = field(default_factory=list)
+    leaf_clearness: list[float] = field(default_factory=list)
+    main_gap: tuple[float, float] | None = None   # 覆盖行数最多的那条空白带
+    main_gap_lines: int = 0
     leaf_seq: int = 0
+
+
+@dataclass(slots=True)
+class _Region:
+    """递归时不变的上下文，省得每层都传一长串参数。"""
+
+    page_width: float
+    stats: _PageStats
 
 
 # ───────────────────────── 空白带搜索 ─────────────────────────
 
 
-def _best_band(lines: list[Line], page_width: float) -> tuple[float, float, set[int], float] | None:
-    """返回 (band_x0, band_x1, 挡住空白带的行下标集合, c)；没有合格的空白带返回 None。"""
+def _best_band(lines: list[Line], page_width: float) -> _Band | None:
+    """滑动窗口找"被最少的行压住"的竖直空白带；两侧不成栏则返回 None。"""
     n = len(lines)
     if n < 2 * MIN_SIDE_LINES:
         return None
     width = settings.LAYOUT_MIN_GAP_RATIO * page_width
-    lo = min(l.x0 for l in lines)
-    hi = max(l.x1 for l in lines)
     total_chars = sum(len(l.text) for l in lines) or 1
-    eps = 0.5
 
-    best: tuple[int, float, float, set[int]] | None = None  # (挡住数, 不平衡度, a, U)
-    a = lo
-    while a + width <= hi:
+    def char_share(side: list[Line]) -> float:
+        return sum(len(l.text) for l in side) / total_chars
+
+    best: tuple[tuple[int, float], float, set[int]] | None = None  # (排序键, 窗口左端, 压住的行)
+    a = min(l.x0 for l in lines)
+    right_end = max(l.x1 for l in lines)
+    while a + width <= right_end:
         b = a + width
-        blocked = {i for i, l in enumerate(lines) if l.x0 < b - eps and l.x1 > a + eps}
-        left = [l for l in lines if l.x1 <= a + eps]
-        right = [l for l in lines if l.x0 >= b - eps]
+        left = [l for l in lines if l.x1 <= a + EDGE_EPS]
+        right = [l for l in lines if l.x0 >= b - EDGE_EPS]
         if len(left) >= MIN_SIDE_LINES and len(right) >= MIN_SIDE_LINES:
-            lc = sum(len(l.text) for l in left) / total_chars
-            rc = sum(len(l.text) for l in right) / total_chars
-            if lc >= MIN_SIDE_CHAR_RATIO and rc >= MIN_SIDE_CHAR_RATIO:
-                key = (len(blocked), abs(lc - rc))
-                if best is None or key < (best[0], best[1]):
-                    best = (len(blocked), abs(lc - rc), a, blocked)
+            left_share, right_share = char_share(left), char_share(right)
+            if min(left_share, right_share) >= MIN_SIDE_CHAR_RATIO:
+                blocked = {i for i, l in enumerate(lines) if l.x0 < b - EDGE_EPS and l.x1 > a + EDGE_EPS}
+                key = (len(blocked), abs(left_share - right_share))  # 压住的行越少越好，其次两侧越均衡越好
+                if best is None or key < best[0]:
+                    best = (key, a, blocked)
         a += GRID_STEP
     if best is None:
         return None
 
-    _, _, a, blocked = best
-    # 在不增加"挡住的行"的前提下，把窗口向两侧扩到最宽，得到真实的空白带
+    _, a, blocked = best
+    # 在不增加"压住的行"的前提下，把窗口向两侧扩到最宽，得到真实的空白带
     free = [l for i, l in enumerate(lines) if i not in blocked]
-    band_x0 = max((l.x1 for l in free if l.x1 <= a + eps), default=a)
-    band_x1 = min((l.x0 for l in free if l.x0 >= a + width - eps), default=a + width)
-    return band_x0, band_x1, blocked, 1 - len(blocked) / n
+    x0 = max((l.x1 for l in free if l.x1 <= a + EDGE_EPS), default=a)
+    x1 = min((l.x0 for l in free if l.x0 >= a + width - EDGE_EPS), default=a + width)
+    return _Band(x0, x1, blocked, 1 - len(blocked) / n)
 
 
-def _header_rows_above_right_column(lines: list[Line], band_x1: float, page_width: float) -> set[int]:
+def _header_rows_above_right_column(lines: list[Line], band: _Band, page_width: float) -> set[int]:
     """页顶居中的联系方式（电话 / 邮箱分居空白带两侧但都没压住它）不属于任何一栏。
 
     右栏的行大多左对齐在同一条竖线上；整行都位于"右栏第一条对齐行"上方的，视为页顶通栏内容。
     """
-    right = [l for l in lines if l.x0 >= band_x1 - 0.5]
+    right = [l for l in lines if l.x0 >= band.x1 - EDGE_EPS]
     if len(right) < MIN_SIDE_LINES:
         return set()
     edges = [round(l.x0 / 4) * 4 for l in right]
-    mode = max(set(edges), key=edges.count)
-    aligned = [l for l in right if abs(l.x0 - mode) <= 0.02 * page_width]
-    top = min(l.y0 for l in aligned)
-    return {i for i, l in enumerate(lines) if l.y1 <= top}
+    column_edge = max(set(edges), key=edges.count)
+    aligned = [l for l in right if abs(l.x0 - column_edge) <= 0.02 * page_width]
+    column_top = min(l.y0 for l in aligned)
+    return {i for i, l in enumerate(lines) if l.y1 <= column_top}
 
 
-# ───────────────────────── 递归切分 ─────────────────────────
+# ───────────────────────── 行的合并 ─────────────────────────
 
 
 def _rows(lines: list[Line]) -> list[list[Line]]:
@@ -174,37 +212,108 @@ def _rows(lines: list[Line]) -> list[list[Line]]:
 
 
 def _merge_row(row: list[Line]) -> Line:
+    """同一水平线上的片段（如「电话    邮箱」）合并成一行，片段之间补一个空格。"""
     row = sorted(row, key=lambda l: l.x0)
     if len(row) == 1:
         return row[0]
-    main = max(row, key=lambda l: len(l.text))
+    longest = max(row, key=lambda l: len(l.text))
     chars = sum(len(l.text) for l in row)
-    bold = sum(len(l.text) for l in row if l.is_bold)
+    bold_chars = sum(len(l.text) for l in row if l.is_bold)
     return Line(
         page_no=row[0].page_no,
         x0=min(l.x0 for l in row), y0=min(l.y0 for l in row),
         x1=max(l.x1 for l in row), y1=max(l.y1 for l in row),
         text=" ".join(l.text for l in row),
-        font_size=main.font_size,
-        is_bold=bold * 2 > chars,
+        font_size=longest.font_size,
+        is_bold=bold_chars * 2 > chars,
     )
 
 
 def _is_tabular(row: list[Line]) -> bool:
     row = sorted(row, key=lambda l: l.x0)
-    return any(b.x0 - a.x1 > 2 * a.font_size for a, b in zip(row, row[1:]))
+    return any(b.x0 - a.x1 > TABULAR_GAP * a.font_size for a, b in zip(row, row[1:]))
 
 
-def _leaf(lines: list[Line], col: int | None, stats: _PageStats) -> list[_Placed]:
+def _place_rows(lines: list[Line], col: int, stats: _PageStats) -> list[_Placed]:
+    """把一组行作为一个叶子区域落位：合并同行片段，按 y、x 排序。"""
     stats.leaf_seq += 1
     rows = _rows(lines)
     merged = [_merge_row(r) for r in rows]
     x0, x1 = min(l.x0 for l in merged), max(l.x1 for l in merged)
-    return [_Placed(l, 0 if col is None else col, stats.leaf_seq, x0, x1, _is_tabular(r))
-            for l, r in zip(merged, rows)]
+    return [_Placed(l, col, stats.leaf_seq, x0, x1, _is_tabular(r)) for l, r in zip(merged, rows)]
+
+
+# ───────────────────────── 递归切分 ─────────────────────────
+
+
+def _order(lines: list[Line], region: _Region, col: int | None = None,
+           depth: int = 0, allow_y_cut: bool = True) -> list[_Placed]:
+    """返回 lines 的阅读顺序。col 为 None 表示还没进入任何一栏。"""
+    if not lines:
+        return []
+    stats = region.stats
+    band = _best_band(lines, region.page_width) if depth < MAX_DEPTH else None
+
+    if band and band.clearness >= settings.LAYOUT_DOUBLE_MIN_C:
+        spanning = band.blocked | _header_rows_above_right_column(lines, band, region.page_width)
+        _record_cut(stats, band, column_lines=len(lines) - len(spanning))
+        if spanning:
+            return _split_by_spanning_rows(lines, spanning, region, col, depth)
+        return _split_columns(lines, band, region, col, depth)
+
+    if allow_y_cut:
+        segments = _y_segments(lines)
+        if len(segments) > 1:  # 每段再试一次找空白带，但不再继续横切（已经在所有留白处切过了）
+            return [p for seg in segments for p in _order(seg, region, col, depth + 1, allow_y_cut=False)]
+
+    clearness = band.clearness if band else 0.0
+    stats.leaf_clearness.append(clearness)
+    if settings.LAYOUT_SINGLE_MAX_C < clearness < settings.LAYOUT_DOUBLE_MIN_C:
+        stats.unknown_lines += len(lines)
+    return _place_rows(lines, 0 if col is None else col, stats)
+
+
+def _record_cut(stats: _PageStats, band: _Band, column_lines: int) -> None:
+    stats.cut_clearness.append(band.clearness)
+    if column_lines > stats.main_gap_lines:
+        stats.main_gap, stats.main_gap_lines = (round(band.x0, 1), round(band.x1, 1)), column_lines
+
+
+def _split_columns(lines: list[Line], band: _Band, region: _Region, col: int | None, depth: int) -> list[_Placed]:
+    """X 切：先读左栏，再读右栏。已经在某一栏里的嵌套切分沿用外层的栏号。"""
+    left = [l for l in lines if l.x1 <= band.x0 + EDGE_EPS]
+    right = [l for l in lines if l.x0 >= band.x1 - EDGE_EPS]
+    return (_order(left, region, 0 if col is None else col, depth + 1)
+            + _order(right, region, 1 if col is None else col, depth + 1))
+
+
+def _split_by_spanning_rows(lines: list[Line], spanning: set[int], region: _Region,
+                            col: int | None, depth: int) -> list[_Placed]:
+    """自上而下扫描：连续的跨栏行自成一段直接落位，夹在它们之间的普通行作为一段递归处理。"""
+    placed: list[_Placed] = []
+    run: list[Line] = []
+    run_is_spanning = False
+
+    def flush() -> None:
+        if not run:
+            return
+        if run_is_spanning:
+            placed.extend(_place_rows(run, -1 if col is None else col, region.stats))
+        else:
+            placed.extend(_order(list(run), region, col, depth + 1))
+        run.clear()
+
+    for i, l in sorted(enumerate(lines), key=lambda t: (t[1].y0, t[1].x0)):
+        if (i in spanning) != run_is_spanning:
+            flush()
+            run_is_spanning = i in spanning
+        run.append(l)
+    flush()
+    return placed
 
 
 def _y_segments(lines: list[Line]) -> list[list[Line]]:
+    """Y 切：在 ≥ 1.5 倍行高的水平留白处把区域切成上下几段。"""
     rows = _rows(lines)
     if len(rows) < 2:
         return [lines]
@@ -219,74 +328,11 @@ def _y_segments(lines: list[Line]) -> list[list[Line]]:
     return segments
 
 
-def _order(lines: list[Line], page_width: float, col: int | None, stats: _PageStats,
-           depth: int = 0, allow_y: bool = True) -> list[_Placed]:
-    if not lines:
-        return []
-    band = _best_band(lines, page_width) if depth < MAX_DEPTH else None
-
-    if band and band[3] >= settings.LAYOUT_DOUBLE_MIN_C:
-        band_x0, band_x1, blocked, c = band
-        spanning = blocked | _header_rows_above_right_column(lines, band_x1, page_width)
-        stats.cut_c.append(c)
-        body = len(lines) - len(spanning)
-        if body > stats.gap_lines:
-            stats.gap, stats.gap_lines = (round(band_x0, 1), round(band_x1, 1)), body
-
-        if not spanning:
-            left = [l for l in lines if l.x1 <= band_x0 + 0.5]
-            right = [l for l in lines if l.x0 >= band_x1 - 0.5]
-            stats.in_columns += len(lines)
-            return (_order(left, page_width, 0 if col is None else col, stats, depth + 1)
-                    + _order(right, page_width, 1 if col is None else col, stats, depth + 1))
-
-        # 有跨栏行：按 y 把区域横切成段，跨栏行自成一段
-        placed: list[_Placed] = []
-        segment: list[Line] = []
-        span_rows: list[Line] = []
-
-        def flush_segment() -> None:
-            if segment:
-                placed.extend(_order(list(segment), page_width, col, stats, depth + 1))
-                segment.clear()
-
-        def flush_span() -> None:
-            if span_rows:
-                stats.leaf_seq += 1
-                for l in (_merge_row(r) for r in _rows(span_rows)):
-                    placed.append(_Placed(l, -1 if col is None else col, stats.leaf_seq, l.x0, l.x1))
-                span_rows.clear()
-
-        for i, l in sorted(enumerate(lines), key=lambda t: (t[1].y0, t[1].x0)):
-            if i in spanning:
-                flush_segment()
-                span_rows.append(l)
-            else:
-                flush_span()
-                segment.append(l)
-        flush_segment()
-        flush_span()
-        return placed
-
-    if allow_y:
-        segments = _y_segments(lines)
-        if len(segments) > 1:
-            out: list[_Placed] = []
-            for seg in segments:
-                out.extend(_order(seg, page_width, col, stats, depth + 1, allow_y=False))
-            return out
-
-    c = band[3] if band else 0.0
-    stats.leaf_c.append(c)
-    if settings.LAYOUT_SINGLE_MAX_C < c < settings.LAYOUT_DOUBLE_MIN_C:
-        stats.unknown += len(lines)
-    return _leaf(lines, col, stats)
-
-
 # ───────────────────────── 页眉页脚 ─────────────────────────
 
 
 def _drop_headers_footers(lines: list[Line], pages: list[PageInfo]) -> list[Line]:
+    """删掉页边带内的页码，以及在多页同一位置重复出现的文字。"""
     height = {p.page_no: p.height for p in pages}
     ratio = settings.LAYOUT_HEADER_FOOTER_RATIO
 
@@ -294,15 +340,16 @@ def _drop_headers_footers(lines: list[Line], pages: list[PageInfo]) -> list[Line
         h = height[l.page_no]
         return l.y1 <= ratio * h or l.y0 >= (1 - ratio) * h
 
-    repeated: dict[tuple[str, int], set[int]] = {}
+    def position_key(l: Line) -> tuple[str, int]:
+        return l.text, round(l.y0 / 4)
+
+    pages_seen: dict[tuple[str, int], set[int]] = {}
     for l in lines:
         if in_margin(l):
-            repeated.setdefault((l.text, round(l.y0 / 4)), set()).add(l.page_no)
+            pages_seen.setdefault(position_key(l), set()).add(l.page_no)
 
     def is_noise(l: Line) -> bool:
-        if not in_margin(l):
-            return False
-        return bool(_PAGE_NO.match(l.text)) or len(repeated[(l.text, round(l.y0 / 4))]) >= 2
+        return in_margin(l) and (bool(_PAGE_NO.match(l.text)) or len(pages_seen[position_key(l)]) >= 2)
 
     return [l for l in lines if not is_noise(l)]
 
@@ -310,68 +357,51 @@ def _drop_headers_footers(lines: list[Line], pages: list[PageInfo]) -> list[Line
 # ───────────────────────── 行 → 块 ─────────────────────────
 
 
-def _join(prev: str, nxt: str) -> str:
+def _join_wrapped(prev: str, nxt: str) -> str:
     """折行拼回一句：中文之间不加空格，英文 / 数字之间补一个空格。"""
     if prev and nxt and prev[-1].isascii() and nxt[0].isascii() and prev[-1] != " ":
         return prev + " " + nxt
     return prev + nxt
 
 
-def _to_blocks(placed: list[_Placed], body_size: float) -> list[Block]:
-    def heading_like(l: Line) -> bool:
-        return l.font_size >= body_size + 1 or (l.is_bold and len(l.text) <= 20)
+def _is_heading_like(l: Line, body_size: float) -> bool:
+    return l.font_size >= body_size + HEADING_EXTRA_SIZE or (l.is_bold and len(l.text) <= HEADING_MAX_LEN)
 
+
+def _line_was_full(p: _Placed) -> bool:
+    """这一行是否写到了栏的右边界——写满了，下一行才可能是它的折行。"""
+    slack = max(WRAP_SLACK_EM * p.line.font_size, WRAP_SLACK_RATIO * (p.leaf_x1 - p.leaf_x0))
+    return p.line.x1 >= p.leaf_x1 - slack
+
+
+def _starts_new_block(prev: _Placed | None, cur: _Placed, body_size: float) -> bool:
+    """cur 是另起一块，还是上一行的折行？任何一条成立就另起一块。"""
+    if prev is None:
+        return True
+    a, b = prev.line, cur.line
+    different_place = cur.leaf != prev.leaf or a.page_no != b.page_no
+    different_style = a.font_size != b.font_size or a.is_bold != b.is_bold
+    explicit_start = _BULLET.match(b.text) is not None or _is_heading_like(b, body_size)
+    prev_is_complete = _is_heading_like(a, body_size) or prev.tabular or not _line_was_full(prev)
+    paragraph_gap = b.y0 - a.y1 > PARAGRAPH_GAP * b.height
+    return different_place or different_style or explicit_start or prev_is_complete or paragraph_gap
+
+
+def _to_blocks(placed: list[_Placed], body_size: float) -> list[Block]:
     blocks: list[Block] = []
     prev: _Placed | None = None
-    for p in placed:
-        l = p.line
-        new_block = (
-            prev is None
-            or p.leaf != prev.leaf
-            or l.page_no != prev.line.page_no
-            or _BULLET.match(l.text) is not None
-            or heading_like(l)
-            or heading_like(prev.line)
-            or l.font_size != prev.line.font_size
-            or l.is_bold != prev.line.is_bold
-            or l.y0 - prev.line.y1 > 0.7 * l.height
-            or prev.tabular
-            # 上一行没写满就换行了 → 它是完整的一条，不是折行
-            # 容差：英文按词折行，行尾可能空出一个长单词的宽度
-            or prev.line.x1 < prev.leaf_x1 - max(2.5 * prev.line.font_size, 0.08 * (prev.leaf_x1 - prev.leaf_x0))
-        )
-        if new_block:
-            blocks.append(Block(len(blocks), l.page_no, p.col, l.x0, l.y0, l.x1, l.y1,
+    for cur in placed:
+        l = cur.line
+        if _starts_new_block(prev, cur, body_size):
+            blocks.append(Block(len(blocks), l.page_no, cur.col, l.x0, l.y0, l.x1, l.y1,
                                 l.text, l.font_size, l.is_bold))
         else:
             b = blocks[-1]
-            b.text = _join(b.text, l.text)
+            b.text = _join_wrapped(b.text, l.text)
             b.x0, b.y0 = min(b.x0, l.x0), min(b.y0, l.y0)
             b.x1, b.y1 = max(b.x1, l.x1), max(b.y1, l.y1)
-        prev = p
+        prev = cur
     return blocks
-
-
-# ───────────────────────── 入口 ─────────────────────────
-
-
-def analyze_layout(extracted: ExtractResult) -> LayoutResult:
-    lines = _drop_headers_footers(extracted.lines, extracted.pages)
-    sizes = sorted(l.font_size for l in lines for _ in range(len(l.text)))
-    body_size = sizes[len(sizes) // 2] if sizes else 10.5
-
-    placed: list[_Placed] = []
-    pages: list[PageLayout] = []
-    leaf_offset = 0
-    for page in extracted.pages:
-        page_lines = [l for l in lines if l.page_no == page.page_no]
-        stats = _PageStats(total=len(page_lines), leaf_seq=leaf_offset)
-        placed.extend(_order(page_lines, page.width, None, stats))
-        leaf_offset = stats.leaf_seq
-        pages.append(_summarize(page, stats))
-
-    blocks = _to_blocks(placed, body_size)
-    return LayoutResult(blocks, assign_offsets(blocks), pages)
 
 
 def assign_offsets(blocks: list[Block]) -> str:
@@ -384,14 +414,41 @@ def assign_offsets(blocks: list[Block]) -> str:
     return "\n".join(b.text for b in blocks)
 
 
-def _summarize(page: PageInfo, s: _PageStats) -> PageLayout:
+# ───────────────────────── 入口 ─────────────────────────
+
+
+def _body_font_size(lines: list[Line]) -> float:
+    """正文字号：按字符数加权的中位数。"""
+    sizes = sorted(l.font_size for l in lines for _ in range(len(l.text)))
+    return sizes[len(sizes) // 2] if sizes else 10.5
+
+
+def _summarize_page(page: PageInfo, s: _PageStats) -> PageLayout:
     if s.total == 0:
         return PageLayout(page.page_no, "single", 1.0, None)
-    if s.unknown / s.total >= 0.3:
+    if s.unknown_lines / s.total >= COLUMN_PAGE_RATIO:
         return PageLayout(page.page_no, "unknown", 0.5, None)
-    if s.cut_c and s.gap and s.gap_lines / s.total >= 0.3:
-        center = (s.gap[0] + s.gap[1]) / 2 / page.width
+    if s.main_gap and s.main_gap_lines / s.total >= COLUMN_PAGE_RATIO:
+        center = sum(s.main_gap) / 2 / page.width
         kind = "double" if 0.4 <= center <= 0.6 else "sidebar"
-        return PageLayout(page.page_no, kind, round(min(s.cut_c), 3), s.gap)
-    confidence = 1 - max([c for c in s.leaf_c if c <= settings.LAYOUT_SINGLE_MAX_C], default=0.0)
-    return PageLayout(page.page_no, "single", round(confidence, 3), None)
+        return PageLayout(page.page_no, kind, round(min(s.cut_clearness), 3), s.main_gap)
+    # 单栏：最像"有空白带"的那个叶子越清晰，我们对"它是单栏"就越没把握
+    doubt = max((c for c in s.leaf_clearness if c <= settings.LAYOUT_SINGLE_MAX_C), default=0.0)
+    return PageLayout(page.page_no, "single", round(1 - doubt, 3), None)
+
+
+def analyze_layout(extracted: ExtractResult) -> LayoutResult:
+    lines = _drop_headers_footers(extracted.lines, extracted.pages)
+
+    placed: list[_Placed] = []
+    pages: list[PageLayout] = []
+    leaf_seq = 0
+    for page in extracted.pages:
+        page_lines = [l for l in lines if l.page_no == page.page_no]
+        stats = _PageStats(total=len(page_lines), leaf_seq=leaf_seq)  # 叶子编号跨页连续，保证全局唯一
+        placed.extend(_order(page_lines, _Region(page.width, stats)))
+        leaf_seq = stats.leaf_seq
+        pages.append(_summarize_page(page, stats))
+
+    blocks = _to_blocks(placed, _body_font_size(lines))
+    return LayoutResult(blocks, assign_offsets(blocks), pages)

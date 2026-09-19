@@ -166,9 +166,12 @@ def detect_sections(layout: LayoutResult) -> list[Section]:
 
     def add(kind: str, title: str, start: int, end: int, confidence: float, by: str, needs_llm: bool = False) -> None:
         first, last = blocks[start], blocks[end]
-        has_title = by != "implicit"
-        content_start = blocks[start + 1].char_start if has_title and end > start else (
-            last.char_end if has_title else first.char_start)
+        if by == "implicit":            # 没有标题块，整段都是正文
+            content_start = first.char_start
+        elif end > start:               # 标题块之后就是正文
+            content_start = blocks[start + 1].char_start
+        else:                           # 只有标题、没有正文
+            content_start = last.char_end
         sections.append(Section(
             type=kind, kind=_work_kind(title) if kind == "work" else None, title=title,
             block_start=start, block_end=end, char_start=first.char_start, char_end=last.char_end,
