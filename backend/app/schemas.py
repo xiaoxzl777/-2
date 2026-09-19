@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -131,3 +131,69 @@ class BlocksOut(BaseModel):
     full_text: str
     blocks: list[BlockOut]
     sections: list[SectionOut]
+
+# ───────────── 诊断 ─────────────
+
+
+class DiagnoseIn(BaseModel):
+    mode: Literal["rule_only", "llm_only", "hybrid"] = "hybrid"
+    model: str | None = None              # 不填用默认模型；做模型对比实验时指定
+    job_title: str | None = Field(default=None, max_length=200)
+
+
+class TaskOut(BaseModel):
+    id: int
+    task_id: str
+    status: str
+
+
+class FindingOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    source: str
+    rule_code: str | None
+    risk_type: str | None
+    category: str
+    severity: str
+    title: str
+    description: str | None
+    suggestion: str | None
+    unit_id: str | None
+    evidence_quote: str | None
+    char_start: int | None
+    char_end: int | None
+    page_no: int | None
+    bbox: list[float] | None
+    verify_result: str
+    match_score: float | None
+    rewrite: dict | None
+
+
+class DiagnosisStats(BaseModel):
+    units_total: int
+    units_skipped: int
+    rule_finding_count: int
+    llm_finding_count: int          # 模型首轮产出的问题数（通过 + 被拦截）
+    hallucination_count: int        # 其中引用无法在原文定位、被拦截的条数
+    intercept_rate: float | None    # hallucination_count / llm_finding_count
+    schema_error_count: int
+
+
+class DiagnosisOut(BaseModel):
+    id: int
+    status: str
+    error_msg: str | None
+    mode: str
+    model_name: str | None
+    prompt_version: str | None
+    job_title: str | None
+    overall_score: float | None
+    score_detail: dict | None
+    stats: DiagnosisStats
+    cost: float
+    token_input: int
+    token_output: int
+    started_at: datetime | None
+    finished_at: datetime | None
+    findings: list[FindingOut]

@@ -74,6 +74,18 @@ def test_subheading_plus_body_units():
     assert findings[0].evidence_quote == "独立完成四大模块的接口设计"     # 证据取正文，不取小标题
 
 
+def test_list_numbering_is_not_quantification():
+    doc = Doc()
+    p = _project(doc, "订单系统",
+                 "1. 负责系统的优化工作，持续改进各项功能。",                 # 编号不是量化数字
+                 "（2）优化了查询逻辑，提升了响应速度。",
+                 "3. 10.5% 的慢查询被消除，接口 P99 降至 120ms。",          # 行首的小数不是编号
+                 "4、完成 12 个接口的开发并上线。")
+    findings = _run(doc, {"projects": [p]})
+    assert _codes(findings) == ["NO_QUANTIFICATION", "STAR_INCOMPLETE"]
+    assert findings[1].evidence_quote == "负责系统的优化工作，持续改进各项功能"   # 证据不带编号
+
+
 @pytest.mark.parametrize(
     ("line", "quote"),
     [

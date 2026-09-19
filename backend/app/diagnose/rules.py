@@ -27,7 +27,8 @@ _NUMBER = re.compile(r"(?<![A-Za-z\d.#+\-])\d+(?:\.\d+)?")
 # 只收"结果性"的动词。不收"性能 / 效率"这类名词：否则小标题「性能优化：」本身就会被当成在陈述结果
 _RESULT_WORDS = re.compile(r"提升|提高|降低|减少|缩短|节省|节约|增长|达到|降至|升至|支撑|保障|上线|获得|解决了|避免|稳定运行")
 _WEAK_VERBS = re.compile(r"参与|协助|了解|学习|接触|帮助|配合|跟随|辅助")
-_LINE_PREFIX = re.compile(r"^(?:[•·▪■◆●○◦*➢➤►▶✓☑\-–—]|\d{1,2}[.、)）]|[（(]\d{1,2}[)）]|[①-⑩])?\s*")
+# 行首的列表符号 / 编号。"10.5%" 这种小数不是编号，所以编号的点后面不能紧跟数字
+_LINE_PREFIX = re.compile(r"^(?:[•·▪■◆●○◦*➢➤►▶✓☑\-–—]|\d{1,2}[.、)）](?!\d)|[（(]\d{1,2}[)）]|[①-⑩])?\s*")
 _CLAUSE_END = re.compile(r"[，。；;,\n]")
 
 
@@ -66,6 +67,11 @@ def run_rules(ctx: RuleContext) -> list[Finding]:
 # ───────────────────────── 取证据的小工具 ─────────────────────────
 
 
+def _has_number(text: str) -> bool:
+    """有没有量化数字。行首的列表编号（"1." "（2）"）不算。"""
+    return any(_NUMBER.search(line, _LINE_PREFIX.match(line).end()) for line in text.split("\n"))
+
+
 def _clause_around(unit: ReviewUnit, pos: int) -> tuple[int, int]:
     """unit.text 里包含位置 pos 的那个分句，返回在 full_text 中的区间。"""
     text = unit.text
@@ -78,9 +84,10 @@ def _clause_around(unit: ReviewUnit, pos: int) -> tuple[int, int]:
 
 
 def _first_sentence(unit: ReviewUnit, limit: int = 60) -> tuple[int, int]:
-    """单元的最后一行的第一句（小标题 + 正文的单元，正文在最后一行）。"""
+    """单元的最后一行的第一句（小标题 + 正文的单元，正文在最后一行），不含行首的列表编号。"""
     text = unit.text
     line_start = text.rfind("\n") + 1
+    line_start += _LINE_PREFIX.match(text[line_start:]).end()
     end_match = re.search(r"[。；;\n]", text[line_start:])
     end = line_start + (end_match.start() if end_match else len(text) - line_start)
     return unit.char_start + line_start, unit.char_start + min(end, line_start + limit)
@@ -102,7 +109,7 @@ def no_quantification(ctx: RuleContext) -> Iterable[Finding]:
     """说了"提升 / 降低"却没有任何数字。"""
     for u in ctx.experience_units:
         result = _RESULT_WORDS.search(u.text)
-        if result and not _NUMBER.search(u.text):
+        if result and not _has_number(u.text):
             yield _finding(ctx, "NO_QUANTIFICATION", "quantification", "high", "成果缺少量化数据",
                            f"这条描述提到了「{result.group(0)}」，但没有给出任何数字，读者无法判断成果的大小。",
                            "补充可验证的数字：优化前后的指标、数据规模、用户量、耗时等。没有真实数据就删掉这句空话。",
@@ -113,7 +120,7 @@ def no_quantification(ctx: RuleContext) -> Iterable[Finding]:
 def star_incomplete(ctx: RuleContext) -> Iterable[Finding]:
     """只写了做了什么，没有写结果。"""
     for u in ctx.experience_units:
-        if not _RESULT_WORDS.search(u.text) and not _NUMBER.search(u.text):
+        if not _RESULT_WORDS.search(u.text) and not _has_number(u.text):
             yield _finding(ctx, "STAR_INCOMPLETE", "completeness", "medium", "只有做了什么，没有结果",
                            "这条描述停留在「做了某事」，没有说明带来了什么结果（STAR 中的 R）。",
                            "补一句结果：解决了什么问题、达到了什么效果、支撑了什么业务。",

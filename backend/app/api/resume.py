@@ -8,8 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db, get_session_factory
-from app.deps import get_current_user, get_owned_resume
-from app.errors import CONFLICT, PARSE_FAILED, ApiError
+from app.deps import get_current_user, get_owned_resume, get_parsed_resume
 from app.llm.client import LLMClient, get_llm_client
 from app.models import ParsedBlock, Resume, User
 from app.schemas import ApiResponse, BlockOut, BlocksOut, Page, ResumeOut, UploadOut, ok
@@ -17,13 +16,6 @@ from app.services import resume_service
 from app.services.parse_service import SessionFactory, parse_resume
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
-
-_PARSE_ERROR_MESSAGES = {
-    "scanned_pdf": "这份 PDF 是扫描件或图片，没有可提取的文字，请上传文本版 PDF",
-    "encrypted_pdf": "文件已加密，请上传未加密的 PDF",
-    "interrupted": "解析被服务重启中断，请重新上传同一文件以重试",
-    "llm_failed": "调用大模型失败，请稍后重新上传同一文件以重试",
-}
 
 
 @router.post("", response_model=ApiResponse[UploadOut])
@@ -87,9 +79,8 @@ def delete_resume(resume: Resume = Depends(get_owned_resume), db: Session = Depe
 
 
 @router.get("/{resume_id}/blocks", response_model=ApiResponse[BlocksOut])
-def get_blocks(resume: Resume = Depends(get_owned_resume), db: Session = Depends(get_db)):
+def get_blocks(resume: Resume = Depends(get_parsed_resume), db: Session = Depends(get_db)):
     """解析结果：按阅读顺序排好的块、章节划分、版面判定。前端据此渲染原文并按 char 区间高亮。"""
-    _require_parsed(resume)
     blocks = db.scalars(
         select(ParsedBlock).where(ParsedBlock.resume_id == resume.id).order_by(ParsedBlock.block_index)
     ).all()
@@ -105,18 +96,9 @@ def get_blocks(resume: Resume = Depends(get_owned_resume), db: Session = Depends
 
 
 @router.get("/{resume_id}/structure", response_model=ApiResponse[dict])
-def get_structure(resume: Resume = Depends(get_owned_resume)):
+def get_structure(resume: Resume = Depends(get_parsed_resume)):
     """结构化结果：基本信息、教育、经历、项目、技能、奖项。每个条目都带 block_ids 与 char 区间。"""
-    _require_parsed(resume)
     return ok(resume.structure or {})
-
-
-def _require_parsed(resume: Resume) -> None:
-    if resume.parse_status == "success":
-        return
-    if resume.parse_status == "failed":
-        raise ApiError(PARSE_FAILED, _PARSE_ERROR_MESSAGES.get(resume.parse_error or "", "简历解析失败"))
-    raise ApiError(CONFLICT, "简历还在解析中，请稍后再试")
 
 
 def _block_out(b: ParsedBlock) -> BlockOut:

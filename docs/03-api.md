@@ -31,7 +31,7 @@
           GET    /resumes                  GET /resumes/{id}                DELETE /resumes/{id}
           GET    /resumes/{id}/blocks      GET /resumes/{id}/structure      PATCH /resumes/{id}/structure
 
-诊断 3    POST /resumes/{id}/diagnose      {mode, model?} → {id, task_id:"diagnose:{id}"}
+诊断 3    POST /resumes/{id}/diagnose      {mode?, model?, job_title?} → {id, task_id:"diagnose:{id}", status}
           GET  /resumes/{id}/diagnosis     ?diagnosis_id=
           GET  /tasks/{kind}/{id}/stream   kind ∈ {parse, diagnose, match, apply}
 
