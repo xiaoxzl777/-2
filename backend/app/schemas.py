@@ -60,6 +60,7 @@ class TokenOut(BaseModel):
     expires_in: int  # 秒
     user: UserOut
 
+
 # ───────────── 简历 ─────────────
 
 
@@ -86,3 +87,47 @@ class ResumeOut(BaseModel):
     overall_score: float | None
     created_at: datetime
     updated_at: datetime
+
+class Page(BaseModel, Generic[T]):
+    items: list[T]
+    total: int
+    page: int
+    page_size: int
+
+
+class BlockOut(BaseModel):
+    block_index: int
+    page_no: int
+    column_index: int                 # 0 = 左栏/单栏，1 = 右栏，-1 = 跨栏行
+    bbox: list[float] | None          # [x0, y0, x1, y1]；没有版面信息（DOCX）时为 null
+    text: str
+    font_size: float | None
+    is_bold: bool
+    char_start: int                   # 相对 full_text，开区间 [start, end)
+    char_end: int
+
+
+class SectionOut(BaseModel):
+    type: str
+    kind: str | None
+    title: str
+    block_start: int
+    block_end: int
+    char_start: int
+    char_end: int
+    content_start: int
+    confidence: float
+    matched_by: str
+    needs_llm: bool
+
+
+class BlocksOut(BaseModel):
+    """前端渲染与高亮的数据源：按 block_index 顺序渲染 blocks，用 char 区间在 full_text 上定位。"""
+
+    layout_type: str
+    layout_confidence: float | None
+    layout_detail: list[dict] | None
+    used_llm_fallback: bool
+    full_text: str
+    blocks: list[BlockOut]
+    sections: list[SectionOut]

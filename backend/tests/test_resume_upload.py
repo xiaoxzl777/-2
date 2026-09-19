@@ -1,18 +1,13 @@
-from pathlib import Path
-
 import pymupdf
 import pytest
 from sqlalchemy import func, select
 
 from app.config import settings
 from app.models import ParsedBlock, Resume
+from tests.conftest import make_pdf
+from tests.conftest import upload_pdf as _upload
 
 API = "/api/v1/resumes"
-
-
-def _upload(client, headers, path: Path, filename: str | None = None, **form):
-    with path.open("rb") as f:
-        return client.post(API, headers=headers, files={"file": (filename or path.name, f, "application/pdf")}, data=form)
 
 
 def test_upload_parses_in_background_and_persists(client, auth_headers, single_column_pdf, db_session_factory):
@@ -97,7 +92,6 @@ def test_path_in_filename_never_reaches_the_disk(client, auth_headers, single_co
 
 
 def test_title_form_field_overrides_filename(client, auth_headers, tmp_path):
-    from tests.conftest import make_pdf
     pdf = make_pdf(tmp_path / "x.pdf", [(40, 100 + i * 20, f"line {i} " + "word " * 12, 10, "helv") for i in range(8)])
     rid = _upload(client, auth_headers, pdf, title="投字节的版本").json()["data"]["id"]
     assert client.get(f"{API}/{rid}", headers=auth_headers).json()["data"]["title"] == "投字节的版本"

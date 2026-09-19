@@ -95,6 +95,13 @@ def client(db_session_factory, tmp_path, monkeypatch):
     app.dependency_overrides.clear()
 
 
+def upload_pdf(client, headers: dict, path: Path, filename: str | None = None, **form):
+    """POST /resumes。TestClient 会在响应返回后同步跑完后台解析，所以返回时解析已结束。"""
+    with path.open("rb") as f:
+        files = {"file": (filename or path.name, f, "application/pdf")}
+        return client.post("/api/v1/resumes", headers=headers, files=files, data=form)
+
+
 @pytest.fixture
 def auth_headers(client) -> dict:
     r = client.post("/api/v1/auth/register", json={"username": "tester", "password": "secret123"})
