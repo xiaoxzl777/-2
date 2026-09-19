@@ -26,7 +26,9 @@ Copy-Item .env.example .env
 # 2. Redis：启动本机 Redis；本机没装就用容器
 docker compose up -d redis
 
-# 3. 建库建表：在 MySQL 客户端中执行 backend\sql\schema.sql（全新库执行一次）
+# 3. 建库建表 + 种子数据：在 MySQL 客户端中依次执行
+#      backend\sql\schema.sql   （全新库执行一次）
+#      backend\sql\seed.sql     （技能词典，可重复执行）
 #    或命令行：cmd /c "mysql -uroot -p < backend\sql\schema.sql"
 
 # 4. 后端

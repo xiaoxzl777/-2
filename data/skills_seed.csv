@@ -1,0 +1,156 @@
+canonical_name,category,aliases
+Java,language,JAVA|Java语言|JavaSE|Java SE|JDK
+Python,language,python3|Python3
+C++,language,CPP|cpp|C plus plus|c++11|C++17
+C,language,C语言
+C#,language,CSharp|C Sharp|csharp
+Go,language,Golang|golang|Go语言
+Rust,language,Rust语言
+JavaScript,language,JS|ECMAScript|ES6|Javascript|java script
+TypeScript,language,TS|Typescript
+Kotlin,language,
+Swift,language,
+PHP,language,
+Scala,language,
+SQL,language,结构化查询语言
+Shell,language,Bash|bash脚本|Shell脚本|shell script
+HTML,language,HTML5|html5
+CSS,language,CSS3|css3
+Spring,backend,Spring Framework|Spring框架|SpringFramework
+Spring Boot,backend,SpringBoot|spring-boot|springboot
+Spring Cloud,backend,SpringCloud|spring-cloud|springcloud
+Spring MVC,backend,SpringMVC|spring-mvc
+Spring Security,backend,SpringSecurity
+MyBatis,backend,Mybatis|mybatis|iBatis
+MyBatis-Plus,backend,MybatisPlus|MyBatis Plus|mybatis-plus
+Hibernate,backend,
+JPA,backend,Spring Data JPA|Java Persistence API
+Netty,backend,
+Dubbo,backend,Apache Dubbo
+gRPC,backend,grpc|GRPC
+Django,backend,django
+Flask,backend,flask
+FastAPI,backend,fastapi|Fast API
+Gin,backend,Gin框架|gin-gonic
+Node.js,backend,NodeJS|nodejs
+Express,backend,Express.js|expressjs
+NestJS,backend,Nest.js|nestjs
+.NET,backend,dotnet|.NET Core|ASP.NET|ASP.NET Core
+Tomcat,backend,Apache Tomcat
+JVM,backend,Java虚拟机|JVM调优
+多线程,backend,并发编程|JUC|多线程编程|concurrency
+微服务,backend,微服务架构|Microservices|microservice|Micro Service
+RESTful API,backend,REST|RESTful|REST API|Restful接口
+分布式,backend,分布式系统|分布式架构|distributed system
+设计模式,backend,Design Patterns|design pattern
+Nacos,backend,nacos
+Sentinel,backend,
+Seata,backend,
+Zookeeper,backend,ZooKeeper|zk
+RabbitMQ,middleware,rabbitmq|Rabbit MQ
+Kafka,middleware,Apache Kafka|kafka
+RocketMQ,middleware,rocketmq|Rocket MQ
+消息队列,middleware,MQ|Message Queue|消息中间件
+Elasticsearch,middleware,ES搜索|ElasticSearch|elastic search|ELK
+Nginx,middleware,nginx|NGINX
+MySQL,database,mysql|My SQL|MySQL数据库
+PostgreSQL,database,Postgres|postgres|pgsql
+Oracle,database,Oracle数据库
+SQL Server,database,SQLServer|MSSQL|MS SQL
+SQLite,database,sqlite|sqlite3
+Redis,database,redis|Redis缓存|Redis集群|Redis Cluster
+MongoDB,database,mongodb|Mongo|mongo
+Memcached,database,memcache
+ClickHouse,database,clickhouse
+HBase,database,hbase
+Milvus,database,milvus
+Chroma,database,ChromaDB|chromadb
+pgvector,database,
+向量数据库,database,Vector Database|vector db|向量库
+索引优化,database,SQL优化|慢查询优化|SQL调优|数据库优化
+分库分表,database,ShardingSphere|Sharding-JDBC|sharding
+React,frontend,ReactJS|React.js|reactjs|React18
+Vue,frontend,Vue.js|vuejs|Vue2|Vue3|vue
+Angular,frontend,AngularJS|angular
+Next.js,frontend,NextJS|nextjs
+Nuxt,frontend,Nuxt.js|nuxtjs
+Redux,frontend,redux|Redux Toolkit
+Zustand,frontend,
+Pinia,frontend,
+Vuex,frontend,
+Webpack,frontend,webpack
+Vite,frontend,vite
+Tailwind CSS,frontend,Tailwind|tailwindcss|TailwindCSS
+Sass,frontend,SCSS|scss|Less
+Element UI,frontend,ElementUI|Element Plus|element-ui|element-plus
+Ant Design,frontend,antd|AntDesign|Ant Design Vue
+shadcn/ui,frontend,shadcn
+ECharts,frontend,echarts|Apache ECharts
+D3.js,frontend,D3|d3
+jQuery,frontend,jquery
+Axios,frontend,axios
+微信小程序,frontend,小程序|小程序开发|微信小程序开发
+uni-app,frontend,uniapp|UniApp
+Flutter,mobile,flutter
+React Native,mobile,ReactNative
+Android,mobile,Android开发|安卓|安卓开发
+iOS,mobile,iOS开发
+Docker,devops,docker|Docker容器|容器化
+Kubernetes,devops,K8s|k8s|K8S|kubernetes
+Docker Compose,devops,docker-compose|docker compose
+Jenkins,devops,jenkins
+GitHub Actions,devops,Github Actions|GitHub Action
+CI/CD,devops,CICD|持续集成|持续部署|持续交付
+Git,tool,git|Git版本控制|GitLab|GitHub
+Maven,tool,maven
+Gradle,tool,gradle
+Linux,devops,linux|CentOS|Ubuntu|Linux运维|Linux系统
+Prometheus,devops,prometheus
+Grafana,devops,grafana
+阿里云,devops,Aliyun|阿里云ECS|阿里云OSS
+AWS,devops,Amazon Web Services|亚马逊云
+腾讯云,devops,Tencent Cloud
+Postman,tool,postman
+JMeter,tool,jmeter|压力测试|压测
+JUnit,tool,Junit|junit5|单元测试
+pytest,tool,Pytest
+Selenium,tool,selenium|自动化测试
+Swagger,tool,OpenAPI|swagger|Knife4j
+机器学习,ai,Machine Learning|ML
+深度学习,ai,Deep Learning|DL|神经网络
+PyTorch,ai,pytorch|Pytorch|torch
+TensorFlow,ai,tensorflow|Tensorflow|Keras
+scikit-learn,ai,sklearn|Scikit-learn|scikit learn
+自然语言处理,ai,NLP|Natural Language Processing
+计算机视觉,ai,CV方向|Computer Vision|图像识别
+OpenCV,ai,opencv|cv2
+大语言模型,ai,LLM|大模型|LLMs|Large Language Model|大模型应用
+RAG,ai,检索增强生成|Retrieval-Augmented Generation|检索增强
+Agent,ai,AI Agent|智能体|Agent开发|多智能体
+LangChain,ai,langchain|Langchain
+LangGraph,ai,langgraph
+LlamaIndex,ai,llamaindex|Llama Index
+Prompt Engineering,ai,提示词工程|Prompt工程|prompt设计|提示工程
+微调,ai,Fine-tuning|fine tuning|LoRA|SFT|模型微调
+Transformer,ai,transformer|Transformers|BERT|注意力机制
+Hugging Face,ai,HuggingFace|huggingface
+Embedding,ai,embedding|向量化|文本向量
+vLLM,ai,vllm
+Ollama,ai,ollama
+YOLO,ai,YOLOv5|YOLOv8|yolo
+推荐系统,ai,推荐算法|Recommender System
+NumPy,data,numpy
+Pandas,data,pandas
+Matplotlib,data,matplotlib|Seaborn
+Spark,data,Apache Spark|PySpark|spark
+Hadoop,data,hadoop|HDFS|MapReduce
+Flink,data,Apache Flink|flink
+Hive,data,hive|HiveSQL
+数据分析,data,Data Analysis|数据挖掘
+爬虫,data,网络爬虫|Scrapy|scrapy|数据采集
+数据结构与算法,cs,数据结构|算法|LeetCode|Data Structures
+操作系统,cs,OS原理|Operating System
+计算机网络,cs,TCP/IP|HTTP|HTTPS|网络协议|HTTP协议
+WebSocket,cs,websocket|WS长连接
+OAuth2,cs,OAuth|OAuth 2.0|单点登录|SSO
+JWT,cs,Json Web Token|JSON Web Token|token鉴权
