@@ -24,7 +24,7 @@ HEADER = f"""-- 智能求职辅助系统 建库建表脚本（MySQL 8.0）
 --
 -- 手动建表（在全新的库上执行一次；CREATE INDEX 不可重复执行）：
 --   mysql -uroot -p < backend/sql/schema.sql
--- （也可以不执行：后端首次启动会自动建库建表，效果相同）
+-- 后端不会自动建表：启动时发现缺表会直接报错并提示执行本文件。
 
 CREATE DATABASE IF NOT EXISTS `{DB_NAME}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `{DB_NAME}`;

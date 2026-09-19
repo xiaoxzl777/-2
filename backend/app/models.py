@@ -42,7 +42,7 @@ class Base(DeclarativeBase):
     __table_args__ = {"mysql_engine": "InnoDB", "mysql_charset": "utf8mb4"}
 
 
-# 仅 MySQL 支持、且 SQLAlchemy 不会自动生成的 DDL；ensure_database() 与 dump_schema.py 都会执行/输出。
+# 仅 MySQL 支持、且 SQLAlchemy 不会自动生成的 DDL；由 dump_schema.py 追加到 sql/schema.sql 末尾。
 # 语句必须幂等（MODIFY 重复执行无副作用）。
 MYSQL_POST_DDL: list[str] = [
     # 数据库层自动刷新 updated_at：原生 SQL 的 UPDATE（如启动清理）也能正确更新

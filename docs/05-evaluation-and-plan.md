@@ -4,7 +4,7 @@
 
 | # | 里程碑 | 时长 | 完成标准 |
 |---|---|---|---|
-| M0 | 骨架 + 文档 + 建表 + 数据 | 3 天 | `git init` + `.gitignore` + 首次提交；docs/ 四份文档；`create_all()` 建出 11 张表；compose 骨架；`data/resumes/` ≥20 份 PDF（≥8 两栏/侧边栏、≥4 表格型、DOCX ≥2）；`skills_seed.csv` 100–200 条；JD 来源跑通 ≥30 条 |
+| M0 | 骨架 + 文档 + 建表 + 数据 | 3 天 | `git init` + `.gitignore` + 首次提交；docs/ 四份文档；手动执行 `backend/sql/schema.sql` 建出 11 张表；compose 骨架；`data/resumes/` ≥20 份 PDF（≥8 两栏/侧边栏、≥4 表格型、DOCX ≥2）；`skills_seed.csv` 100–200 条；JD 来源跑通 ≥30 条 |
 | M1 | 解析内核 | 1.5 周 | 三路分流；region-first + 表格；full_text 契约单测全过；版面合成集脚本可跑 |
 | M2 | 结构化 + 后端骨架 | 1 周 | 上传 → structure（block_ids、summary、skill_mentions）；**Upload 页** |
 | M3 | 诊断引擎 | 1.5 周 | 三种 mode 跑通；findings 带 verify_result；成本预检；SSE |

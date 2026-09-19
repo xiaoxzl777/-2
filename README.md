@@ -26,7 +26,10 @@ Copy-Item .env.example .env
 # 2. Redis：启动本机 Redis；本机没装就用容器
 docker compose up -d redis
 
-# 3. 后端（首次启动会自动建库建表，无需手动执行 SQL）
+# 3. 建库建表：在 MySQL 客户端中执行 backend\sql\schema.sql（全新库执行一次）
+#    或命令行：cmd /c "mysql -uroot -p < backend\sql\schema.sql"
+
+# 4. 后端
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -34,7 +37,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload      # http://localhost:8000/docs
                                    # 自检：http://localhost:8000/api/v1/health
 
-# 4. 前端（M2 起）
+# 5. 前端（M2 起）
 cd ..\frontend
 npm install
 npm run dev                        # Vite 代理 /api 到 8000
@@ -50,7 +53,8 @@ docker compose up -d --build       # mysql + redis + backend + nginx，http://lo
 
 ```
 backend/app/     api · services · parser · diagnose · matching · interview · retrieval · graphs · llm · cache
-backend/scripts/ init_db · seed · build_ontology · gen_eval_set · run_eval
+backend/sql/     schema.sql（建库建表，由 scripts/dump_schema.py 从 models.py 生成）
+backend/scripts/ dump_schema · seed · build_ontology · gen_eval_set · run_eval
 backend/tests/
 data/            skills_seed.csv · jd.jsonl · cases.jsonl · resumes/ · uploads/ · chroma/ · eval_runs/
 docs/            设计文档

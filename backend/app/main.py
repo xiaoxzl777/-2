@@ -10,12 +10,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
 from app import __version__
 from app.cache import redis_client as rc
 from app.config import settings
-from app.database import engine, ensure_database
+from app.database import engine
+from app.models import Base
 
 logger = logging.getLogger("app")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
@@ -41,10 +42,17 @@ def cleanup_interrupted_tasks() -> dict[str, int]:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # 依赖连不上就直接退出，不带病运行
+    # 表结构由 backend/sql/schema.sql 手动建立，服务只检查、不建表
     try:
-        tables = ensure_database()
+        tables = set(inspect(engine).get_table_names())
     except Exception as e:
-        raise RuntimeError(f"MySQL 连接失败，请检查 .env 的 DATABASE_URL 与 MySQL 是否启动：{e}") from e
+        raise RuntimeError(
+            "MySQL 连接失败。请检查：MySQL 是否启动、.env 的 DATABASE_URL 是否正确、"
+            f"是否已执行 backend/sql/schema.sql 建库：{e}"
+        ) from e
+    missing = sorted(set(Base.metadata.tables) - tables)
+    if missing:
+        raise RuntimeError(f"数据库缺少表 {missing}。请在 MySQL 中执行 backend/sql/schema.sql。")
     try:
         rc.ping()
     except Exception as e:
