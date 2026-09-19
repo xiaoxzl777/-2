@@ -53,3 +53,45 @@ def image_only_pdf(tmp_path) -> Path:
 @pytest.fixture
 def encrypted_pdf(tmp_path) -> Path:
     return make_pdf(tmp_path / "enc.pdf", [(40, 100, "secret resume " * 20, 10.5, "helv")], encrypt=True)
+
+# ───────────── 接口测试：SQLite 内存库替换 MySQL，不跑 lifespan（因此也不需要 Redis）─────────────
+
+
+@pytest.fixture
+def db_session_factory():
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+
+    from app.models import Base
+
+    # StaticPool：所有连接共用同一个内存库；接口在线程池里执行，所以关掉同线程检查
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    yield sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    engine.dispose()
+
+
+@pytest.fixture
+def client(db_session_factory):
+    from fastapi.testclient import TestClient
+
+    from app.database import get_db
+    from app.main import app
+
+    def override_get_db():
+        db = db_session_factory()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    yield TestClient(app)  # 不用 with：不触发 lifespan 里的 MySQL / Redis 检查
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def auth_headers(client) -> dict:
+    r = client.post("/api/v1/auth/register", json={"username": "tester", "password": "secret123"})
+    return {"Authorization": f"Bearer {r.json()['data']['access_token']}"}
