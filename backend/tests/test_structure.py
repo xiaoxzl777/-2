@@ -196,3 +196,19 @@ def test_structure_and_blocks_are_private(client, auth_headers, single_column_pd
     other = client.post("/api/v1/auth/register", json={"username": "someone_else", "password": "secret123"})
     headers = {"Authorization": f"Bearer {other.json()['data']['access_token']}"}
     assert client.get(f"/api/v1/resumes/{rid}/{path}", headers=headers).status_code == 404
+
+def test_skill_mentions_are_indexed_when_the_dictionary_is_seeded(client, auth_headers, db_session_factory, single_column_pdf):
+    from app.models import Skill
+    from tests.conftest import upload_pdf
+
+    with db_session_factory() as db:
+        db.add_all([Skill(canonical_name="Spring Boot", category="backend", aliases=["SpringBoot"]),
+                    Skill(canonical_name="Redis", category="database", aliases=[])])
+        db.commit()
+    rid = upload_pdf(client, auth_headers, single_column_pdf).json()["data"]["id"]
+
+    data = client.get(f"/api/v1/resumes/{rid}/structure", headers=auth_headers).json()["data"]
+    mentions = data["skill_mentions"]
+    # single_column_pdf 的 6 条项目描述里每条都写了 "Spring Boot 与 Redis"
+    assert len(mentions) == 12 and {m["surface"] for m in mentions} == {"Spring Boot", "Redis"}
+    assert {m["section_type"] for m in mentions} == {"projects"} and {m["matched_by"] for m in mentions} == {"dict"}

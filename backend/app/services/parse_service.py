@@ -13,12 +13,14 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.llm.client import LLMClient, LLMError
+from app.matching.skill_dict import annotate_skills
 from app.models import ParsedBlock, Resume
 from app.parser.extract import EncryptedPdfError, ScannedPdfError, extract_pdf
 from app.parser.layout import LayoutResult, analyze_layout
 from app.parser.pii import extract_basics
 from app.parser.section import Section, detect_sections
 from app.parser.structure import extract_structure
+from app.services.skill_service import load_skill_dict
 
 logger = logging.getLogger("app.parse")
 
@@ -53,6 +55,8 @@ def parse_resume(resume_id: int, session_factory: SessionFactory, llm: LLMClient
         else:
             # 个别章节抽取失败不算整体失败：其余章节照常可用，失败原因留在 structure 里供排查
             structure = {**structured.structure, "extraction_errors": structured.errors}
+            section_dicts = [s.to_dict() for s in sections]
+            annotate_skills(structure, layout.full_text, section_dicts, load_skill_dict(db))
             _save_result(db, resume, layout, sections, structure, extracted.page_count, extracted.ats_signals)
 
 
