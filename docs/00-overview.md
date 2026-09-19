@@ -9,7 +9,7 @@
 
 本科毕业设计（2026-09 启动，预计 2027-05 答辩），定位为**能撑起 AI 应用开发岗位面试的简历项目**。导师给定范围为「AI 应用开发」。
 
-产品主线（求职者闭环）：
+产品主线（求职者闭环，**JD 优先**；完整流程与两张 LangGraph 图见 [06-workflows](06-workflows.md)）：
 
 ```
 上传简历 ──► 解析 ──► 诊断（简历写得好不好）
@@ -53,7 +53,7 @@
 | 对话模型 | DeepSeek `deepseek-chat`（LangChain `ChatDeepSeek`）；结构化输出 `with_structured_output(method="json_mode", include_raw=True)`；面试问题用流式 |
 | Embedding | 硅基流动 `BAAI/bge-m3`：RAG 第一阶段召回（改写案例库、面试附加材料） |
 | Reranker | 硅基流动 `BAAI/bge-reranker-v2-m3`：RAG 第二阶段精排（召回 top-20 → 精排 top-3），可开关 |
-| AI 编排 | LangGraph（诊断工作流）；面试为跨 HTTP 请求的多轮状态机，状态存 DB（见 4.9） |
+| AI 编排 | LangGraph 两张图：图 A 投递流水线（parse / diagnose / match 三个子图，并行 + 条件边）；图 B 模拟面试（`interrupt()` 等人输入 + `SqliteSaver` 检查点） |
 | 存储 | MySQL 8.0 + Chroma 嵌入式 + Redis（缓存 / 限流 / SSE 推送；checkpoint 本期不启用） |
 | 异步 | FastAPI BackgroundTasks（解析、诊断、匹配），`uvicorn --workers 1`；面试逐轮为同步流式响应 |
 | 部署 | Nginx 反向代理 + Docker Compose；开发期本地跑 API / 前端 |
@@ -64,7 +64,7 @@
 
 ```
 DiagnoseState.mode   rule_only / llm_only / hybrid        架构消融
-MatchState.mode      dict_only / llm_only / hybrid        匹配消融
+match_mode           dict_only / llm_fulltext / llm_rag / hybrid   匹配消融（含 RAG 对照）
 use_rag / use_rerank  无检索 / 仅召回 / 召回+精排             RAG 检索消融
 MODEL_REGISTRY       deepseek-chat / 硅基流动托管 Qwen      模型对比（可选）
 ```

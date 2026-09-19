@@ -141,34 +141,6 @@ CREATE TABLE IF NOT EXISTS diagnoses (
 )ENGINE=InnoDB CHARSET=utf8mb4;
 CREATE INDEX idx_resume ON diagnoses (resume_id, created_at);
 
--- match_reports
-CREATE TABLE IF NOT EXISTS match_reports (
-  id BIGINT NOT NULL AUTO_INCREMENT, 
-  resume_id BIGINT NOT NULL, 
-  job_id BIGINT NOT NULL, 
-  status ENUM('pending','running','success','failed') NOT NULL DEFAULT 'pending', 
-  error_msg VARCHAR(200), 
-  overall_match NUMERIC(5, 2), 
-  passed BOOL COMMENT 'overall_match >= SCREEN_THRESHOLD', 
-  dimension_scores JSON, 
-  items JSON COMMENT '逐项匹配明细', 
-  gap_summary TEXT, 
-  mode ENUM('dict_only','llm_only','hybrid') NOT NULL DEFAULT 'hybrid', 
-  model_name VARCHAR(50), 
-  prompt_version VARCHAR(20), 
-  llm_item_count INTEGER NOT NULL COMMENT 'LLM 判定的要求项数' DEFAULT '0', 
-  hallucination_count INTEGER NOT NULL COMMENT '其中引用无法定位的条数' DEFAULT '0', 
-  cost NUMERIC(10, 6) NOT NULL DEFAULT '0', 
-  started_at DATETIME, 
-  finished_at DATETIME, 
-  created_at DATETIME NOT NULL DEFAULT now(), 
-  PRIMARY KEY (id), 
-  FOREIGN KEY(resume_id) REFERENCES resumes (id) ON DELETE CASCADE, 
-  FOREIGN KEY(job_id) REFERENCES jobs (id) ON DELETE CASCADE
-)ENGINE=InnoDB CHARSET=utf8mb4;
-CREATE INDEX idx_job ON match_reports (job_id);
-CREATE INDEX idx_resume_job ON match_reports (resume_id, job_id);
-
 -- parsed_blocks
 CREATE TABLE IF NOT EXISTS parsed_blocks (
   id BIGINT NOT NULL AUTO_INCREMENT, 
@@ -219,6 +191,36 @@ CREATE TABLE IF NOT EXISTS findings (
 )ENGINE=InnoDB CHARSET=utf8mb4;
 CREATE INDEX idx_diagnosis ON findings (diagnosis_id, severity);
 CREATE INDEX idx_verify ON findings (diagnosis_id, verify_result);
+
+-- match_reports
+CREATE TABLE IF NOT EXISTS match_reports (
+  id BIGINT NOT NULL AUTO_INCREMENT, 
+  resume_id BIGINT NOT NULL, 
+  job_id BIGINT NOT NULL, 
+  status ENUM('pending','running','success','failed') NOT NULL DEFAULT 'pending', 
+  error_msg VARCHAR(200), 
+  overall_match NUMERIC(5, 2), 
+  passed BOOL COMMENT 'overall_match >= SCREEN_THRESHOLD', 
+  dimension_scores JSON, 
+  items JSON COMMENT '逐项匹配明细', 
+  gap_summary TEXT, 
+  diagnosis_id BIGINT COMMENT '同一次投递产生的诊断，未通过说明要用', 
+  mode ENUM('dict_only','llm_fulltext','llm_rag','hybrid') NOT NULL DEFAULT 'hybrid', 
+  model_name VARCHAR(50), 
+  prompt_version VARCHAR(20), 
+  llm_item_count INTEGER NOT NULL COMMENT 'LLM 判定的要求项数' DEFAULT '0', 
+  hallucination_count INTEGER NOT NULL COMMENT '其中引用无法定位的条数' DEFAULT '0', 
+  cost NUMERIC(10, 6) NOT NULL DEFAULT '0', 
+  started_at DATETIME, 
+  finished_at DATETIME, 
+  created_at DATETIME NOT NULL DEFAULT now(), 
+  PRIMARY KEY (id), 
+  FOREIGN KEY(resume_id) REFERENCES resumes (id) ON DELETE CASCADE, 
+  FOREIGN KEY(job_id) REFERENCES jobs (id) ON DELETE CASCADE, 
+  FOREIGN KEY(diagnosis_id) REFERENCES diagnoses (id) ON DELETE SET NULL
+)ENGINE=InnoDB CHARSET=utf8mb4;
+CREATE INDEX idx_job ON match_reports (job_id);
+CREATE INDEX idx_resume_job ON match_reports (resume_id, job_id);
 
 -- interview_sessions
 CREATE TABLE IF NOT EXISTS interview_sessions (

@@ -25,6 +25,7 @@ frontend/.vite/
 data/uploads/*
 data/chroma/*
 data/eval_runs/*
+data/checkpoints.sqlite*
 !data/uploads/.gitkeep
 !data/chroma/.gitkeep
 !data/eval_runs/.gitkeep

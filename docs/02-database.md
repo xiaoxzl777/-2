@@ -217,7 +217,8 @@ CREATE TABLE match_reports (
   dimension_scores JSON COMMENT '{skill, experience, education, project}',
   items            JSON COMMENT '[{requirement_id, content, status:hit|partial|miss, similarity, matched_evidence, char_start, char_end, match_path, matched_by, suggestion}]',
   gap_summary      TEXT,
-  mode             ENUM('dict_only','llm_only','hybrid') NOT NULL DEFAULT 'hybrid' COMMENT '匹配消融开关',
+  diagnosis_id     BIGINT NULL COMMENT '同一次投递产生的诊断，未通过说明要用',
+  mode             ENUM('dict_only','llm_fulltext','llm_rag','hybrid') NOT NULL DEFAULT 'hybrid' COMMENT '匹配消融开关',
   model_name       VARCHAR(50),
   prompt_version   VARCHAR(20),
   llm_item_count      INT NOT NULL DEFAULT 0 COMMENT 'LLM 判定的要求项数',
@@ -344,11 +345,12 @@ CREATE TABLE llm_calls (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-## 2.3 Chroma（2 个 collection）
+## 2.3 Chroma（3 个 collection）
 
 ```
+resume_units   简历经历（每条 highlight）按简历数   metadata {resume_id, unit_id, char_start, char_end, section_type}；解析完成写入，简历删除时清理
 cases          优秀描述案例      1,000+    metadata {job_category, tech_stack[], source}    仅公开数据
-interview_ctx  面试附加材料切块   按需      metadata {session_id, chunk_idx}；会话结束即删
+interview_ctx  岗位知识库切块     按需      JD 原文 + 公司介绍 + 面经；metadata {session_id, chunk_idx, source}；会话结束即删
 ```
 
 `scripts/build_case_store.py` 幂等重建 `cases`；skills 表与岗位模板由 `backend/sql/seed.sql` 手动导入；`uploads/`、`chroma/`、`.env` 进 `.gitignore`。

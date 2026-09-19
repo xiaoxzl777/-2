@@ -19,11 +19,14 @@ ALTER TABLE skills
 ALTER TABLE match_reports
   DROP COLUMN skill_gap_stats,
   DROP COLUMN use_reranker,
-  ADD COLUMN mode ENUM('dict_only','llm_only','hybrid') NOT NULL DEFAULT 'hybrid' AFTER gap_summary,
+  ADD COLUMN diagnosis_id BIGINT NULL COMMENT '同一次投递产生的诊断，未通过说明要用' AFTER gap_summary,
+  ADD COLUMN mode ENUM('dict_only','llm_fulltext','llm_rag','hybrid') NOT NULL DEFAULT 'hybrid' AFTER diagnosis_id,
   ADD COLUMN model_name VARCHAR(50) NULL AFTER mode,
   ADD COLUMN prompt_version VARCHAR(20) NULL AFTER model_name,
   ADD COLUMN llm_item_count INT NOT NULL DEFAULT 0 COMMENT 'LLM 判定的要求项数' AFTER prompt_version,
-  ADD COLUMN hallucination_count INT NOT NULL DEFAULT 0 COMMENT '其中引用无法定位的条数' AFTER llm_item_count;
+  ADD COLUMN hallucination_count INT NOT NULL DEFAULT 0 COMMENT '其中引用无法定位的条数' AFTER llm_item_count,
+  ADD INDEX diagnosis_id (diagnosis_id),   -- 与全新建库时 MySQL 为外键自动生成的索引同名
+  ADD CONSTRAINT match_reports_ibfk_3 FOREIGN KEY (diagnosis_id) REFERENCES diagnoses(id) ON DELETE SET NULL;
 
 -- findings.rewrite：注释补充 used_rerank（仅注释变化）
 ALTER TABLE findings

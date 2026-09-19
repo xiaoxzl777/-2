@@ -71,10 +71,12 @@ DOCX         → 线性读取（段落与表格按文档流；表格逐单元格
 |---|---|---|---|
 | FR-E1 | JD 录入 | 粘贴原文 → LLM 拆 硬性/加分/软性 要求项，技能类回填 `skill_id`；可选公司名 | P0 |
 | FR-E2 | 内置岗位模板 | 无具体 JD 时可选的通用岗位（后端/前端/算法/测试…，手写 5–8 份公开 JD 风格的模板），以 `jobs.is_template=1` 存 | P1 |
-| FR-E3 | 词典 + LLM 匹配 | ① 同义词词典精确命中（确定、免费）→ ② 未命中的要求项交 LLM 判定 hit/partial/miss，**必须逐字引用简历原文**，经 `locate_span` 校验，校验失败按 miss 处理；`mode ∈ {dict_only, llm_only, hybrid}` 供消融 | P0 |
+| FR-E3 | 词典 + RAG + LLM 匹配 | ① 同义词词典精确命中（确定、免费）→ ② 未命中的要求项：到简历经历库 `resume_units` 召回 top-10 → reranker 精排 top-3 → LLM 判定 hit/partial/miss 并指出依据是哪条经历（证据自带 char 区间）→ ③ 判为 miss 的用简历全文复核一次；`mode ∈ {dict_only, llm_fulltext, llm_rag, hybrid}` 供消融 | P0 |
 | FR-E4 | 逐项匹配 | 命中/部分/缺失，证据取自 `skill_mentions` | P0 |
 | FR-E5 | 匹配度评分 | 技能/经验/学历/项目四维 + 总分；学历与年限由 `degree_level()` / `experience_years()` 从 structure 算 | P0 |
 | FR-E6 | 差距分析 | 缺失项 + 补齐建议 | P1 |
+| FR-E8 | **一键投递** | `POST /apply {resume_id, job_id}`：后台跑图 A（需要时解析 → 诊断与匹配并行 → 初筛），SSE 推进度；诊断由此自动触发并带上岗位名 | P0 |
+| FR-E9 | 未通过说明 | 「哪里不符合」= 匹配差距 + 诊断 findings 合并排序；每条可跳原文高亮与改写 | P0 |
 | FR-E7 | **初筛门槛** | `overall_match ≥ SCREEN_THRESHOLD`（默认 60）为"通过"；未通过展示差距与改写入口，**允许以练习模式进入面试** | P0 |
 
 ### F. 改写
@@ -93,10 +95,10 @@ DOCX         → 线性读取（段落与表格按文档流；表格逐单元格
 | FR-I1 | 创建会话 | 输入 `resume_id`、`job_id`（必）、`company_name`（选）、`extra_context`（选：面经/公司介绍，≤20,000 字）；须已有该 简历-JD 的匹配报告 | P0 |
 | FR-I2 | 初筛结果 | 返回 `gate:{passed, overall_match, threshold}`；未通过时 `mode='practice'` | P0 |
 | FR-I3 | 面试计划 | 一次 LLM 调用生成 `plan.topics[]`：每个话题带 `round`、`intent`、`linked_type/linked_id`（来源：finding / requirement / project）、`budget`（题数）；`extra_context` 超 3,000 字时切块向量化，按话题检索 top-3 片段注入 | P0 |
-| FR-I4 | 逐题对话 | 用户作答 → 评估（rubric + 逐字引用回答）→ 决策（追问 ≤2 层 / 下一话题 / 结束本轮）→ 下一问流式返回 | P0 |
+| FR-I4 | 逐题对话 | 图 B：出题前到 `resume_units` 与 `interview_ctx` 各检索 top-3 → 流式出题 → `interrupt()` 等回答 → 评估（rubric + 逐字引用回答）→ 纯函数决策（追问 ≤2 层 / 下一话题 / 结束本轮） | P0 |
 | FR-I5 | 两轮 persona | `tech → hr` 顺序；各自 system prompt 与 rubric；每轮题数上限可配（默认 8 / 6） | P0 |
-| FR-I6 | 面试报告 | 每轮分数、综合结论（通过 / 待提升）、逐题回顾（问题 / 回答 / 评分 / 依据 / 更好的答法）、与简历薄弱点的关联 | P0 |
-| FR-I7 | 中断续答 | 状态在 DB，刷新可继续；24h 无活动 → `abandoned` 并按已答题出报告 | P1 |
+| FR-I6 | 面试报告 | `verdict ∈ {pass, fail, practice}` 决定开头话术（恭喜通过 / 很遗憾 / 练习模式不下结论），三种情况的总结**同样完整**：每轮分数、逐题回顾（问题 / 回答 / 评分 / 依据 / 更好的答法）、与简历薄弱点的关联 | P0 |
+| FR-I7 | 中断续答 | LangGraph 检查点（`SqliteSaver`，thread_id=`interview:{id}`）续跑；MySQL 为权威记录，检查点丢失时由 turns 重建；24h 无活动 → `abandoned` 并按已答题出报告 | P1 |
 | FR-I8 | 异常处理 | 空答 / 跑题 / "跳过" → 面试官按策略处理（提示一次后换题）；单场成本上限 | P1 |
 | FR-I9 | 语音 | 本期不做 | 未来工作 |
 

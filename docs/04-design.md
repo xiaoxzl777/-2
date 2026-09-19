@@ -27,7 +27,7 @@ basics 抽取 / 规则诊断 / 证据校验 / 综合评分 / 时间归一化 / �
 面试：轮次推进（tech→hr）、追问层数上限、题数预算、每轮与综合分数的聚合、通过判定 —— 全部确定性逻辑
 ```
 
-## 4.3 解析流水线（上传期 BackgroundTask，顺序函数）
+## 4.3 解析流水线（图 A 的 parse 子图，见 [06-workflows](06-workflows.md) 6.2）
 
 ```
 extract → (扫描件判定) → layout（PDF：页眉页脚/表格/region-first/阅读顺序/项目符号分块；DOCX：线性）
@@ -35,7 +35,7 @@ extract → (扫描件判定) → layout（PDF：页眉页脚/表格/region-firs
 → section → basics（本地）→ structure（LLM 回 block_ids → 服务端切片）→ normalize → mentions → persist（同一事务）
 ```
 
-## 4.4 诊断工作流（LangGraph）
+## 4.4 诊断工作流（图 A 的 diagnose 子图，见 06-workflows 6.2）
 
 ```
 rule_scan（mode=llm_only → []）
@@ -90,11 +90,12 @@ class DiagnoseState(TypedDict):
 | 应用点 | 检索什么 | 结果给谁 | 完整 RAG |
 |---|---|---|---|
 | 改写 few-shot | `cases`：metadata 过滤（job_category）→ embedding 召回 top-20 → reranker 精排 top-3 | LLM | ✅ |
-| 面试附加材料 | `interview_ctx`（用户粘贴的面经/公司介绍切块）：embedding 召回 top-10 → reranker 精排 top-3 | 面试计划 / 下一问 LLM | ✅ |
+| 匹配判定 | `resume_units`（简历每条经历）：embedding 召回 top-10 → reranker 精排 top-3 | LLM 判定要求项是否命中 | ✅ |
+| 面试出题 | `resume_units` + `interview_ctx`（JD 原文 / 公司介绍 / 面经切块）：各自 embedding 召回 top-10 → reranker 精排 top-3 | 面试计划 / 下一问 LLM | ✅ |
 
-两处共用 `retrieval/retriever.py` 的同一条链路：**切块 → 向量化入库 → 召回（embedding）→ 精排（reranker，cross-encoder）→ 注入 prompt**。
+三处共用 `retrieval/retriever.py` 的同一条链路：**切块 → 向量化入库 → 召回（embedding）→ 精排（reranker，cross-encoder）→ 注入 prompt**。
 为什么要两阶段：embedding 是双塔模型，query 与文档各自编码，快但粗；reranker 把 query 与每个候选拼在一起过模型，准但慢——所以先用前者把上千条缩到 20 条，再用后者挑 3 条。
-reranker 失败或关闭时退化为直接取召回 top-3，功能不中断。技能匹配不走这条链路（见 5.6）。
+reranker 失败或关闭时退化为直接取召回 top-3，功能不中断。
 
 **"模拟某家公司"的信息来源**：LLM 不依赖对公司的先验记忆。必填 JD（用户粘贴）给出"这家公司要什么"；可选 `company_name` + `extra_context`（面经、公司/部门介绍）给出"这家公司怎么问"；没有 JD 时用内置岗位模板。面试官 persona 的 system prompt 显式写入这些材料。
 
@@ -123,7 +124,9 @@ client.embed / client.rerank 同样五步；降级：失败记 WARNING，不阻�
 
 成本：单份诊断约 0.01–0.02 元；单场面试（约 14 题 × 2 次 + 计划 + 报告 ≈ 30 次）约 0.04–0.08 元。
 
-## 4.9 模拟面试状态机（interview_service，跨请求，状态存 DB）
+## 4.9 模拟面试（图 B：LangGraph interrupt + SqliteSaver，见 06-workflows 6.3）
+
+下面的推进规则仍然有效，只是由图 B 的 `decide` / `round_summary` 纯函数节点实现，状态游标在检查点里、问答记录在 MySQL。
 
 ```
 创建  POST /interviews
@@ -151,7 +154,7 @@ client.embed / client.rerank 同样五步；降级：失败记 WARNING，不阻�
 放弃  启动清理：last_active_at < now-24h 且 in_progress → 按已答题聚合出报告 → abandoned
 ```
 
-**为什么不用 LangGraph 做面试**：面试每一轮是一个独立 HTTP 请求，状态必须持久化在请求之间——DB 天然就是检查点；LangGraph 的价值在单次执行内的并行与循环（诊断图正是这种），面试逐轮没有并行，套图只增加一层抽象。答辩时这是一个"知道什么时候不用框架"的加分回答。
+**结论更正（v4）**：此前决定不用 LangGraph 做面试，理由是 Redis 检查点依赖 Redis Stack。`SqliteSaver` 为本地文件、零部署，该理由不成立；`interrupt()` 正是为「停下来等人输入」设计的。现改为图 B，详见 06-workflows 6.3。
 
 ## 4.10 面试 Prompt 骨架
 
@@ -244,11 +247,11 @@ extract_mentions(full_text, sections, structure)：
 
 JD 要求项 ↔ 简历：
   ① 词典路（确定、免费）：要求项有 skill_id 且 skill_mentions 中存在同 skill_id → hit，matched_by='dict'，证据取 mention 区间
-  ② LLM 路：其余要求项（含上下位、近义、经验类描述）合并为一次调用，输入为要求项列表 + 掩码后的简历正文；
-     逐项输出 {requirement_id, status: hit|partial|miss, evidence_quote, reason}
-     hit/partial 必须给 evidence_quote → locate_span 校验；校验失败 → 带反馈重试 1 次 → 仍失败按 miss 记，并计入 hallucination_count
-     matched_by='llm'
-  mode：dict_only 跳过 ②（未命中即 miss）；llm_only 跳过 ①；hybrid 两者都走
+  ② RAG + LLM 路：其余要求项逐条 → resume_units 召回 top-10 → reranker 精排 top-3 → LLM 判定
+     输出 {status: hit|partial|miss, unit_id, reason}；证据即该 unit 的 char 区间（unit_id 不在候选内 → 计入 hallucination_count 并按 miss）
+     matched_by='rag'
+  ③ 复核：② 判为 miss 的，用掩码后的简历全文让 LLM 复核一次，hit/partial 须给 evidence_quote 并经 locate_span 校验；matched_by='fulltext'
+  mode：dict_only / llm_fulltext / llm_rag / hybrid，见 06-workflows 6.2
 为什么不建本体树：上下位知识（Spring Boot 属于 Java 生态）LLM 本来就有，手工建树覆盖面永远不够；
   词典只保留「同一技能的不同写法」这种确定性最高、LLM 也无需判断的部分。与诊断模块同一原则：确定的先上，模糊的交给 LLM，LLM 输出必须可验证。
 degree_level(structure)∈{0..4}；experience_years(structure) = work[] 区间合并求和
@@ -299,8 +302,8 @@ backend/app/
 ├── diagnose/   rules.py evidence.py ★ scorer.py placeholders.py
 ├── matching/   skill_dict.py ★（extract_mentions） matcher.py ★ gap_analysis.py profile.py
 ├── interview/  planner.py（计划 prompt 组装与解析） rubric.py（评估 schema 与聚合） policy.py（推进规则）
-├── retrieval/  chroma_client.py retriever.py ★（召回 + 精排） case_store.py ctx_store.py
-├── graphs/     state.py diagnose_graph.py nodes.py
+├── retrieval/  chroma_client.py retriever.py ★（召回 + 精排） unit_store.py case_store.py ctx_store.py
+├── graphs/     state.py apply_graph.py（图 A）parse_graph.py diagnose_graph.py match_graph.py interview_graph.py（图 B）nodes/ checkpoint.py
 ├── llm/        client.py ★ registry.py prompts.py
 ├── cache/      redis_client.py llm_cache.py ratelimit.py pubsub.py
 └── tasks.py
@@ -319,7 +322,7 @@ frontend/src/
 
 ```
 ① LLM/embedding/rerank 缓存（面试逐轮调用不缓存）   ② 限流令牌桶   ③ 后台任务 SSE pub/sub
-④ LangGraph checkpoint：本期不启用
+④ LangGraph checkpoint：不用 Redis；图 B 用 `SqliteSaver`（`data/checkpoints.sqlite`）
 Redis 与 MySQL 同为必需依赖，启动 ping 失败即退出；运行期唯一容错：llm_cache get/set 异常按 miss。
 ```
 

@@ -312,9 +312,15 @@ class MatchReport(Base):
     items: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, comment="逐项匹配明细")
     gap_summary: Mapped[str | None] = mapped_column(Text)
 
+    diagnosis_id: Mapped[int | None] = mapped_column(
+        ForeignKey("diagnoses.id", ondelete="SET NULL"), comment="同一次投递产生的诊断，未通过说明要用"
+    )
+
     # 实验参数与统计（匹配消融）
     mode: Mapped[str] = mapped_column(
-        Enum("dict_only", "llm_only", "hybrid", name="match_mode"), nullable=False, server_default="hybrid"
+        Enum("dict_only", "llm_fulltext", "llm_rag", "hybrid", name="match_mode"),
+        nullable=False,
+        server_default="hybrid",
     )
     model_name: Mapped[str | None] = mapped_column(String(50))
     prompt_version: Mapped[str | None] = mapped_column(String(20))

@@ -22,7 +22,7 @@
 | 50002 | LLM 调用失败 | 500 |
 | 50003 | 简历解析失败（含扫描件） | 500 |
 
-## 3.2 接口清单（24 个）
+## 3.2 接口清单（25 个）
 
 ```
 认证 3    POST /auth/register   POST /auth/login   GET /auth/me
@@ -33,7 +33,9 @@
 
 诊断 3    POST /resumes/{id}/diagnose      {mode, model?} → {id, task_id:"diagnose:{id}"}
           GET  /resumes/{id}/diagnosis     ?diagnosis_id=
-          GET  /tasks/{kind}/{id}/stream   kind ∈ {parse, diagnose, match}
+          GET  /tasks/{kind}/{id}/stream   kind ∈ {parse, diagnose, match, apply}
+
+投递 1    POST /apply  {resume_id, job_id, diagnose_mode?, match_mode?} → {match_report_id, task_id:"apply:{id}"}   图 A
 
 匹配 4    POST /jobs   {title, company?, raw_text}         GET /jobs   ?include_templates=1
           POST /match  {resume_id, job_id, mode?} → {id, task_id:"match:{id}"}
@@ -54,7 +56,7 @@
 ## 3.3 异步任务与 SSE 契约
 
 ```
-后台任务   task_id="{kind}:{id}"，kind ∈ {parse, diagnose, match}；Redis pub/sub channel task:{kind}:{id}
+后台任务   task_id="{kind}:{id}"，kind ∈ {parse, diagnose, match, apply}；apply 的 stage ∈ parsing/diagnosing/matching/gate；Redis pub/sub channel task:{kind}:{id}
            event: progress {"stage","percent","message"} / done {"kind","id","status"} / error {"code","message"}
            兜底：SSE 连不上或 30s 无事件 → 每 3s 轮询对应资源 status
 面试逐轮   同步流式响应（POST + text/event-stream），不经 pub/sub：

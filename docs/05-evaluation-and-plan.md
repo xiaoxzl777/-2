@@ -9,9 +9,9 @@
 | M2 | 结构化 + 后端骨架 | 1 周 | 上传 → structure（block_ids、summary、skill_mentions）；**Upload 页** |
 | M3 | 诊断引擎 | 1.5 周 | 三种 mode 跑通；findings 带 verify_result；成本预检；SSE |
 | M4 | 分析主界面 | 1 周 | **Analysis 页**：文本高亮 + FindingPanel 联动 |
-| M5 | 匹配 + 初筛 | 1 周 | 词典 + LLM 匹配三种 mode 跑通；匹配报告含 passed 与逐项证据；岗位模板；**JobMatch 页** |
+| M5 | 匹配 + 初筛 + 图 A | 1.5 周 | resume_units 入库；match 子图四种 mode 跑通；图 A（并行 + 条件边）+ `POST /apply` + SSE 进度；未通过说明；岗位模板；**首页（JD → 简历 → 投递）与初筛结果页** |
 | M6 | 案例库 + 改写 | 1 周 | 进入条件 cases ≥100；rewrite 接口 + 占位符复检；**Rewrite 页** |
-| M7 | 模拟面试 | 2 周 | 计划 / 逐轮 / 评估 evidence 校验 / 报告 / 续答 / 24h 清理；**Interview、InterviewReport 页** |
+| M7 | 模拟面试（图 B） | 2 周 | interrupt + SqliteSaver；两库检索出题；评估 evidence 校验；三种 verdict 报告；续答 / 检查点重建 / 24h 清理；**Interview、InterviewReport 页** |
 | M8 | 评测 + 消融 | 1.5 周 | 必做四组 + 面试模块评测（8.4） |
 | M9 | 部署 + 打磨 | 0.5 周 | compose 一键起；Nginx SSE 验证 |
 
@@ -39,7 +39,7 @@ JD 与案例采集在 M1–M4 用碎片时间并行。每个里程碑完成后�
 ```
 必做
  (1) 解析三路对照（仅 PDF）
- (2) 匹配消融：30 对简历-JD ≈ 300 条要求项人工标 hit/partial/miss；dict_only / llm_only / hybrid 三组与人工标注的一致率、LLM 引用拦截率、单次成本
+ (2) 匹配消融：30 对简历-JD ≈ 300 条要求项人工标 hit/partial/miss；dict_only / llm_fulltext / llm_rag / hybrid 四组与人工标注的一致率、证据定位成功率、单次成本；另报 llm_rag 的检索命中率（标注证据所在经历是否进入 top-3）
  (3) 溯源：拦截率、定位准确率（降质集）、残留幻觉率（人工）
  (4) 架构消融：rule_only / llm_only / hybrid，分「规则类子集 / 语义类子集」两张表
 可选
