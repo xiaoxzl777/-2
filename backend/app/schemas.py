@@ -233,3 +233,51 @@ class JobBrief(BaseModel):
 class JobOut(JobBrief):
     raw_text: str
     requirements: list[RequirementOut]
+
+
+# ───────────── 匹配 ─────────────
+
+
+class MatchIn(BaseModel):
+    resume_id: int
+    job_id: int
+    mode: Literal["dict_only", "llm_fulltext", "llm_rag", "hybrid"] = "hybrid"
+    model: str | None = None
+
+
+class MatchItemOut(BaseModel):
+    requirement_id: int
+    content: str
+    req_type: str
+    category: str
+    weight: float
+    skill: str | None
+    status: str                 # hit / partial / miss
+    matched_by: str | None      # dict / profile / rag / fulltext
+    reason: str
+    evidence_quote: str | None  # 简历原文：full_text[char_start:char_end]
+    char_start: int | None
+    char_end: int | None
+    unit_id: str | None
+
+
+class MatchReportOut(BaseModel):
+    id: int
+    resume_id: int
+    job_id: int
+    status: str
+    error_msg: str | None
+    mode: str
+    model_name: str | None
+    prompt_version: str | None
+    overall_match: float | None
+    passed: bool | None
+    threshold: float            # 初筛线：overall_match 达到它即通过
+    dimension_scores: dict | None
+    items: list[MatchItemOut]
+    llm_item_count: int
+    hallucination_count: int
+    diagnosis_id: int | None
+    cost: float
+    started_at: datetime | None
+    finished_at: datetime | None

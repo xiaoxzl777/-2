@@ -41,8 +41,10 @@
                                                            每条要求带 JD 原文引用 quote 与 char 区间；定位不到的丢弃；失败则不保存
           GET  /jobs   ?include_templates=1               GET /jobs/{id}        DELETE /jobs/{id}（软删除；模板不可删）
 
-匹配 2    POST /match  {resume_id, job_id, mode?} → {id, task_id:"match:{id}"}
-          GET  /match/{id}                                 含 passed / threshold
+匹配 2    POST /match  {resume_id, job_id, mode?, model?} → {id, task_id:"match:{id}", status}     后台执行，同一对简历-岗位同时只跑一个
+          GET  /match/{id}     → status / overall_match / passed / threshold / dimension_scores / items[]
+                               items[] 每条 = 要求项内容 + status(hit|partial|miss) + matched_by(dict|profile|rag|fulltext)
+                               + reason + 简历原文依据 evidence_quote 与 char 区间
 
 改写 1    POST /findings/{id}/rewrite?use_rag=&use_rerank=
 

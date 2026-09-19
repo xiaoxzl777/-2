@@ -9,7 +9,7 @@ from __future__ import annotations
 from chromadb.api.models.Collection import Collection
 
 from app.diagnose.types import ReviewUnit
-from app.llm.embedding import EmbeddingClient
+from app.llm.embedding import EmbeddingClient, get_embedding_client
 from app.matching.units import Candidate
 
 
@@ -73,3 +73,16 @@ def _embed_text(unit: ReviewUnit, masked_text: str) -> str:
 
 def _rescored(c: Candidate, score: float) -> Candidate:
     return Candidate(c.unit_id, c.unit_type, c.entry_name, c.char_start, c.char_end, c.text, round(score, 4))
+
+
+_default_store: ResumeUnitStore | None = None
+
+
+def get_unit_store() -> ResumeUnitStore:
+    """FastAPI 依赖。第一次用到时才打开 Chroma：不做匹配的请求不必为它付出启动开销。"""
+    global _default_store
+    if _default_store is None:
+        from app.retrieval.chroma_client import RESUME_UNITS, get_collection
+
+        _default_store = ResumeUnitStore(get_collection(RESUME_UNITS), get_embedding_client())
+    return _default_store

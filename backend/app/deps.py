@@ -30,7 +30,12 @@ def get_owned_resume(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Resume:
-    """所有 /resumes/{resume_id}/... 接口共用。别人的、已删除的简历一律视同不存在（404），不暴露其存在。"""
+    """所有 /resumes/{resume_id}/... 接口共用。"""
+    return load_owned_resume(db, user, resume_id)
+
+
+def load_owned_resume(db: Session, user: User, resume_id: int) -> Resume:
+    """别人的、已删除的简历一律视同不存在（404），不暴露其存在。简历 id 在请求体里的接口（匹配、面试）直接调它。"""
     resume = db.get(Resume, resume_id)
     if resume is None or resume.user_id != user.id or resume.is_deleted:
         raise ApiError(NOT_FOUND, "简历不存在")
@@ -46,6 +51,10 @@ _PARSE_ERROR_MESSAGES = {
 
 
 def get_parsed_resume(resume: Resume = Depends(get_owned_resume)) -> Resume:
+    return require_parsed(resume)
+
+
+def require_parsed(resume: Resume) -> Resume:
     """要用到解析结果的接口（块、结构、诊断、匹配、面试）共用：解析中 → 409，解析失败 → 50003 并说明原因。"""
     if resume.parse_status == "success":
         return resume

@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     SCREEN_THRESHOLD: float = 60.0             # 初筛通过分
     RAG_RECALL_K: int = 20                     # 第一阶段 embedding 召回条数
     RAG_TOP_K: int = 3                         # 第二阶段 rerank 后注入 prompt 的条数
+    MATCH_RECALL_K: int = 10                   # 匹配：一份简历只有十几个单元，召回 10 个再精排
     INTERVIEW_COST_LIMIT: float = 0.3          # 元
     INTERVIEW_TECH_MAX_Q: int = 8
     INTERVIEW_HR_MAX_Q: int = 6
