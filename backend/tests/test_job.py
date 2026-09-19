@@ -5,7 +5,7 @@ from app.llm.client import LLMError
 from app.matching.jd_parser import parse_jd
 from app.matching.skill_dict import SkillDict, SkillEntry
 from app.models import Job, Skill
-from tests.conftest import FakeLLM
+from tests.conftest import FakeLLM, jd_item as _item, jd_reply as _reply
 
 API = "/api/v1/jobs"
 JD = """岗位职责：
@@ -18,14 +18,6 @@ JD = """岗位职责：
 加分项：有高并发项目经验者优先。"""
 
 SKILLS = SkillDict([SkillEntry(1, "Java", ()), SkillEntry(2, "Spring Boot", ("SpringBoot",)), SkillEntry(3, "Redis", ())])
-
-
-def _item(req_type, category, skill, quote, content="c"):
-    return {"req_type": req_type, "category": category, "skill": skill, "quote": quote, "content": content}
-
-
-def _reply(*items) -> str:
-    return json.dumps({"requirements": list(items)}, ensure_ascii=False)
 
 
 GOOD_REPLY = _reply(

@@ -1,11 +1,10 @@
-"""匹配任务：准备检索索引，跑匹配图，把结果落库。
+"""匹配的落库与检索准备。
 
-图（app/graphs/match_graph.py）只做计算；这里负责读简历与岗位、保证这份简历的检索单元已入库、
-把"按要求文本检索"包成一个函数注入给图、判定是否过初筛、写 match_reports。
+匹配图（app/graphs）只做计算；这里负责建记录、保证这份简历的检索单元已入库并把"按要求文本检索"包成函数、
+判定是否过初筛、写 match_reports。跑图由投递流水线（apply_service）负责，跑完调用这里的 save_result。
 """
 from __future__ import annotations
 
-import logging
 from datetime import datetime
 
 from sqlalchemy import select
@@ -13,16 +12,10 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.errors import CONFLICT, ApiError
-from app.graphs.match_graph import build_match_graph, initial_state
 from app.llm import prompts
-from app.llm.client import LLMClient
 from app.matching.units import build_match_units
 from app.models import Diagnosis, Job, MatchReport, Resume
-from app.parser.pii import mask_pii
 from app.retrieval.unit_store import ResumeUnitStore
-from app.services.parse_service import SessionFactory
-
-logger = logging.getLogger("app.match")
 
 _IN_PROGRESS = ("pending", "running")
 _USES_RETRIEVAL = ("llm_rag", "hybrid")
@@ -40,38 +33,6 @@ def create_match(db: Session, resume: Resume, job: Job, mode: str, model: str | 
     db.add(report)
     db.commit()
     return report
-
-
-def run_match(report_id: int, session_factory: SessionFactory, llm: LLMClient, store: ResumeUnitStore) -> None:
-    """BackgroundTasks 入口。"""
-    with session_factory() as db:
-        report = db.get(MatchReport, report_id)
-        if report is None:
-            return
-        resume, job = db.get(Resume, report.resume_id), db.get(Job, report.job_id)
-        report.status, report.started_at = "running", datetime.now()
-        db.commit()
-
-        try:
-            result = _run_graph(report, resume, job, llm, store)
-        except Exception as e:  # noqa: BLE001 —— 后台任务必须落成失败状态，不能把异常抛丢
-            logger.exception("匹配失败 match_report_id=%s", report_id)
-            db.rollback()
-            report.status, report.error_msg = "failed", f"{type(e).__name__}: {e}"[:200]
-            report.finished_at = datetime.now()
-            db.commit()
-            return
-        save_result(db, report, job, result)
-
-
-def _run_graph(report: MatchReport, resume: Resume, job: Job, llm: LLMClient, store: ResumeUnitStore) -> dict:
-    structure, full_text = resume.structure or {}, resume.full_text or ""
-    masked_text = mask_pii(full_text, name=structure.get("basics", {}).get("name"))
-
-    retrieve = make_retriever(report, resume, masked_text, store)
-    state = initial_state(requirements=job.requirements or [], structure=structure, full_text=full_text,
-                          masked_text=masked_text, mode=report.mode, model=report.model_name, match_report_id=report.id)
-    return build_match_graph(llm, retrieve).invoke(state)
 
 
 def make_retriever(report: MatchReport, resume: Resume, masked_text: str, store: ResumeUnitStore):

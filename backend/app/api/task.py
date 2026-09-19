@@ -19,7 +19,7 @@ from app.cache.pubsub import Subscribe, get_subscriber
 from app.database import get_db, get_session_factory
 from app.deps import get_current_user
 from app.errors import BAD_REQUEST, NOT_FOUND, ApiError
-from app.models import Diagnosis, MatchReport, Resume, User
+from app.models import MatchReport, Resume, User
 from app.services.parse_service import SessionFactory
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -28,11 +28,9 @@ POLL_SECONDS = 1.0              # 等频道消息的超时，也就是查库的�
 HEARTBEAT_SECONDS = 15          # 多久没有事件就发一条注释行，防止代理把空闲连接掐掉
 MAX_STREAM_SECONDS = 600
 
-# kind → (模型, 状态字段)。apply 的 id 就是 match_report 的 id。状态不在"进行中"之列即为结束
+# 后台任务只有两种。kind → (模型, 状态字段)；apply 的 id 就是 match_report 的 id。状态不在"进行中"之列即为结束
 _KINDS = {
     "parse": (Resume, "parse_status"),
-    "diagnose": (Diagnosis, "status"),
-    "match": (MatchReport, "status"),
     "apply": (MatchReport, "status"),
 }
 _IN_PROGRESS = ("pending", "parsing", "running")

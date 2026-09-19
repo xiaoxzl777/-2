@@ -1,5 +1,4 @@
 """检索层：embedding / rerank 客户端（httpx MockTransport，不联网）、匹配单元、Chroma 两阶段检索（内存库 + 假向量）。"""
-import hashlib
 import json
 import uuid
 
@@ -13,6 +12,7 @@ from app.llm.client import LLMError
 from app.llm.embedding import EmbeddingClient
 from app.matching.units import build_match_units
 from app.retrieval.unit_store import ResumeUnitStore
+from tests.conftest import FakeEmbedder
 
 # ───────────── EmbeddingClient ─────────────
 
@@ -92,30 +92,6 @@ def test_match_units_cover_experience_skill_lines_and_awards():
 
 
 # ───────────── 两阶段检索 ─────────────
-
-
-class FakeEmbedder:
-    """字符二元组哈希成 64 维词袋：共用的字越多越相似。重排按与 query 的共有字符数打分。"""
-
-    def __init__(self):
-        self.embedded: list[str] = []
-        self.reranked: list[list[str]] = []
-
-    def embed(self, texts, *, ref=None):
-        self.embedded += list(texts)
-        return [self._vector(t) for t in texts]
-
-    def rerank(self, query, documents, top_n, *, ref=None):
-        self.reranked.append(list(documents))
-        scores = [(i, len(set(query) & set(d)) / len(set(query))) for i, d in enumerate(documents)]
-        return sorted(scores, key=lambda pair: -pair[1])[:top_n]
-
-    @staticmethod
-    def _vector(text: str) -> list[float]:
-        v = [0.0] * 64
-        for a, b in zip(text, text[1:]):
-            v[int(hashlib.md5((a + b).encode()).hexdigest(), 16) % 64] += 1.0
-        return v
 
 
 UNITS_TEXT = "\n".join(["热点商品数据预热至 Redis 缓存，查询响应降至 140ms", "基于 Vue3 开发后台管理页面",

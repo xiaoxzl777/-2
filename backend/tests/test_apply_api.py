@@ -1,29 +1,12 @@
 """投递接口测试：一次请求跑完 诊断 + 匹配 + 初筛，验证两条记录的落库、进度事件、未通过说明。"""
-import pytest
-
-from app.cache.pubsub import get_publisher
 from app.llm.client import LLMError
 from app.models import Diagnosis, MatchReport
-from tests.test_diagnose_api import H_VAGUE, _reply as _review
-from tests.test_match_api import _full, _judge, resume_and_job, store  # noqa: F401 —— 复用那边的 fixture
+from tests.conftest import H_VAGUE, apply as _apply, fulltext_reply as _full, judge_reply as _judge, review_reply as _review
 
 API = "/api/v1/apply"
 
 
-@pytest.fixture
-def events(client):
-    from app.main import app
-
-    collected: list[tuple[str, str, dict]] = []
-    app.dependency_overrides[get_publisher] = lambda: lambda task_id, event, data: collected.append((task_id, event, data))
-    return collected
-
-
-def _apply(client, headers, rid, jid, **extra):
-    return client.post(API, headers=headers, json={"resume_id": rid, "job_id": jid, **extra}).json()
-
-
-def test_apply_runs_diagnosis_and_match_then_gates(client, auth_headers, resume_and_job, fake_llm, events):  # noqa: F811
+def test_apply_runs_diagnosis_and_match_then_gates(client, auth_headers, resume_and_job, fake_llm, events):
     rid, jid = resume_and_job
     fake_llm.replies[f"_ReviewOut:{H_VAGUE}"] = [_review(("vague", "medium", "持续改进各项功能"))]
     fake_llm.replies["_JudgeOut:有缓存性能优化经验"] = [_judge("hit", 1)]
@@ -59,7 +42,7 @@ def test_apply_runs_diagnosis_and_match_then_gates(client, auth_headers, resume_
     assert percents == sorted(percents)
 
 
-def test_failed_gate_lists_gaps_by_importance(client, auth_headers, resume_and_job, fake_llm, events, monkeypatch):  # noqa: F811
+def test_failed_gate_lists_gaps_by_importance(client, auth_headers, resume_and_job, fake_llm, events, monkeypatch):
     from app.config import settings
 
     monkeypatch.setattr(settings, "SCREEN_THRESHOLD", 70.0)                 # 64.3 分过不了 70 分的线
@@ -76,7 +59,7 @@ def test_failed_gate_lists_gaps_by_importance(client, auth_headers, resume_and_j
     assert events[-1][2]["passed"] is False
 
 
-def test_a_failure_in_either_branch_fails_both_records(client, auth_headers, resume_and_job, fake_llm, events,  # noqa: F811
+def test_a_failure_in_either_branch_fails_both_records(client, auth_headers, resume_and_job, fake_llm, events,
                                                         db_session_factory):
     rid, jid = resume_and_job
     fake_llm.replies["_JudgeOut:熟悉 Kafka"] = [LLMError("上游超时")]
@@ -92,7 +75,7 @@ def test_a_failure_in_either_branch_fails_both_records(client, auth_headers, res
     assert _apply(client, auth_headers, rid, jid, match_mode="dict_only", diagnose_mode="rule_only")["code"] == 0
 
 
-def test_rejections(client, auth_headers, resume_and_job, db_session_factory, events):  # noqa: F811
+def test_rejections(client, auth_headers, resume_and_job, db_session_factory, events):
     rid, jid = resume_and_job
     assert _apply(client, auth_headers, rid, jid, match_mode="fast")["code"] == 40001
     assert _apply(client, auth_headers, rid, jid, diagnose_mode="fast")["code"] == 40001
@@ -106,6 +89,15 @@ def test_rejections(client, auth_headers, resume_and_job, db_session_factory, ev
     other_headers = {"Authorization": f"Bearer {other.json()['data']['access_token']}"}
     apply_id = _apply(client, auth_headers, rid, jid, match_mode="dict_only", diagnose_mode="rule_only")["data"]["id"]
     assert client.get(f"{API}/{apply_id}", headers=other_headers).json()["code"] == 40401
+
+    with db_session_factory() as db:                                       # 同一对简历-岗位已有投递在跑
+        running = MatchReport(resume_id=rid, job_id=jid, status="running", mode="hybrid")
+        db.add(running)
+        db.commit()
+    assert _apply(client, auth_headers, rid, jid)["code"] == 40901
+    with db_session_factory() as db:
+        db.query(MatchReport).filter_by(status="running").delete()
+        db.commit()
 
     with db_session_factory() as db:                                       # 这份简历正在被诊断 → 不留下孤儿匹配记录
         db.add(Diagnosis(resume_id=rid, status="running", mode="hybrid"))

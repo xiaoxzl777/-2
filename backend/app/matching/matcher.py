@@ -22,10 +22,7 @@ _DEGREES = [(4, re.compile(r"博士|ph\.?d", re.I)), (3, re.compile(r"硕士|研
             (2, re.compile(r"本科|学士|bachelor", re.I)), (1, re.compile(r"大专|专科"))]
 _DEGREE_NAMES = {4: "博士", 3: "硕士", 2: "本科", 1: "大专"}
 _YEARS = re.compile(r"(\d{1,2})\s*年")
-# 不携带额外信息的程度词 / 套话；去掉它们之后还剩很多字，说明要求里另有限定（"…索引与事务原理"）
-_FILLER = re.compile(r"熟练掌握|熟练使用|熟悉|掌握|了解|精通|熟练|使用过|使用|具备|具有|相关|开发|技术|框架|经验|能力|基础|"
-                     r"者?优先|加分|等|的|有|会|[\s，。、；：,.;:（）()/+]")
-MAX_PLAIN_RESIDUE = 2
+MAX_PLAIN_EXTRA = 6           # 要求去掉技能名后最多还剩几个字，才算"只是要求会这项技能"
 
 
 @dataclass(slots=True)
@@ -78,10 +75,10 @@ def _match_skill(req: dict, structure: dict, full_text: str) -> MatchItem | None
 
 
 def _is_plain_skill_requirement(req: dict) -> bool:
-    """要求是否只是"会某项技能"：去掉技能名、程度词和标点后基本不剩什么。"""
-    rest = req["content"].replace(req.get("skill") or "", "")
-    rest = _FILLER.sub("", rest)
-    return len(rest) <= MAX_PLAIN_RESIDUE
+    """要求是否只是"会某项技能"：去掉技能名后剩下的字很少（"熟悉 Redis" 剩 2 个字）。
+    剩得多说明另有限定（"熟悉 Redis 缓存穿透、击穿、雪崩的解决方案"），光看到技能名不能算满足。"""
+    rest = re.sub(re.escape(req.get("skill") or ""), "", req["content"], flags=re.I)
+    return len("".join(rest.split())) <= MAX_PLAIN_EXTRA
 
 
 def _match_education(req: dict, structure: dict, full_text: str) -> MatchItem | None:

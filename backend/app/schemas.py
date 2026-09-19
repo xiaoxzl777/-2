@@ -135,18 +135,6 @@ class BlocksOut(BaseModel):
 # ───────────── 诊断 ─────────────
 
 
-class DiagnoseIn(BaseModel):
-    mode: Literal["rule_only", "llm_only", "hybrid"] = "hybrid"
-    model: str | None = None              # 不填用默认模型；做模型对比实验时指定
-    job_title: str | None = Field(default=None, max_length=200)
-
-
-class TaskOut(BaseModel):
-    id: int
-    task_id: str
-    status: str
-
-
 class FindingOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -236,13 +224,6 @@ class JobOut(JobBrief):
 
 
 # ───────────── 匹配 ─────────────
-
-
-class MatchIn(BaseModel):
-    resume_id: int
-    job_id: int
-    mode: Literal["dict_only", "llm_fulltext", "llm_rag", "hybrid"] = "hybrid"
-    model: str | None = None
 
 
 class MatchItemOut(BaseModel):

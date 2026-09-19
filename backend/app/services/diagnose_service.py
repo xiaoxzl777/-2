@@ -1,11 +1,10 @@
-"""诊断任务：跑诊断图，把结果落库。
+"""诊断的落库与查询。
 
-图（app/graphs）只做计算；这里负责读简历、改状态、把 finding 映射到页码与坐标、统计指标、写数据库。
-诊断只读取解析阶段产出的 full_text / structure，从不修改它们（系统不变量③）。
+诊断图（app/graphs）只做计算；这里负责建记录、把 finding 映射到页码与坐标、统计指标、写数据库、读结果。
+跑图由投递流水线（apply_service）负责：它并行跑诊断与匹配，跑完调用这里的 save_result。
 """
 from __future__ import annotations
 
-import logging
 from bisect import bisect_right
 from datetime import datetime
 
@@ -15,14 +14,8 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.diagnose.types import Finding as DomainFinding
 from app.errors import CONFLICT, ApiError
-from app.graphs.diagnose_graph import build_diagnose_graph, initial_state
 from app.llm import prompts
-from app.llm.client import LLMClient
 from app.models import Diagnosis, Finding, LlmCall, ParsedBlock, Resume
-from app.parser.pii import mask_pii
-from app.services.parse_service import SessionFactory
-
-logger = logging.getLogger("app.diagnose")
 
 _IN_PROGRESS = ("pending", "running")
 
@@ -37,33 +30,6 @@ def create_diagnosis(db: Session, resume: Resume, mode: str, model: str | None, 
     db.add(diagnosis)
     db.commit()
     return diagnosis
-
-
-def run_diagnosis(diagnosis_id: int, session_factory: SessionFactory, llm: LLMClient) -> None:
-    """BackgroundTasks 入口。"""
-    with session_factory() as db:
-        diagnosis = db.get(Diagnosis, diagnosis_id)
-        if diagnosis is None:
-            return
-        resume = db.get(Resume, diagnosis.resume_id)
-        diagnosis.status, diagnosis.started_at = "running", datetime.now()
-        db.commit()
-
-        try:
-            state = initial_state(
-                structure=resume.structure or {}, full_text=resume.full_text or "",
-                masked_text=mask_pii(resume.full_text or "", name=(resume.structure or {}).get("basics", {}).get("name")),
-                mode=diagnosis.mode, model=diagnosis.model_name, job_title=diagnosis.job_title,
-                ats_signals=resume.ats_signals, page_count=resume.page_count, diagnosis_id=diagnosis.id)
-            result = build_diagnose_graph(llm).invoke(state)
-        except Exception as e:  # noqa: BLE001 —— 后台任务必须落成失败状态，不能把异常抛丢
-            logger.exception("诊断失败 diagnosis_id=%s", diagnosis_id)
-            db.rollback()
-            diagnosis.status, diagnosis.error_msg = "failed", f"{type(e).__name__}: {e}"[:200]
-            diagnosis.finished_at = datetime.now()
-            db.commit()
-            return
-        save_result(db, diagnosis, resume, result)
 
 
 def save_result(db: Session, diagnosis: Diagnosis, resume: Resume, result: dict) -> None:

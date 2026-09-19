@@ -1,39 +1,17 @@
-"""诊断：触发与查询。"""
+"""诊断结果查询。诊断本身由投递（POST /apply）触发，不单独提供触发接口。"""
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.database import get_db, get_session_factory
-from app.deps import get_owned_resume, get_parsed_resume
-from app.errors import BAD_REQUEST, NOT_FOUND, ApiError
-from app.llm.client import LLMClient, get_llm_client
-from app.llm.registry import MODEL_REGISTRY
+from app.database import get_db
+from app.deps import get_owned_resume
+from app.errors import NOT_FOUND, ApiError
 from app.models import Diagnosis, Resume
-from app.schemas import ApiResponse, DiagnoseIn, DiagnosisOut, DiagnosisStats, FindingOut, TaskOut, ok
+from app.schemas import ApiResponse, DiagnosisOut, DiagnosisStats, FindingOut, ok
 from app.services import diagnose_service
-from app.services.parse_service import SessionFactory
 
 router = APIRouter(prefix="/resumes", tags=["diagnose"])
-
-
-@router.post("/{resume_id}/diagnose", response_model=ApiResponse[TaskOut])
-def start_diagnosis(
-    background: BackgroundTasks,
-    body: DiagnoseIn | None = None,
-    resume: Resume = Depends(get_parsed_resume),
-    db: Session = Depends(get_db),
-    session_factory: SessionFactory = Depends(get_session_factory),
-    llm: LLMClient = Depends(get_llm_client),
-):
-    """触发一次诊断（后台执行）。轮询 GET /resumes/{id}/diagnosis?diagnosis_id= 查看进度与结果。"""
-    body = body or DiagnoseIn()
-    if body.model is not None and body.model not in MODEL_REGISTRY:
-        raise ApiError(BAD_REQUEST, f"未知的模型：{body.model}（可用：{sorted(MODEL_REGISTRY)}）")
-
-    diagnosis = diagnose_service.create_diagnosis(db, resume, body.mode, body.model, body.job_title)
-    background.add_task(diagnose_service.run_diagnosis, diagnosis.id, session_factory, llm)
-    return ok(TaskOut(id=diagnosis.id, task_id=f"diagnose:{diagnosis.id}", status=diagnosis.status))
 
 
 @router.get("/{resume_id}/diagnosis", response_model=ApiResponse[DiagnosisOut])

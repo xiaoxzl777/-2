@@ -51,7 +51,7 @@ def test_strict_mode_only_decides_what_is_certain():
     listed_only = _req(1, "skill", "熟悉 Docker", skill_id=9, skill="Docker")
     qualified = _req(2, "skill", "熟悉 Redis 缓存穿透、击穿、雪崩的解决方案", skill_id=3, skill="Redis")
     plain_variants = [_req(3, "skill", c, skill_id=3, skill="Redis")
-                      for c in ("熟练使用 Redis", "有 Redis 使用经验者优先", "掌握Redis等相关技术")]
+                      for c in ("熟悉 Redis", "熟练使用 redis", "掌握Redis等技术")]          # 去掉技能名后 ≤ 6 个字
 
     # 后面有模型兜底时：只列未用、带限定语的，都不由规则下结论
     assert _match(listed_only) is None and _match(qualified) is None

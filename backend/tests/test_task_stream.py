@@ -5,8 +5,8 @@ import pytest
 
 from app.api import task as task_api
 from app.cache.pubsub import get_subscriber
-from app.models import Diagnosis, MatchReport, Resume
-from tests.test_diagnose_api import _parsed_resume
+from app.models import MatchReport, Resume
+from tests.conftest import parsed_resume as _parsed_resume
 
 API = "/api/v1/tasks"
 
@@ -89,19 +89,15 @@ def test_progress_is_relayed_until_the_database_says_done(client, auth_headers, 
                       ("done", {"kind": "apply", "id": report_id, "status": "success"})]
 
 
-def test_failed_task_gets_an_error_event_and_partial_counts_as_done(client, auth_headers, tmp_path, db_session_factory,
-                                                                    subscribe):
+def test_failed_task_gets_an_error_event(client, auth_headers, tmp_path, db_session_factory, subscribe):
     rid = _parsed_resume(client, auth_headers, tmp_path, db_session_factory)
     with db_session_factory() as db:
-        failed, partial = Diagnosis(resume_id=rid, status="failed", mode="hybrid"), Diagnosis(resume_id=rid, status="partial", mode="hybrid")
-        db.add_all([failed, partial])
+        failed = MatchReport(resume_id=rid, job_id=1, status="failed", mode="hybrid")
+        db.add(failed)
         db.commit()
-        failed_id, partial_id = failed.id, partial.id
-
-    assert _events(client.get(f"{API}/diagnose/{failed_id}/stream", headers=auth_headers)) == [
-        ("error", {"kind": "diagnose", "id": failed_id, "status": "failed"})]
-    assert _events(client.get(f"{API}/diagnose/{partial_id}/stream", headers=auth_headers)) == [
-        ("done", {"kind": "diagnose", "id": partial_id, "status": "partial"})]
+        failed_id = failed.id
+    assert _events(client.get(f"{API}/apply/{failed_id}/stream", headers=auth_headers)) == [
+        ("error", {"kind": "apply", "id": failed_id, "status": "failed"})]
 
 
 def test_idle_streams_send_heartbeats_and_eventually_time_out(client, auth_headers, tmp_path, db_session_factory,
@@ -123,6 +119,7 @@ def test_idle_streams_send_heartbeats_and_eventually_time_out(client, auth_heade
 def test_rejections(client, auth_headers, tmp_path, db_session_factory, subscribe):
     rid = _parsed_resume(client, auth_headers, tmp_path, db_session_factory)
     assert client.get(f"{API}/backup/{rid}/stream", headers=auth_headers).json()["code"] == 40001
+    assert client.get(f"{API}/match/{rid}/stream", headers=auth_headers).json()["code"] == 40001     # 匹配不再是单独的任务
     assert client.get(f"{API}/parse/9999/stream", headers=auth_headers).json()["code"] == 40401
     assert client.get(f"{API}/apply/9999/stream", headers=auth_headers).json()["code"] == 40401
     assert client.get(f"{API}/parse/{rid}/stream").status_code == 401

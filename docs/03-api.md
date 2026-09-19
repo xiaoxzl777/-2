@@ -22,7 +22,7 @@
 | 50002 | LLM 调用失败 | 500 |
 | 50003 | 简历解析失败（含扫描件） | 500 |
 
-## 3.2 接口清单（28 个）
+## 3.2 接口清单（26 个）
 
 ```
 认证 3    POST /auth/register   POST /auth/login   GET /auth/me
@@ -31,9 +31,9 @@
           GET    /resumes                  GET /resumes/{id}                DELETE /resumes/{id}
           GET    /resumes/{id}/blocks      GET /resumes/{id}/structure      PATCH /resumes/{id}/structure
 
-诊断 3    POST /resumes/{id}/diagnose      {mode?, model?, job_title?} → {id, task_id:"diagnose:{id}", status}
-          GET  /resumes/{id}/diagnosis     ?diagnosis_id=
-          GET  /tasks/{kind}/{id}/stream   kind ∈ {parse, diagnose, match, apply}
+诊断 1    GET  /resumes/{id}/diagnosis     ?diagnosis_id=      诊断由投递触发，这里只查结果
+
+进度 1    GET  /tasks/{kind}/{id}/stream   SSE；kind ∈ {parse, apply}
 
 投递 2    POST /apply  {resume_id, job_id, diagnose_mode?, match_mode?, model?} → {id, diagnosis_id, task_id:"apply:{id}", status}   图 A
                        投递 id = match_report_id；简历还在解析也可以投，后台任务先等解析完成
@@ -44,10 +44,10 @@
                                                            每条要求带 JD 原文引用 quote 与 char 区间；定位不到的丢弃；失败则不保存
           GET  /jobs   ?include_templates=1               GET /jobs/{id}        DELETE /jobs/{id}（软删除；模板不可删）
 
-匹配 2    POST /match  {resume_id, job_id, mode?, model?} → {id, task_id:"match:{id}", status}     后台执行，同一对简历-岗位同时只跑一个
-          GET  /match/{id}     → status / overall_match / passed / threshold / dimension_scores / items[]
-                               items[] 每条 = 要求项内容 + status(hit|partial|miss) + matched_by(dict|profile|rag|fulltext)
-                               + reason + 简历原文依据 evidence_quote 与 char 区间
+匹配 1    GET  /match/{id}     匹配由投递触发，这里只查报告（id = 投递 id）
+                       → status / overall_match / passed / threshold / dimension_scores / items[]
+                       items[] 每条 = 要求项内容 + status(hit|partial|miss) + matched_by(dict|profile|rag|fulltext)
+                       + reason + 简历原文依据 evidence_quote 与 char 区间
 
 改写 1    POST /findings/{id}/rewrite?use_rag=&use_rerank=
 
@@ -64,7 +64,7 @@
 ## 3.3 异步任务与 SSE 契约
 
 ```
-后台任务   task_id="{kind}:{id}"，kind ∈ {parse, diagnose, match, apply}；apply 的 stage ∈ parsing/analyzing/diagnose/match/gate（diagnose 与 match 并行，先完成的先到）；Redis pub/sub channel task:{kind}:{id}
+后台任务   task_id="{kind}:{id}"，kind ∈ {parse, apply}；apply 的 stage ∈ parsing/analyzing/diagnose/match/gate（diagnose 与 match 并行，先完成的先到）；Redis pub/sub channel task:{kind}:{id}
            event: progress {"stage","percent","message"} / done {"kind","id","status"} / error {"code","message"}
            progress 来自 Redis 频道（只有 apply 会发）；done {"kind","id","status"} / error 以数据库里的任务状态为准，
            SSE 接口每秒顺带查一次——连上来时任务已结束、或中途漏了消息，都一定能收到结束事件；15s 无事件发一行 ": keep-alive"
