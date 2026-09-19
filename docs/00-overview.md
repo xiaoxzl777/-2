@@ -27,7 +27,7 @@
 
 **三个技术内核**（每个都有对照实验，见第八章）：
 1. 版面感知解析（region-first 启发式分栏）
-2. 技能本体对齐（词典 → 本体祖先链 → embedding 三路）
+2. 词典 + LLM 可验证匹配（同义词词典精确命中；未命中的交 LLM 判定，引用的简历原文须经 locate_span 校验）
 3. 证据溯源校验（反幻觉：模型的每条结论必须能逐字定位回文本）——诊断 evidence、面试评分依据、改写占位符复检都是它的实例
 
 **应用层亮点**：多轮自适应模拟面试（面试计划有出处、追问有状态、评分有 rubric 有证据、两个 persona）。
@@ -51,8 +51,7 @@
 | 后端 | Python 3.11+（开发机 3.13）+ FastAPI + SQLAlchemy 2.0 + Pydantic v2 + pydantic-settings |
 | 前端 | React 18 + TS + Vite + Tailwind + shadcn/ui + Zustand + TanStack Query + @microsoft/fetch-event-source |
 | 对话模型 | DeepSeek `deepseek-chat`（LangChain `ChatDeepSeek`）；结构化输出 `with_structured_output(method="json_mode", include_raw=True)`；面试问题用流式 |
-| Embedding | 硅基流动 `BAAI/bge-m3` |
-| Reranker | 硅基流动 `BAAI/bge-reranker-v2-m3`，只作用于 skills 召回 top-k，默认关 |
+| Embedding | 硅基流动 `BAAI/bge-m3`（仅用于改写案例检索与面试附加材料检索） |
 | AI 编排 | LangGraph（诊断工作流）；面试为跨 HTTP 请求的多轮状态机，状态存 DB（见 4.9） |
 | 存储 | MySQL 8.0 + Chroma 嵌入式 + Redis（缓存 / 限流 / SSE 推送；checkpoint 本期不启用） |
 | 异步 | FastAPI BackgroundTasks（解析、诊断、匹配），`uvicorn --workers 1`；面试逐轮为同步流式响应 |
@@ -64,7 +63,7 @@
 
 ```
 DiagnoseState.mode   rule_only / llm_only / hybrid        架构消融
-use_reranker         False / True                          本体对齐阶梯第 ④ 步
+MatchState.mode      dict_only / llm_only / hybrid        匹配消融
 use_rag              False / True                          改写 few-shot 对比
 MODEL_REGISTRY       deepseek-chat / 硅基流动托管 Qwen      模型对比（可选）
 ```

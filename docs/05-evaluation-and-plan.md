@@ -9,7 +9,7 @@
 | M2 | 结构化 + 后端骨架 | 1 周 | 上传 → structure（block_ids、summary、skill_mentions）；**Upload 页** |
 | M3 | 诊断引擎 | 1.5 周 | 三种 mode 跑通；findings 带 verify_result；成本预检；SSE |
 | M4 | 分析主界面 | 1 周 | **Analysis 页**：文本高亮 + FindingPanel 联动 |
-| M5 | 本体 + 匹配 + 初筛 + JD 语料 | 1.5 周 | 进入条件 JD ≥200；三路判定；匹配报告含 passed；岗位模板；**JobMatch 页** |
+| M5 | 匹配 + 初筛 | 1 周 | 词典 + LLM 匹配三种 mode 跑通；匹配报告含 passed 与逐项证据；岗位模板；**JobMatch 页** |
 | M6 | 案例库 + 改写 | 1 周 | 进入条件 cases ≥100；rewrite 接口 + 占位符复检；**Rewrite 页** |
 | M7 | 模拟面试 | 2 周 | 计划 / 逐轮 / 评估 evidence 校验 / 报告 / 续答 / 24h 清理；**Interview、InterviewReport 页** |
 | M8 | 评测 + 消融 | 1.5 周 | 必做四组 + 面试模块评测（8.4） |
@@ -39,7 +39,7 @@ JD 与案例采集在 M1–M4 用碎片时间并行。每个里程碑完成后�
 ```
 必做
  (1) 解析三路对照（仅 PDF）
- (2) 本体对齐阶梯：30 对简历-JD ≈ 300 条要求项人工标 hit/partial/miss；alias → +ontology → +embedding → +rerank 一致率；各路占比
+ (2) 匹配消融：30 对简历-JD ≈ 300 条要求项人工标 hit/partial/miss；dict_only / llm_only / hybrid 三组与人工标注的一致率、LLM 引用拦截率、单次成本
  (3) 溯源：拦截率、定位准确率（降质集）、残留幻觉率（人工）
  (4) 架构消融：rule_only / llm_only / hybrid，分「规则类子集 / 语义类子集」两张表
 可选

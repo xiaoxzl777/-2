@@ -41,7 +41,6 @@ class Settings(BaseSettings):
     SILICONFLOW_API_KEY: str = ""
     SILICONFLOW_BASE_URL: str = "https://api.siliconflow.cn/v1"
     EMBEDDING_MODEL: str = "BAAI/bge-m3"
-    RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
 
     # ---- 上传校验（FR-B1）----
     MAX_UPLOAD_MB: int = 20
@@ -62,7 +61,6 @@ class Settings(BaseSettings):
     DIAGNOSE_COST_LIMIT: float = 0.05          # 元
     UNIT_COST_EST: float = 0.002               # 每条经历预估成本（元），成本预检用
     EVIDENCE_FUZZY_MIN: int = 90               # RapidFuzz 模糊匹配通过分
-    SKILL_EMBED_MIN_SIM: float = 0.80          # embedding 路技能召回阈值
     SCREEN_THRESHOLD: float = 60.0             # 初筛通过分
     INTERVIEW_COST_LIMIT: float = 0.3          # 元
     INTERVIEW_TECH_MAX_Q: int = 8

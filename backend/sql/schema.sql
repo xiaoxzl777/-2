@@ -37,19 +37,13 @@ CREATE INDEX idx_scene ON llm_calls (scene, created_at);
 CREATE TABLE IF NOT EXISTS skills (
   id BIGINT NOT NULL AUTO_INCREMENT, 
   canonical_name VARCHAR(100) NOT NULL, 
-  category VARCHAR(50), 
-  parent_id BIGINT COMMENT '上位技能：Spring Boot ⊂ Spring ⊂ Java', 
-  level INTEGER NOT NULL DEFAULT '0', 
-  aliases JSON, 
-  description VARCHAR(500), 
-  doc_freq INTEGER NOT NULL COMMENT 'JD 语料出现频次' DEFAULT '0', 
+  category VARCHAR(50) COMMENT 'language/backend/frontend/database/devops/ai/data/tool', 
+  aliases JSON COMMENT '不含规范名本身', 
   created_at DATETIME NOT NULL DEFAULT now(), 
   PRIMARY KEY (id), 
-  UNIQUE (canonical_name), 
-  FOREIGN KEY(parent_id) REFERENCES skills (id) ON DELETE SET NULL
+  UNIQUE (canonical_name)
 )ENGINE=InnoDB CHARSET=utf8mb4;
 CREATE INDEX idx_category ON skills (category);
-CREATE INDEX idx_parent ON skills (parent_id);
 
 -- users
 CREATE TABLE IF NOT EXISTS users (
@@ -159,8 +153,11 @@ CREATE TABLE IF NOT EXISTS match_reports (
   dimension_scores JSON, 
   items JSON COMMENT '逐项匹配明细', 
   gap_summary TEXT, 
-  skill_gap_stats JSON, 
-  use_reranker BOOL NOT NULL DEFAULT 0, 
+  mode ENUM('dict_only','llm_only','hybrid') NOT NULL DEFAULT 'hybrid', 
+  model_name VARCHAR(50), 
+  prompt_version VARCHAR(20), 
+  llm_item_count INTEGER NOT NULL COMMENT 'LLM 判定的要求项数' DEFAULT '0', 
+  hallucination_count INTEGER NOT NULL COMMENT '其中引用无法定位的条数' DEFAULT '0', 
   cost NUMERIC(10, 6) NOT NULL DEFAULT '0', 
   started_at DATETIME, 
   finished_at DATETIME, 

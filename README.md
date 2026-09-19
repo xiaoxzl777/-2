@@ -53,8 +53,8 @@ docker compose up -d --build       # mysql + redis + backend + nginx，http://lo
 
 ```
 backend/app/     api · services · parser · diagnose · matching · interview · retrieval · graphs · llm · cache
-backend/sql/     schema.sql（建库建表，由 scripts/dump_schema.py 从 models.py 生成）
-backend/scripts/ dump_schema · seed · build_ontology · gen_eval_set · run_eval
+backend/sql/     schema.sql（建库建表）· seed.sql（技能词典等种子数据）—— 均由脚本生成，在 MySQL 中手动执行
+backend/scripts/ dump_schema · dump_seed · build_case_store · gen_eval_set · run_eval
 backend/tests/
 data/            skills_seed.csv · jd.jsonl · cases.jsonl · resumes/ · uploads/ · chroma/ · eval_runs/
 docs/            设计文档

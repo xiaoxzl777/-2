@@ -36,7 +36,7 @@
           GET  /tasks/{kind}/{id}/stream   kind ∈ {parse, diagnose, match}
 
 匹配 4    POST /jobs   {title, company?, raw_text}         GET /jobs   ?include_templates=1
-          POST /match  {resume_id, job_id, use_reranker?} → {id, task_id:"match:{id}"}
+          POST /match  {resume_id, job_id, mode?} → {id, task_id:"match:{id}"}
           GET  /match/{id}                                 含 passed / threshold
 
 改写 1    POST /findings/{id}/rewrite?use_rag=

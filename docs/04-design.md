@@ -11,10 +11,10 @@
 | 3 | 结构化抽取 | 解析期 | LLM | 0 | 按章节送带编号块；条目输出 `block_ids`；**basics 不送** |
 | 4 | **语义诊断** ★ | 诊断期 | LLM | 0 | 单条目送审，json_mode，evidence 必须为子串 |
 | 5 | JD 解析 | 匹配期 | LLM | 0 | 拆要求项 |
-| 6 | 技能本体挖掘 | 离线 | LLM | 0 | 从 JD 语料归纳 |
+| 6 | **技能匹配判定** ★ | 匹配期 | LLM | 0 | 词典未命中的要求项一次送审；逐项输出 status + 逐字引用的简历原文，经 locate_span 校验 |
 | 7 | 技能语义召回 | 解析/匹配 | Embedding | — | 只对词典未命中的词条 |
 | 8 | 改写建议 | 按需 | LLM + RAG | 0.3 | 占位符 + 确定性复检 |
-| 9 | 差距分析 | 匹配期 | LLM + RAG | 0.3 | 输入含 `skill_gap_stats` |
+| 9 | 差距分析 | 匹配期 | LLM | 0.3 | 输入为逐项匹配结果 |
 | 10 | **面试计划** ★ | 面试创建 | LLM | 0.3 | 输入：structure、top-8 findings、requirements、gap、extra_context 片段 → topics[]，每个带来源 |
 | 11 | **回答评估** ★ | 每轮 | LLM | 0 | rubric 结构化输出，evidence 逐字引用回答并经 locate_span 校验 |
 | 12 | **下一问生成** ★ | 每轮 | LLM | 0.7 | 输入：persona、当前话题、历史摘要、上题评估 → decision + question（流式） |
@@ -89,9 +89,7 @@ class DiagnoseState(TypedDict):
 
 | 应用点 | 检索什么 | 结果给谁 | 完整 RAG |
 |---|---|---|---|
-| 技能召回 | `skills` | 本体规则判定 | ❌ 仅检索 |
 | 改写 few-shot | `cases`（按 job_category + tech_stack 过滤取 top-3） | LLM | ✅ |
-| 岗位技能分布 | `jd_corpus` | 差距分析 LLM | ✅ |
 | 面试附加材料 | `interview_ctx`（用户粘贴的面经/公司介绍切块） | 面试计划 / 下一问 LLM | ✅ |
 
 **"模拟某家公司"的信息来源**：LLM 不依赖对公司的先验记忆。必填 JD（用户粘贴）给出"这家公司要什么"；可选 `company_name` + `extra_context`（面经、公司/部门介绍）给出"这家公司怎么问"；没有 JD 时用内置岗位模板。面试官 persona 的 system prompt 显式写入这些材料。
@@ -115,7 +113,7 @@ client.invoke(scene, messages, schema?, ref, model?, stream?)：
   ③ Redis 令牌桶限流
   ④ 调模型；token 取自 AIMessage.usage_metadata；cost 按单价表；取 system_fingerprint
   ⑤ 写缓存（TTL 7d）+ llm_calls 落库 → Result{parsed, raw, cost, tokens}
-client.embed / client.rerank 同样五步；降级：失败记 WARNING，不阻塞
+client.embed 同样五步；降级：失败记 WARNING，不阻塞
 评测模式：run_id 存在 ⇒ 跳过缓存，prompt/response 写 data/eval_runs/{run_id}/calls.jsonl
 ```
 
@@ -233,18 +231,22 @@ locate_span(quote, text, hint=(lo,hi)) -> (start, end, score) | None
 两端精度不一致取粗；单个日期 end=null；失败整字段 null；输出 "YYYY-MM" 或 "YYYY"
 ```
 
-## 5.6 技能提及抽取与三路判定
+## 5.6 技能提及抽取与「词典 + LLM」匹配
 
 ```
 extract_mentions(full_text, sections, structure)：
   ① 词典路：skills 的 canonical+aliases 编一条正则（长度降序、忽略大小写、ASCII 加 \b）扫全文，按 sections 标 section_type
-  ② embedding 路：仅对 skills[]/tech_stack 中词典未命中词条，批量 embed → skills top-1 ≥ 0.8 → 赋 skill_id
+     纯本地、无 API；词典里没有的词不产生 mention（skill_id 留 null），不影响后续 LLM 判定
 
-JD 要求项 ↔ 简历（前一路命中即停）：
-  ① 同 skill_id → hit（matched_by 取 mention 的）
-  ② 祖先链：mention 是要求项子孙 → hit（ontology）；是祖先 → partial
-  ③ 要求项无 skill_id：embed 在 mentions 向量中 top-k ≥ 阈值 → hit/partial（embedding）；use_reranker → 重排取 top-1（rerank）
-  ④ 都不中 → miss
+JD 要求项 ↔ 简历：
+  ① 词典路（确定、免费）：要求项有 skill_id 且 skill_mentions 中存在同 skill_id → hit，matched_by='dict'，证据取 mention 区间
+  ② LLM 路：其余要求项（含上下位、近义、经验类描述）合并为一次调用，输入为要求项列表 + 掩码后的简历正文；
+     逐项输出 {requirement_id, status: hit|partial|miss, evidence_quote, reason}
+     hit/partial 必须给 evidence_quote → locate_span 校验；校验失败 → 带反馈重试 1 次 → 仍失败按 miss 记，并计入 hallucination_count
+     matched_by='llm'
+  mode：dict_only 跳过 ②（未命中即 miss）；llm_only 跳过 ①；hybrid 两者都走
+为什么不建本体树：上下位知识（Spring Boot 属于 Java 生态）LLM 本来就有，手工建树覆盖面永远不够；
+  词典只保留「同一技能的不同写法」这种确定性最高、LLM 也无需判断的部分。与诊断模块同一原则：确定的先上，模糊的交给 LLM，LLM 输出必须可验证。
 degree_level(structure)∈{0..4}；experience_years(structure) = work[] 区间合并求和
 ```
 
@@ -291,7 +293,7 @@ backend/app/
 ├── services/   resume_service.py diagnose_service.py match_service.py rewrite_service.py interview_service.py
 ├── parser/     extract.py layout.py ★ section.py structure.py normalize.py pii.py
 ├── diagnose/   rules.py evidence.py ★ scorer.py placeholders.py
-├── matching/   ontology.py ★ matcher.py gap_analysis.py profile.py
+├── matching/   skill_dict.py ★（extract_mentions） matcher.py ★ gap_analysis.py profile.py
 ├── interview/  planner.py（计划 prompt 组装与解析） rubric.py（评估 schema 与聚合） policy.py（推进规则）
 ├── retrieval/  chroma_client.py case_store.py jd_store.py ctx_store.py
 ├── graphs/     state.py diagnose_graph.py nodes.py
@@ -299,7 +301,7 @@ backend/app/
 ├── cache/      redis_client.py llm_cache.py ratelimit.py pubsub.py
 └── tasks.py
 
-scripts/   seed.py build_ontology.py build_case_store.py import_jd.py build_job_templates.py gen_eval_set.py run_eval.py
+scripts/   dump_schema.py dump_seed.py build_case_store.py gen_eval_set.py run_eval.py
 data/      skills_seed.csv jd.jsonl cases.jsonl resumes/ uploads/ chroma/ eval_runs/
 tests/     test_layout.py test_fulltext_contract.py test_evidence.py test_rules.py test_normalize.py test_interview_policy.py
 
@@ -312,7 +314,7 @@ frontend/src/
 ## 6.2 Redis 职责与可用性约定
 
 ```
-① LLM/embedding/rerank 缓存（面试逐轮调用不缓存）   ② 限流令牌桶   ③ 后台任务 SSE pub/sub
+① LLM/embedding 缓存（面试逐轮调用不缓存）   ② 限流令牌桶   ③ 后台任务 SSE pub/sub
 ④ LangGraph checkpoint：本期不启用
 Redis 与 MySQL 同为必需依赖，启动 ping 失败即退出；运行期唯一容错：llm_cache get/set 异常按 miss。
 ```

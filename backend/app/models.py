@@ -311,9 +311,17 @@ class MatchReport(Base):
     dimension_scores: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     items: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, comment="逐项匹配明细")
     gap_summary: Mapped[str | None] = mapped_column(Text)
-    skill_gap_stats: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
 
-    use_reranker: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sql_text("0"))
+    # 实验参数与统计（匹配消融）
+    mode: Mapped[str] = mapped_column(
+        Enum("dict_only", "llm_only", "hybrid", name="match_mode"), nullable=False, server_default="hybrid"
+    )
+    model_name: Mapped[str | None] = mapped_column(String(50))
+    prompt_version: Mapped[str | None] = mapped_column(String(20))
+    llm_item_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", comment="LLM 判定的要求项数")
+    hallucination_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0", comment="其中引用无法定位的条数"
+    )
     cost: Mapped[Decimal] = mapped_column(Numeric(10, 6), nullable=False, server_default="0")
 
     started_at: Mapped[datetime | None] = mapped_column(DateTime)
@@ -324,22 +332,14 @@ class MatchReport(Base):
 # ⑧ ─────────────────────────────────────────────────────────────
 class Skill(Base):
     __tablename__ = "skills"
-    __table_args__ = (
-        Index("idx_category", "category"),
-        Index("idx_parent", "parent_id"),
-        Base.__table_args__,
-    )
+    # 技能同义词词典（扁平）。只回答"这个词是不是某技能的另一种写法"；上下位关系交给 LLM 判定。
+
+    __table_args__ = (Index("idx_category", "category"), Base.__table_args__)
 
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
     canonical_name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
-    category: Mapped[str | None] = mapped_column(String(50))
-    parent_id: Mapped[int | None] = mapped_column(
-        ForeignKey("skills.id", ondelete="SET NULL"), comment="上位技能：Spring Boot ⊂ Spring ⊂ Java"
-    )
-    level: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    aliases: Mapped[list[str] | None] = mapped_column(JSON)
-    description: Mapped[str | None] = mapped_column(String(500))
-    doc_freq: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", comment="JD 语料出现频次")
+    category: Mapped[str | None] = mapped_column(String(50), comment="language/backend/frontend/database/devops/ai/data/tool")
+    aliases: Mapped[list[str] | None] = mapped_column(JSON, comment="不含规范名本身")
     created_at: Mapped[datetime] = _created_at()
 
 

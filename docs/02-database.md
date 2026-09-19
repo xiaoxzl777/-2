@@ -12,7 +12,7 @@ users ─┬─< resumes ─┬─< parsed_blocks
        │                    ▲          ▲        │
        └─< jobs ────────────┴──────────┘        │
                                                 (match_report_id)
-skills      技能本体（自引用层级），向量在 Chroma
+skills      技能同义词词典（扁平，无层级）
 llm_calls   调用审计
 ```
 
@@ -189,7 +189,7 @@ CREATE TABLE findings (
 CREATE TABLE jobs (
   id          BIGINT       PRIMARY KEY AUTO_INCREMENT,
   user_id     BIGINT       NULL COMMENT '模板岗位为 NULL',
-  is_template BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '由 jd_corpus 统计生成的通用岗位',
+  is_template BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '内置通用岗位模板',
   title       VARCHAR(200) NOT NULL,
   company     VARCHAR(200) NULL,
   raw_text    TEXT         NOT NULL,
@@ -217,8 +217,11 @@ CREATE TABLE match_reports (
   dimension_scores JSON COMMENT '{skill, experience, education, project}',
   items            JSON COMMENT '[{requirement_id, content, status:hit|partial|miss, similarity, matched_evidence, char_start, char_end, match_path, matched_by, suggestion}]',
   gap_summary      TEXT,
-  skill_gap_stats  JSON COMMENT '[{skill_id, name, jd_ratio, covered}]',
-  use_reranker     BOOLEAN NOT NULL DEFAULT FALSE,
+  mode             ENUM('dict_only','llm_only','hybrid') NOT NULL DEFAULT 'hybrid' COMMENT '匹配消融开关',
+  model_name       VARCHAR(50),
+  prompt_version   VARCHAR(20),
+  llm_item_count      INT NOT NULL DEFAULT 0 COMMENT 'LLM 判定的要求项数',
+  hallucination_count INT NOT NULL DEFAULT 0 COMMENT '其中引用无法定位的条数',
   cost             DECIMAL(10,6) NOT NULL DEFAULT 0,
   started_at  DATETIME,
   finished_at DATETIME,
@@ -236,20 +239,15 @@ CREATE TABLE match_reports (
 CREATE TABLE skills (
   id             BIGINT       PRIMARY KEY AUTO_INCREMENT,
   canonical_name VARCHAR(100) NOT NULL UNIQUE,
-  category       VARCHAR(50),
-  parent_id      BIGINT       NULL,
-  level          INT          NOT NULL DEFAULT 0,
-  aliases        JSON,
-  description    VARCHAR(500),
-  doc_freq       INT          NOT NULL DEFAULT 0 COMMENT 'JD 语料出现频次',
+  category       VARCHAR(50)  COMMENT 'language/backend/frontend/database/devops/ai/data/tool/...',
+  aliases        JSON         COMMENT '["SpringBoot","spring-boot"]，不含规范名本身',
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (parent_id) REFERENCES skills(id) ON DELETE SET NULL,
-  INDEX idx_category (category),
-  INDEX idx_parent   (parent_id)
+  INDEX idx_category (category)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-> M0 先放 100–200 条手写种子 CSV；M5 由 `build_ontology.py` 从 JD 语料扩充。
+> 扁平词典，只回答「这个词是不是某个技能的另一种写法」。技能之间的上下位关系（Spring Boot 属于 Java 生态）不建树，交给 LLM 判定。
+> 数据来源 `data/skills_seed.csv`（手写，约 150 条），由 `scripts/dump_seed.py` 生成 `backend/sql/seed.sql`，在 MySQL 中手动执行。
 
 ### ⑨ interview_sessions
 
@@ -324,7 +322,7 @@ CREATE TABLE interview_turns (
 ```sql
 CREATE TABLE llm_calls (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  scene    VARCHAR(50) NOT NULL COMMENT 'relayout/section/structure/diagnose/jd_parse/rewrite/gap/iv_plan/iv_eval/iv_ask/iv_report/embed/rerank',
+  scene    VARCHAR(50) NOT NULL COMMENT 'relayout/section/structure/diagnose/jd_parse/match/rewrite/gap/iv_plan/iv_eval/iv_ask/iv_report/embed',
   ref_type VARCHAR(30) COMMENT 'resume/diagnosis/finding/match_report/interview_session/interview_turn',
   ref_id   BIGINT,
   provider       VARCHAR(30),
@@ -346,16 +344,14 @@ CREATE TABLE llm_calls (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-## 2.3 Chroma（4 个 collection）
+## 2.3 Chroma（2 个 collection）
 
 ```
-skills         技能本体向量      ~5,000    metadata {skill_id, category, level}
 cases          优秀描述案例      1,000+    metadata {job_category, tech_stack[], source}    仅公开数据
-jd_corpus      JD 语料           1,000+    metadata {job_title, category}
 interview_ctx  面试附加材料切块   按需      metadata {session_id, chunk_idx}；会话结束即删
 ```
 
-`scripts/seed.py` 幂等重建前三个 collection、skills 表、岗位模板；`uploads/`、`chroma/`、`.env` 进 `.gitignore`。
+`scripts/build_case_store.py` 幂等重建 `cases`；skills 表与岗位模板由 `backend/sql/seed.sql` 手动导入；`uploads/`、`chroma/`、`.env` 进 `.gitignore`。
 
 ## 2.4 设计说明（v3 变更点）
 

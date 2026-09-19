@@ -70,11 +70,11 @@ DOCX         → 线性读取（段落与表格按文档流；表格逐单元格
 | 编号 | 需求 | 说明 | 优先级 |
 |---|---|---|---|
 | FR-E1 | JD 录入 | 粘贴原文 → LLM 拆 硬性/加分/软性 要求项，技能类回填 `skill_id`；可选公司名 | P0 |
-| FR-E2 | 内置岗位模板 | 无具体 JD 时从 `jd_corpus` 统计生成的通用岗位（后端/前端/算法/测试…），以 `jobs.is_template=1` 存 | P1 |
-| FR-E3 | 三路对齐 | ① alias 精确 → ② ontology 祖先链 → ③ embedding≥阈值（→ ④ rerank 可选）；前一路命中即停 | P0 |
+| FR-E2 | 内置岗位模板 | 无具体 JD 时可选的通用岗位（后端/前端/算法/测试…，手写 5–8 份公开 JD 风格的模板），以 `jobs.is_template=1` 存 | P1 |
+| FR-E3 | 词典 + LLM 匹配 | ① 同义词词典精确命中（确定、免费）→ ② 未命中的要求项交 LLM 判定 hit/partial/miss，**必须逐字引用简历原文**，经 `locate_span` 校验，校验失败按 miss 处理；`mode ∈ {dict_only, llm_only, hybrid}` 供消融 | P0 |
 | FR-E4 | 逐项匹配 | 命中/部分/缺失，证据取自 `skill_mentions` | P0 |
 | FR-E5 | 匹配度评分 | 技能/经验/学历/项目四维 + 总分；学历与年限由 `degree_level()` / `experience_years()` 从 structure 算 | P0 |
-| FR-E6 | 差距分析 | 缺失项 + 补齐建议 + 岗位技能分布（`jd_corpus`） | P1 |
+| FR-E6 | 差距分析 | 缺失项 + 补齐建议 | P1 |
 | FR-E7 | **初筛门槛** | `overall_match ≥ SCREEN_THRESHOLD`（默认 60）为"通过"；未通过展示差距与改写入口，**允许以练习模式进入面试** | P0 |
 
 ### F. 改写
@@ -104,7 +104,7 @@ DOCX         → 线性读取（段落与表格按文档流；表格逐单元格
 
 | 编号 | 需求 | 优先级 |
 |---|---|---|
-| FR-H1 | LLM / reranker 可插拔（注册表） | P0 |
+| FR-H1 | LLM 可插拔（注册表） | P0 |
 | FR-H2 | Prompt 版本化常量，落库 `prompt_version` | P0 |
 | FR-H3 | 调用审计：`llm/client.py` 唯一出口落库，缓存命中也记一行 | P1 |
 | FR-H4 | 评测 CLI：`gen_eval_set.py` / `run_eval.py`（绕过缓存、`--repeat 3`） | P1 |
