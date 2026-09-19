@@ -54,6 +54,7 @@ def image_only_pdf(tmp_path) -> Path:
 def encrypted_pdf(tmp_path) -> Path:
     return make_pdf(tmp_path / "enc.pdf", [(40, 100, "secret resume " * 20, 10.5, "helv")], encrypt=True)
 
+
 # ───────────── 接口测试：SQLite 内存库替换 MySQL，不跑 lifespan（因此也不需要 Redis）─────────────
 
 
@@ -73,10 +74,11 @@ def db_session_factory():
 
 
 @pytest.fixture
-def client(db_session_factory):
+def client(db_session_factory, tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
-    from app.database import get_db
+    from app.config import settings
+    from app.database import get_db, get_session_factory
     from app.main import app
 
     def override_get_db():
@@ -86,7 +88,9 @@ def client(db_session_factory):
         finally:
             db.close()
 
+    monkeypatch.setattr(settings, "DATA_DIR", tmp_path / "data")  # 上传文件落到临时目录，不碰真实 data/
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_session_factory] = lambda: db_session_factory  # 后台任务也用测试库
     yield TestClient(app)  # 不用 with：不触发 lifespan 里的 MySQL / Redis 检查
     app.dependency_overrides.clear()
 

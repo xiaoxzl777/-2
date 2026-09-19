@@ -9,6 +9,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # backend/ 目录；.env 放在项目根 D:\final\.env，也允许放在 backend\.env
@@ -75,6 +76,12 @@ class Settings(BaseSettings):
     LLM_CACHE_TTL_SECONDS: int = 7 * 24 * 3600
     DEEPSEEK_RPM: int = 60
     SILICONFLOW_RPM: int = 300
+
+    @field_validator("DATA_DIR")
+    @classmethod
+    def _absolute_data_dir(cls, v: Path) -> Path:
+        """相对路径一律相对 backend/ 解析，不受"从哪个目录启动服务"影响。"""
+        return v if v.is_absolute() else (_BACKEND_DIR / v).resolve()
 
     @property
     def uploads_dir(self) -> Path:

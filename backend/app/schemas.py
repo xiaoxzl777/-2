@@ -59,3 +59,30 @@ class TokenOut(BaseModel):
     token_type: str = "bearer"
     expires_in: int  # 秒
     user: UserOut
+
+# ───────────── 简历 ─────────────
+
+
+class UploadOut(BaseModel):
+    id: int
+    task_id: str            # "parse:{id}"，用于订阅进度；也可直接轮询 GET /resumes/{id}
+    parse_status: str
+    deduplicated: bool      # True = 同一文件此前上传过，直接复用那条记录
+
+
+class ResumeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    file_type: str
+    file_size: int
+    page_count: int | None
+    parse_status: str
+    parse_error: str | None
+    layout_type: str
+    layout_confidence: float | None
+    used_llm_fallback: bool
+    overall_score: float | None
+    created_at: datetime
+    updated_at: datetime

@@ -26,6 +26,11 @@ engine = create_engine(
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
+def get_session_factory() -> sessionmaker[Session]:
+    """后台任务要自己开会话（请求的会话在响应返回后就关了）。做成依赖，测试时可以整体替换。"""
+    return SessionLocal
+
+
 def get_db() -> Generator[Session, None, None]:
     """FastAPI 依赖：每个请求一个 Session，请求结束自动关闭。"""
     db = SessionLocal()
