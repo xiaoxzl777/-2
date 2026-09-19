@@ -30,7 +30,7 @@ def ensure_database() -> list[str]:
 
     服务启动与 scripts/init_db.py 共用：新电脑拉下代码后无需手动建库建表。
     """
-    from app.models import Base  # 延迟导入，避免循环依赖
+    from app.models import MYSQL_POST_DDL, Base  # 延迟导入，避免循环依赖
 
     url = make_url(settings.DATABASE_URL)
     # 注意：URL.set(database=None) 表示"不修改"，要用空串才能去掉库名
@@ -45,6 +45,10 @@ def ensure_database() -> list[str]:
         server.dispose()
 
     Base.metadata.create_all(engine)
+    if engine.dialect.name == "mysql":
+        with engine.begin() as conn:
+            for ddl in MYSQL_POST_DDL:
+                conn.execute(text(ddl))
     return sorted(inspect(engine).get_table_names())
 
 
