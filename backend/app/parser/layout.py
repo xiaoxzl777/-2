@@ -371,11 +371,17 @@ def analyze_layout(extracted: ExtractResult) -> LayoutResult:
         pages.append(_summarize(page, stats))
 
     blocks = _to_blocks(placed, body_size)
+    return LayoutResult(blocks, assign_offsets(blocks), pages)
+
+
+def assign_offsets(blocks: list[Block]) -> str:
+    """拼出 full_text 并固定每块的字符偏移。全系统只有这一处定义"坐标系"。"""
     cursor = 0
-    for b in blocks:
+    for i, b in enumerate(blocks):
+        b.block_index = i
         b.char_start, b.char_end = cursor, cursor + len(b.text)
         cursor = b.char_end + 1  # 块之间以一个 "\n" 连接
-    return LayoutResult(blocks, "\n".join(b.text for b in blocks), pages)
+    return "\n".join(b.text for b in blocks)
 
 
 def _summarize(page: PageInfo, s: _PageStats) -> PageLayout:
