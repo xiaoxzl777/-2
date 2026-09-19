@@ -66,7 +66,9 @@
 ```
 后台任务   task_id="{kind}:{id}"，kind ∈ {parse, diagnose, match, apply}；apply 的 stage ∈ parsing/analyzing/diagnose/match/gate（diagnose 与 match 并行，先完成的先到）；Redis pub/sub channel task:{kind}:{id}
            event: progress {"stage","percent","message"} / done {"kind","id","status"} / error {"code","message"}
-           兜底：SSE 连不上或 30s 无事件 → 每 3s 轮询对应资源 status
+           progress 来自 Redis 频道（只有 apply 会发）；done {"kind","id","status"} / error 以数据库里的任务状态为准，
+           SSE 接口每秒顺带查一次——连上来时任务已结束、或中途漏了消息，都一定能收到结束事件；15s 无事件发一行 ": keep-alive"
+           兜底：SSE 连不上或 30s 无事件 → 每 3s 轮询对应资源 status（apply 轮询 GET /apply/{id} 的 stage）
 面试逐轮   同步流式响应（POST + text/event-stream），不经 pub/sub：
            event: evaluation {"turn_id","scores","feedback","decision"}      ← 上一题的评估（answer 接口才有）
            event: question   {"turn_id","delta":"..."}  ×N                   ← 下一问逐 token

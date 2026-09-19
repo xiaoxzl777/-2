@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from collections.abc import Callable
 
 from app.cache.redis_client import redis_client
@@ -30,3 +31,35 @@ def publish(task_id: str, event: str, data: dict) -> None:
 def get_publisher() -> Publish:
     """FastAPI 依赖；测试里替换成一个收集事件的列表。"""
     return publish
+
+
+class Subscription:
+    """订阅一个任务的进度频道。用完必须 close（SSE 接口在 finally 里关）。"""
+
+    def __init__(self, task_id: str):
+        self._pubsub = redis_client.pubsub(ignore_subscribe_messages=True)
+        self._pubsub.subscribe(channel(task_id))
+
+    def get(self, timeout: float) -> dict | None:
+        """最多等 timeout 秒；返回 {"event", "data"}，没有消息返回 None。Redis 出问题时当作没有消息。"""
+        try:
+            message = self._pubsub.get_message(timeout=timeout)
+            return json.loads(message["data"]) if message else None
+        except Exception as e:  # noqa: BLE001
+            logger.warning("读取进度频道失败：%s", e)
+            time.sleep(timeout)                    # 别让调用方的循环空转
+            return None
+
+    def close(self) -> None:
+        try:
+            self._pubsub.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+Subscribe = Callable[[str], Subscription]
+
+
+def get_subscriber() -> Subscribe:
+    """FastAPI 依赖；测试里替换成预先排好消息的假订阅。"""
+    return Subscription
