@@ -281,3 +281,42 @@ class MatchReportOut(BaseModel):
     cost: float
     started_at: datetime | None
     finished_at: datetime | None
+
+
+# ───────────── 投递（诊断 + 匹配 + 初筛 一次跑完）─────────────
+
+
+class ApplyIn(BaseModel):
+    resume_id: int
+    job_id: int
+    diagnose_mode: Literal["rule_only", "llm_only", "hybrid"] = "hybrid"
+    match_mode: Literal["dict_only", "llm_fulltext", "llm_rag", "hybrid"] = "hybrid"
+    model: str | None = None
+
+
+class ApplyStartOut(BaseModel):
+    id: int                     # 投递 id = match_report_id
+    diagnosis_id: int
+    task_id: str                # "apply:{id}"，用于订阅进度
+    status: str
+
+
+class GateOut(BaseModel):
+    passed: bool
+    overall_match: float | None
+    threshold: float
+
+
+class ApplyOut(BaseModel):
+    id: int
+    resume_id: int
+    job_id: int
+    diagnosis_id: int | None
+    status: str
+    stage: str                  # parsing / queued / analyzing / done / failed；SSE 连不上时轮询它
+    error_msg: str | None
+    gate: GateOut | None        # 跑完才有
+    dimension_scores: dict | None
+    resume_score: float | None  # 简历诊断总分
+    gaps: list[MatchItemOut]            # 哪里不符合岗位要求：未满足 / 部分满足的要求，重要的在前
+    resume_issues: list[FindingOut]     # 简历自身最该先改的问题

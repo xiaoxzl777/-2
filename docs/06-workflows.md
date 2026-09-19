@@ -65,6 +65,12 @@
 
 三个子图各自可以单独 `invoke`：上传简历时只跑 parse；消融实验直接调 diagnose / match 子图。
 
+> **实现说明（2026-09-19，与上图的两处差异）**
+> - **解析不在图里**：上传时已经触发解析；`apply_service` 在跑图之前等它完成（解析要读文件、写数据库，不属于领域层）。
+>   实际的图 A 是 `START → diagnose ∥ match → gate → END`（`graphs/apply_graph.py`）。
+> - **"未通过说明"不在图里**：`pass_result / build_gap_report` 本质是对已落库结果的一种读法，
+>   由 `GET /apply/{id}` 在读取时组装（gaps + resume_issues），这样每条问题都带数据库 id，前端可以直接点开改写。
+
 ### parse 子图
 
 ```

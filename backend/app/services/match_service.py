@@ -61,28 +61,35 @@ def run_match(report_id: int, session_factory: SessionFactory, llm: LLMClient, s
             report.finished_at = datetime.now()
             db.commit()
             return
-        _save_result(db, report, job, result)
+        save_result(db, report, job, result)
 
 
 def _run_graph(report: MatchReport, resume: Resume, job: Job, llm: LLMClient, store: ResumeUnitStore) -> dict:
     structure, full_text = resume.structure or {}, resume.full_text or ""
     masked_text = mask_pii(full_text, name=structure.get("basics", {}).get("name"))
 
-    retrieve = None
-    if report.mode in _USES_RETRIEVAL:
-        units = build_match_units(structure, resume.sections or [], full_text)
-        store.ensure_indexed(resume.id, units, masked_text)       # 首次匹配、或结构被纠正过 → （重新）入库
-        resume_id, ref = resume.id, ("match_report", report.id)
-
-        def retrieve(query: str):
-            return store.retrieve(resume_id, query, recall_k=settings.MATCH_RECALL_K, top_k=settings.RAG_TOP_K, ref=ref)
-
+    retrieve = make_retriever(report, resume, masked_text, store)
     state = initial_state(requirements=job.requirements or [], structure=structure, full_text=full_text,
                           masked_text=masked_text, mode=report.mode, model=report.model_name, match_report_id=report.id)
     return build_match_graph(llm, retrieve).invoke(state)
 
 
-def _save_result(db: Session, report: MatchReport, job: Job, result: dict) -> None:
+def make_retriever(report: MatchReport, resume: Resume, masked_text: str, store: ResumeUnitStore):
+    """用到检索的 mode：保证这份简历的单元已入库，返回"要求文本 → 候选单元"的函数；其余 mode 返回 None。"""
+    if report.mode not in _USES_RETRIEVAL:
+        return None
+    units = build_match_units(resume.structure or {}, resume.sections or [], resume.full_text or "")
+    store.ensure_indexed(resume.id, units, masked_text)           # 首次匹配、或结构被纠正过 → （重新）入库
+    resume_id, ref = resume.id, ("match_report", report.id)
+
+    def retrieve(query: str):
+        return store.retrieve(resume_id, query, recall_k=settings.MATCH_RECALL_K, top_k=settings.RAG_TOP_K, ref=ref)
+
+    return retrieve
+
+
+def save_result(db: Session, report: MatchReport, job: Job, result: dict) -> None:
+    """把匹配图的输出写进 match_reports。投递流水线（apply_service）也用它。"""
     requirements = {r["id"]: r for r in job.requirements or []}
     # 明细里带上要求项本身的内容：岗位之后被删掉，这份报告依然读得懂
     report.items = [{**{k: requirements[i.requirement_id].get(k) for k in _REQUIREMENT_FIELDS}, **i.to_dict()}
@@ -93,8 +100,8 @@ def _save_result(db: Session, report: MatchReport, job: Job, result: dict) -> No
     report.llm_item_count = result["llm_item_count"]
     report.hallucination_count = result["hallucination_count"]
     report.cost = result["cost"]
-    # 同一份简历最近一次完成的诊断：未通过时要和匹配差距一起展示
-    report.diagnosis_id = db.scalar(
+    # 未通过时要和匹配差距一起展示的诊断：投递流水线建记录时已经指定；单独匹配则取这份简历最近一次完成的
+    report.diagnosis_id = report.diagnosis_id or db.scalar(
         select(Diagnosis.id).where(Diagnosis.resume_id == report.resume_id, Diagnosis.status.in_(("success", "partial")))
         .order_by(Diagnosis.id.desc()))
     report.status, report.finished_at = "success", datetime.now()

@@ -63,10 +63,11 @@ def run_diagnosis(diagnosis_id: int, session_factory: SessionFactory, llm: LLMCl
             diagnosis.finished_at = datetime.now()
             db.commit()
             return
-        _save_result(db, diagnosis, resume, result)
+        save_result(db, diagnosis, resume, result)
 
 
-def _save_result(db: Session, diagnosis: Diagnosis, resume: Resume, result: dict) -> None:
+def save_result(db: Session, diagnosis: Diagnosis, resume: Resume, result: dict) -> None:
+    """把诊断图的输出写进 diagnoses / findings。投递流水线（apply_service）也用它。"""
     locate = _BlockLocator(db, resume.id)
     shown: list[DomainFinding] = result["findings"]            # 合并去重后展示给用户的
     rejected: list[DomainFinding] = result["rejected_findings"]  # 证据定位失败的：不展示，但评测要统计

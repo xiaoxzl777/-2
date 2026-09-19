@@ -22,7 +22,7 @@
 | 50002 | LLM 调用失败 | 500 |
 | 50003 | 简历解析失败（含扫描件） | 500 |
 
-## 3.2 接口清单（27 个）
+## 3.2 接口清单（28 个）
 
 ```
 认证 3    POST /auth/register   POST /auth/login   GET /auth/me
@@ -35,7 +35,10 @@
           GET  /resumes/{id}/diagnosis     ?diagnosis_id=
           GET  /tasks/{kind}/{id}/stream   kind ∈ {parse, diagnose, match, apply}
 
-投递 1    POST /apply  {resume_id, job_id, diagnose_mode?, match_mode?} → {match_report_id, task_id:"apply:{id}"}   图 A
+投递 2    POST /apply  {resume_id, job_id, diagnose_mode?, match_mode?, model?} → {id, diagnosis_id, task_id:"apply:{id}", status}   图 A
+                       投递 id = match_report_id；简历还在解析也可以投，后台任务先等解析完成
+          GET  /apply/{id}  → status / stage / gate{passed, overall_match, threshold} / dimension_scores / resume_score
+                       + gaps[]（未满足与部分满足的要求，重要的在前）+ resume_issues[]（诊断里最严重的 8 条，带 finding id）
 
 岗位 4    POST /jobs   {title, company?, raw_text}         同步解析（一次模型调用，约 2–4 秒）→ 岗位 + requirements[]
                                                            每条要求带 JD 原文引用 quote 与 char 区间；定位不到的丢弃；失败则不保存
@@ -61,7 +64,7 @@
 ## 3.3 异步任务与 SSE 契约
 
 ```
-后台任务   task_id="{kind}:{id}"，kind ∈ {parse, diagnose, match, apply}；apply 的 stage ∈ parsing/diagnosing/matching/gate；Redis pub/sub channel task:{kind}:{id}
+后台任务   task_id="{kind}:{id}"，kind ∈ {parse, diagnose, match, apply}；apply 的 stage ∈ parsing/analyzing/diagnose/match/gate（diagnose 与 match 并行，先完成的先到）；Redis pub/sub channel task:{kind}:{id}
            event: progress {"stage","percent","message"} / done {"kind","id","status"} / error {"code","message"}
            兜底：SSE 连不上或 30s 无事件 → 每 3s 轮询对应资源 status
 面试逐轮   同步流式响应（POST + text/event-stream），不经 pub/sub：
