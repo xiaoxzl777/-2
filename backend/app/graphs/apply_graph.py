@@ -19,7 +19,6 @@ from langgraph.graph import END, START, StateGraph
 
 from app.config import settings
 from app.graphs import diagnose_graph, match_graph
-from app.graphs.match_graph import Retrieve
 from app.llm.client import LLMClient
 
 
@@ -49,9 +48,9 @@ def _gate(state: ApplyState) -> dict:
     return {"passed": overall is not None and overall >= settings.SCREEN_THRESHOLD}
 
 
-def build_apply_graph(llm: LLMClient, retrieve: Retrieve | None = None):
+def build_apply_graph(llm: LLMClient):
     diagnose = diagnose_graph.build_diagnose_graph(llm)
-    match = match_graph.build_match_graph(llm, retrieve)
+    match = match_graph.build_match_graph(llm)
 
     def _diagnose(state: ApplyState) -> dict:
         return {"diagnosis": diagnose.invoke(diagnose_graph.initial_state(

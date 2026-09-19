@@ -234,7 +234,7 @@ class MatchItemOut(BaseModel):
     weight: float
     skill: str | None
     status: str                 # hit / partial / miss
-    matched_by: str | None      # dict / profile / rag / fulltext
+    matched_by: str | None      # dict / profile / fulltext
     reason: str
     evidence_quote: str | None  # 简历原文：full_text[char_start:char_end]
     char_start: int | None
@@ -271,7 +271,7 @@ class ApplyIn(BaseModel):
     resume_id: int
     job_id: int
     diagnose_mode: Literal["rule_only", "llm_only", "hybrid"] = "hybrid"
-    match_mode: Literal["dict_only", "llm_fulltext", "llm_rag", "hybrid"] = "hybrid"
+    match_mode: Literal["dict_only", "llm_fulltext", "hybrid"] = "hybrid"
     model: str | None = None
 
 

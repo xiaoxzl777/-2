@@ -12,7 +12,6 @@ from app.errors import BAD_REQUEST, NOT_FOUND, ApiError
 from app.llm.client import LLMClient, get_llm_client
 from app.llm.registry import MODEL_REGISTRY
 from app.models import Diagnosis, MatchReport, Resume, User
-from app.retrieval.unit_store import ResumeUnitStore, get_unit_store
 from app.schemas import ApiResponse, ApplyIn, ApplyOut, ApplyStartOut, FindingOut, GateOut, ok
 from app.services import apply_service, job_service
 from app.services.parse_service import SessionFactory
@@ -28,7 +27,6 @@ def start_apply(
     db: Session = Depends(get_db),
     session_factory: SessionFactory = Depends(get_session_factory),
     llm: LLMClient = Depends(get_llm_client),
-    store: ResumeUnitStore = Depends(get_unit_store),
     publish: Publish = Depends(get_publisher),
 ):
     """刚上传、还在解析的简历也可以投：后台任务会先等解析完成。解析已经失败的直接报错。"""
@@ -40,7 +38,7 @@ def start_apply(
         raise ApiError(BAD_REQUEST, f"未知的模型：{body.model}（可用：{sorted(MODEL_REGISTRY)}）")
 
     report = apply_service.create_apply(db, resume, job, body.diagnose_mode, body.match_mode, body.model)
-    background.add_task(apply_service.run_apply, report.id, session_factory, llm, store, publish)
+    background.add_task(apply_service.run_apply, report.id, session_factory, llm, publish)
     return ok(ApplyStartOut(id=report.id, diagnosis_id=report.diagnosis_id, task_id=f"apply:{report.id}",
                             status=report.status))
 

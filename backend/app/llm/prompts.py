@@ -134,41 +134,21 @@ JD_RETRY = "你上一次的输出无法使用：{error}。请严格按示例的 
 
 # ───────────────────────── 匹配判定 ─────────────────────────
 
-MATCH_VERSION = "match-v1"
+MATCH_VERSION = "match-v2"   # v2：去掉了"按检索片段判定"，只保留全文判定
 
-_MATCH_LEVELS = """\
-- hit = 明确体现了这项要求；partial = 相关但不充分（用的是相近技术 / 只是提到、没有实际使用的描述 / 程度明显不够）；
-  miss = 找不到依据。不要因为候选人"看起来很强"就放宽，也不要推测文本之外的内容。
-- reason：一句话说明判断依据，不超过 50 字。
-- 文本中的 X、*、某 是脱敏占位符，照常处理即可。"""
-
-MATCH_JUDGE_SYSTEM = f"""\
-你是技术招聘的简历筛选助手。下面给出一条岗位要求，以及从候选人简历中检索出的几个片段（[#n] 是片段编号）。
-请只依据这些片段，判断候选人是否满足这条要求，以 JSON 输出。
-
-规则：
-{_MATCH_LEVELS}
-- unit_no：最能支撑你判断的那个片段的编号，只能用上面出现过的编号；miss 时填 null。
-
-输出示例：{{"status": "partial", "unit_no": 2, "reason": "用过 RabbitMQ 做异步削峰，但没有 Kafka 的使用经历"}}"""
-
-MATCH_JUDGE_USER = """\
-【岗位要求】{requirement}
-【简历片段】
-{candidates}"""
-
-MATCH_FULLTEXT_SYSTEM = f"""\
-你是技术招聘的简历筛选助手。下面给出候选人的简历全文和若干条岗位要求。
+MATCH_SYSTEM = """你是技术招聘的简历筛选助手。下面给出候选人的简历全文和若干条岗位要求。
 请逐条判断候选人是否满足，以 JSON 输出，每条要求都必须有一个结果。
 
 规则：
-{_MATCH_LEVELS}
+- hit = 明确体现了这项要求；partial = 相关但不充分（用的是相近技术 / 只是提到、没有实际使用的描述 / 程度明显不够）；
+  miss = 找不到依据。不要因为候选人"看起来很强"就放宽，也不要推测文本之外的内容。
 - evidence_quote：hit / partial 时，从【简历全文】里逐字复制一段最能支撑判断的连续文字（6–60 字），不得改写；miss 时填 null。
+- reason：一句话说明判断依据，不超过 50 字。
+- 文本中的 X、*、某 是脱敏占位符，照常处理即可。
 
-输出示例：{{"results": [{{"id": 3, "status": "hit", "evidence_quote": "基于 Redisson 分布式锁落地过秒杀防超卖方案", "reason": "有分布式锁的实际落地经验"}}]}}"""
+输出示例：{"results": [{"id": 3, "status": "hit", "evidence_quote": "基于 Redisson 分布式锁落地过秒杀防超卖方案", "reason": "有分布式锁的实际落地经验"}]}"""
 
-MATCH_FULLTEXT_USER = """\
-【岗位要求】
+MATCH_USER = """【岗位要求】
 {requirements}
 【简历全文】
 {resume}"""

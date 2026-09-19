@@ -205,7 +205,7 @@ CREATE TABLE IF NOT EXISTS match_reports (
   items JSON COMMENT '逐项匹配明细', 
   gap_summary TEXT, 
   diagnosis_id BIGINT COMMENT '同一次投递产生的诊断，未通过说明要用', 
-  mode ENUM('dict_only','llm_fulltext','llm_rag','hybrid') NOT NULL DEFAULT 'hybrid', 
+  mode ENUM('dict_only','llm_fulltext','hybrid') NOT NULL DEFAULT 'hybrid', 
   model_name VARCHAR(50), 
   prompt_version VARCHAR(20), 
   llm_item_count INTEGER NOT NULL COMMENT 'LLM 判定的要求项数' DEFAULT '0', 

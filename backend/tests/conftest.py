@@ -149,7 +149,7 @@ def auth_headers(client) -> dict:
     return {"Authorization": f"Bearer {r.json()['data']['access_token']}"}
 
 
-# ───────────── 投递（POST /apply）相关测试共用：一份解析好的简历、一个解析好的岗位、假向量库、假模型的回复 ─────────────
+# ───────────── 投递（POST /apply）相关测试共用：一份解析好的简历、一个解析好的岗位、假模型的回复 ─────────────
 
 H_VAGUE = "1. 负责系统的优化工作，持续改进各项功能。"
 H_GOOD = "2. 热点商品数据预热至 Redis，列表查询响应从 820ms 降至 140ms。"
@@ -200,14 +200,8 @@ def jd_reply(*items) -> str:
     return json.dumps({"requirements": list(items)}, ensure_ascii=False)
 
 
-def judge_reply(status, unit_no=None) -> str:
-    """匹配（RAG）：模型对一条要求的判定。"""
-    import json
-    return json.dumps({"status": status, "unit_no": unit_no, "reason": "r"}, ensure_ascii=False)
-
-
 def fulltext_reply(*results) -> str:
-    """匹配（全文）：results: (requirement_id, status, evidence_quote)"""
+    """匹配：模型对若干条要求的判定。results: (requirement_id, status, evidence_quote)"""
     import json
     return json.dumps({"results": [{"id": i, "status": s, "evidence_quote": q, "reason": "r"} for i, s, q in results]},
                       ensure_ascii=False)
@@ -239,23 +233,6 @@ class FakeEmbedder:
 
 
 @pytest.fixture
-def store(client):
-    """内存 Chroma + 假向量，替换掉真实的检索库。"""
-    import uuid
-
-    import chromadb
-
-    from app.main import app
-    from app.retrieval.unit_store import ResumeUnitStore, get_unit_store
-
-    collection = chromadb.EphemeralClient().create_collection(f"t_{uuid.uuid4().hex}", metadata={"hnsw:space": "cosine"},
-                                                              embedding_function=None)
-    unit_store = ResumeUnitStore(collection, FakeEmbedder())
-    app.dependency_overrides[get_unit_store] = lambda: unit_store
-    return unit_store
-
-
-@pytest.fixture
 def events(client) -> list:
     """收集后台任务推送的进度事件：[(task_id, event, data)]"""
     from app.cache.pubsub import get_publisher
@@ -267,7 +244,7 @@ def events(client) -> list:
 
 
 @pytest.fixture
-def resume_and_job(client, auth_headers, tmp_path, db_session_factory, fake_llm, store) -> tuple[int, int]:
+def resume_and_job(client, auth_headers, tmp_path, db_session_factory, fake_llm) -> tuple[int, int]:
     """(resume_id, job_id)：岗位有 4 条要求——学历与 Redis 规则可判，另外两条要靠模型。"""
     from app.models import Skill
 

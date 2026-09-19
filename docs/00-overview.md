@@ -64,7 +64,7 @@
 
 ```
 DiagnoseState.mode   rule_only / llm_only / hybrid        架构消融
-match_mode           dict_only / llm_fulltext / llm_rag / hybrid   匹配消融（含 RAG 对照）
+match_mode           dict_only / llm_fulltext / hybrid            匹配消融（规则 / 模型 / 两者结合）
 use_rag / use_rerank  无检索 / 仅召回 / 召回+精排             RAG 检索消融
 MODEL_REGISTRY       deepseek-chat / 硅基流动托管 Qwen      模型对比（可选）
 ```

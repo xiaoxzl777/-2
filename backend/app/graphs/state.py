@@ -56,7 +56,7 @@ class ReviewUnitInput(TypedDict):
 
 # ───────────────────────── 匹配 ─────────────────────────
 
-MatchMode = Literal["dict_only", "llm_fulltext", "llm_rag", "hybrid"]
+MatchMode = Literal["dict_only", "llm_fulltext", "hybrid"]
 
 
 class MatchState(TypedDict, total=False):
@@ -70,22 +70,12 @@ class MatchState(TypedDict, total=False):
     masked_text: str
 
     # ── 过程与输出 ──
-    rule_items: list[MatchItem]          # 规则通道判定了的
+    rule_items: list[MatchItem]          # 规则判定了的
     pending: list[dict]                  # 规则判不了、留给模型的要求项
-    judged: Annotated[list[MatchItem], add]   # RAG 判定的结果：M 个并行分支各写一条
-    rechecked: list[MatchItem]           # 全文判定 / 复核的结果，按 requirement_id 覆盖 judged
+    judged: list[MatchItem]              # 模型判定的
     llm_item_count: int
-    hallucination_count: Annotated[int, add]
-    cost: Annotated[float, add]
+    hallucination_count: int
+    cost: float
     items: list[MatchItem]               # 最终结果，按要求项顺序
     overall_match: float | None
     dimension_scores: dict
-
-
-class JudgeInput(TypedDict):
-    """dispatch 用 Send 发给每个 judge_requirement 分支的载荷。"""
-
-    requirement: dict
-    full_text: str
-    model: str | None
-    match_report_id: int | None

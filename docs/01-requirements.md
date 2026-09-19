@@ -71,7 +71,7 @@ DOCX         → 线性读取（段落与表格按文档流；表格逐单元格
 |---|---|---|---|
 | FR-E1 | JD 录入 | 粘贴原文 → LLM 拆 硬性/加分/软性 要求项，技能类回填 `skill_id`；可选公司名 | P0 |
 | FR-E2 | 内置岗位模板 | 无具体 JD 时可选的通用岗位（后端/前端/算法/测试…，手写 5–8 份公开 JD 风格的模板），以 `jobs.is_template=1` 存 | P1 |
-| FR-E3 | 词典 + RAG + LLM 匹配 | ① 同义词词典精确命中（确定、免费）→ ② 未命中的要求项：到简历经历库 `resume_units` 召回 top-10 → reranker 精排 top-3 → LLM 判定 hit/partial/miss 并指出依据是哪条经历（证据自带 char 区间）→ ③ 判为 miss 的用简历全文复核一次；`mode ∈ {dict_only, llm_fulltext, llm_rag, hybrid}` 供消融 | P0 |
+| FR-E3 | 规则 + LLM 匹配 | ① 规则先判（同义词词典命中且经历里用过、学历、年限；确定、免费）→ ② 规则判不了的要求连同简历全文一次交给 LLM，逐条判定 hit/partial/miss 并逐字引用简历依据，经 `locate_span` 定位，定位失败按 miss；`mode ∈ {dict_only, llm_fulltext, hybrid}` 供消融。匹配不用 RAG（简历与 JD 很短，见 06-workflows 6.2） | P0 |
 | FR-E4 | 逐项匹配 | 命中/部分/缺失，证据取自 `skill_mentions` | P0 |
 | FR-E5 | 匹配度评分 | 技能/经验/学历/项目四维 + 总分；学历与年限由 `degree_level()` / `experience_years()` 从 structure 算 | P0 |
 | FR-E6 | 差距分析 | 缺失项 + 补齐建议 | P1 |

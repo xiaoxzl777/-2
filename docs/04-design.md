@@ -90,7 +90,7 @@ class DiagnoseState(TypedDict):
 | 应用点 | 检索什么 | 结果给谁 | 完整 RAG |
 |---|---|---|---|
 | 改写 few-shot | `cases`：metadata 过滤（job_category）→ embedding 召回 top-20 → reranker 精排 top-3 | LLM | ✅ |
-| 匹配判定 | `resume_units`（简历每条经历）：embedding 召回 top-10 → reranker 精排 top-3 | LLM 判定要求项是否命中 | ✅ |
+| ~~匹配判定~~ | 已移除（2026-09-19）：简历与 JD 很短，全文直接给模型更准、更快、更便宜，见 06-workflows 6.2 | — | — |
 | 面试出题 | `resume_units` + `interview_ctx`（JD 原文 / 公司介绍 / 面经切块）：各自 embedding 召回 top-10 → reranker 精排 top-3 | 面试计划 / 下一问 LLM | ✅ |
 
 三处共用 `retrieval/retriever.py` 的同一条链路：**切块 → 向量化入库 → 召回（embedding）→ 精排（reranker，cross-encoder）→ 注入 prompt**。
@@ -248,11 +248,12 @@ extract_mentions(full_text, sections, structure)：
 
 JD 要求项 ↔ 简历：
   ① 词典路（确定、免费）：要求项有 skill_id 且 skill_mentions 中存在同 skill_id → hit，matched_by='dict'，证据取 mention 区间
-  ② RAG + LLM 路：其余要求项逐条 → resume_units 召回 top-10 → reranker 精排 top-3 → LLM 判定
-     输出 {status: hit|partial|miss, unit_id, reason}；证据即该 unit 的 char 区间（unit_id 不在候选内 → 计入 hallucination_count 并按 miss）
-     matched_by='rag'
-  ③ 复核：② 判为 miss 的，用掩码后的简历全文让 LLM 复核一次，hit/partial 须给 evidence_quote 并经 locate_span 校验；matched_by='fulltext'
-  mode：dict_only / llm_fulltext / llm_rag / hybrid，见 06-workflows 6.2
+     只在十拿九稳时下结论：要求去掉技能名后不超过 6 个字（"熟悉 Redis"），且该技能出现在工作 / 项目经历里；
+     带限定语的（"熟悉 Redis 缓存穿透…"）或只列在技能清单里的，留给模型
+  ② 学历 / 年限：要求里写了学历层次或"N 年"，与简历的最高学历、工作与实习总时长比；matched_by='profile'
+  ③ 模型路：其余要求项连同掩码后的简历全文一次交给 LLM，逐条输出 {status, evidence_quote, reason}；
+     hit/partial 的 evidence_quote 须经 locate_span 定位，定位失败 → 计入 hallucination_count 并按 miss；matched_by='fulltext'
+  mode：dict_only / llm_fulltext / hybrid，见 06-workflows 6.2（匹配不用 RAG 的原因也在那里）
 为什么不建本体树：上下位知识（Spring Boot 属于 Java 生态）LLM 本来就有，手工建树覆盖面永远不够；
   词典只保留「同一技能的不同写法」这种确定性最高、LLM 也无需判断的部分。与诊断模块同一原则：确定的先上，模糊的交给 LLM，LLM 输出必须可验证。
 degree_level(structure)∈{0..4}；experience_years(structure) = work[] 区间合并求和

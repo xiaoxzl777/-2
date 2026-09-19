@@ -318,7 +318,7 @@ class MatchReport(Base):
 
     # 实验参数与统计（匹配消融）
     mode: Mapped[str] = mapped_column(
-        Enum("dict_only", "llm_fulltext", "llm_rag", "hybrid", name="match_mode"),
+        Enum("dict_only", "llm_fulltext", "hybrid", name="match_mode"),
         nullable=False,
         server_default="hybrid",
     )

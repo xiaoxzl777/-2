@@ -1,7 +1,7 @@
-"""匹配的落库与检索准备。
+"""匹配的建记录与落库。
 
-匹配图（app/graphs）只做计算；这里负责建记录、保证这份简历的检索单元已入库并把"按要求文本检索"包成函数、
-判定是否过初筛、写 match_reports。跑图由投递流水线（apply_service）负责，跑完调用这里的 save_result。
+匹配图（app/graphs）只做计算；这里负责建记录、判定是否过初筛、写 match_reports。
+跑图由投递流水线（apply_service）负责，跑完调用这里的 save_result。
 """
 from __future__ import annotations
 
@@ -13,12 +13,9 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.errors import CONFLICT, ApiError
 from app.llm import prompts
-from app.matching.units import build_match_units
 from app.models import Diagnosis, Job, MatchReport, Resume
-from app.retrieval.unit_store import ResumeUnitStore
 
 _IN_PROGRESS = ("pending", "running")
-_USES_RETRIEVAL = ("llm_rag", "hybrid")
 _REQUIREMENT_FIELDS = ("content", "req_type", "category", "weight", "skill")
 
 
@@ -33,20 +30,6 @@ def create_match(db: Session, resume: Resume, job: Job, mode: str, model: str | 
     db.add(report)
     db.commit()
     return report
-
-
-def make_retriever(report: MatchReport, resume: Resume, masked_text: str, store: ResumeUnitStore):
-    """用到检索的 mode：保证这份简历的单元已入库，返回"要求文本 → 候选单元"的函数；其余 mode 返回 None。"""
-    if report.mode not in _USES_RETRIEVAL:
-        return None
-    units = build_match_units(resume.structure or {}, resume.sections or [], resume.full_text or "")
-    store.ensure_indexed(resume.id, units, masked_text)           # 首次匹配、或结构被纠正过 → （重新）入库
-    resume_id, ref = resume.id, ("match_report", report.id)
-
-    def retrieve(query: str):
-        return store.retrieve(resume_id, query, recall_k=settings.MATCH_RECALL_K, top_k=settings.RAG_TOP_K, ref=ref)
-
-    return retrieve
 
 
 def save_result(db: Session, report: MatchReport, job: Job, result: dict) -> None:

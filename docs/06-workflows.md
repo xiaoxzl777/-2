@@ -77,8 +77,8 @@
 extract ──► layout ──┬─(有 unknown 页)─► llm_relayout ─┐
   PyMuPDF   分栏算法  └─(都判出来了)────────────────────┤
   python-docx                                          ▼
-        section ──► structure ──► mentions ──► index_units
-        章节识别    LLM 回 block_ids  词典扫技能   经历向量化 → Chroma resume_units
+        section ──► structure ──► mentions
+        章节识别    LLM 回 block_ids  词典扫技能
 ```
 
 ### diagnose 子图
@@ -94,24 +94,30 @@ rule_scan ──► dispatch ──Send×N──► review_unit ──► merge_
 ### match 子图
 
 ```
-dict_match ──► dispatch ──Send×M──► judge_requirement ──► recheck_missing ──► score_match
- 词典精确命中   未命中的要求项         每条要求一个；节点内部：      判为 miss 的，         四维加权
- 纯函数        分发                  ① resume_units 召回 top-10   用简历全文让 LLM       学历/年限为纯函数
-                                    ② reranker 精排 top-3        复核一次（防检索漏掉）
-                                    ③ LLM 判定 + 指出依据是哪条
-                                    ④ 证据即该经历的 char 区间
+rule_match ──► judge_fulltext ──► score_match
+ 规则先判       规则判不了的要求，连同       公式加权算分
+ （不花钱）     简历全文一次交给模型判断；
+               模型的依据须逐字引用简历，经 locate_span 定位
 ```
 
-`mode ∈ {dict_only, llm_fulltext, llm_rag, hybrid}`：
+`mode ∈ {dict_only, llm_fulltext, hybrid}`：
 
 | mode | 行为 | 用途 |
 |---|---|---|
-| `dict_only` | dispatch 直接去 score_match，未命中即 miss | 基线 |
-| `llm_fulltext` | 跳过 dict_match 与检索，judge 用简历全文，引用经 locate_span 校验 | 对照：不用 RAG |
-| `llm_rag` | 跳过 dict_match，judge 走 召回→精排→判定 | 对照：只用 RAG |
-| `hybrid`（默认） | 词典 → RAG 判定 → miss 复核 | 线上 |
+| `dict_only` | 只用规则，判不了的直接记 miss，不调模型 | 基线 |
+| `llm_fulltext` | 跳过规则，全部要求交给模型 | 对照：只用模型 |
+| `hybrid`（默认） | 规则只判十拿九稳的（要求就是技能名本身、且经历里确实用过；学历；年限），其余交给模型 | 线上 |
 
-**诚实的局限**：简历只有一两千字，全文塞给 LLM 完全放得下，RAG 在这里不是为了"装不下"，而是为了证据自带定位与可解释。检索可能漏掉相关经历，所以有 recheck_missing 兜底，并用四组实验给出数据结论——无论哪组赢都是可写的结论。
+**为什么匹配不用 RAG（2026-09-19 调整）**：简历只有一两千字，全文放进 prompt 毫无压力，不存在"资料太多"的问题。
+最初的设计是逐条要求 `召回 → 精排 → 判定`，并对判为 miss 的再用全文复核一次。用真实简历 × 校招 JD 实测（单份样本，仅作设计依据）：
+
+| 做法 | 模型调用 | 耗时 | 花费 | 现象 |
+|---|---|---|---|---|
+| 全文一次判断 | 1 次 | 3.7 s | ¥0.018 | — |
+| 逐条 RAG 判断 | 18 次 + 36 次向量 / 重排 | 5.1 s | ¥0.028 | 检索单元没覆盖到的内容（学历、技术栈行）会被误判为 miss，需要全文复核来兜底 |
+
+RAG 更贵、更慢、还多一种出错方式，于是从匹配中移除。检索层（`llm/embedding.py`、`retrieval/unit_store.py`）保留，
+用在真正资料多的地方：模拟面试里作为面试官的**检索工具**，查用户贴的面经 / 公司介绍 / JD（见 6.5）。
 
 ### 图 A 的 State
 
@@ -208,23 +214,26 @@ class InterviewState(TypedDict):
 
 | 类型 | 节点 | 技术 |
 |---|---|---|
-| 纯函数（不调 API） | load_inputs · layout · section · mentions · rule_scan · dict_match · gate · build_gap_report · pick_topic · decide · round_summary · score · score_match | Python |
-| LLM | llm_relayout · structure · review_unit · judge_requirement · recheck_missing · plan_interview · ask_question · evaluate_answer · final_report | DeepSeek，经 `llm/client.py`（缓存 · 限流 · 记账） |
-| 检索 | index_units · judge_requirement 前半 · retrieve_context | bge-m3 → Chroma → bge-reranker（`retrieval/retriever.py`） |
-| 证据校验 | review_unit / judge_requirement / evaluate_answer 内部 | `diagnose/evidence.locate_span`，三处同一个函数 |
+| 纯函数（不调 API） | load_inputs · layout · section · mentions · rule_scan · rule_match · gate · pick_topic · decide · round_summary · score · score_match | Python |
+| LLM | llm_relayout · structure · review_unit · judge_fulltext · plan_interview · ask_question · evaluate_answer · final_report | DeepSeek，经 `llm/client.py`（缓存 · 限流 · 记账） |
+| 检索 | 面试里的检索工具 search_materials | bge-m3 → Chroma → bge-reranker（`retrieval/`） |
+| 证据校验 | review_unit / judge_fulltext / evaluate_answer 内部，以及 JD 解析 | `diagnose/evidence.locate_span`，三处同一个函数 |
 | 等人 | wait_answer | `interrupt()` + `SqliteSaver` |
 
 **DB 读写全部在图外**：service 层消费 `graph.stream()` 的事件，每步落库并发布 SSE 进度。节点只收发纯数据（不变量④）。
 
-## 6.5 RAG 用在三处，同一条链路
+## 6.5 RAG 的位置：面试里的一个工具
+
+RAG 解决的是"资料太多、塞不进 prompt"。按这个标准逐处检查：
 
 ```
-匹配   JD 要求项   →检索→ resume_units                 → LLM 判定是否命中
-改写   弱描述      →检索→ cases（优秀案例库）           → LLM 参考着改写
-面试   面试话题    →检索→ resume_units + interview_ctx → 面试官出题
+匹配   简历 + JD 一共两三千字            → 不需要检索，全文直接给模型（见 6.2）
+改写   暂无范例库                        → 先不做检索：模型改写 + 数字占位符复检；以后有了范例库再接
+面试   用户贴的面经 / 公司介绍可上万字，   → 需要检索：作为面试官的工具 search_materials(query)，
+       一场面试约 30 次模型调用              聊到哪个话题就只取相关的几段，不必每轮都带着全部材料
 ```
 
-切块 → 向量化入库 → 召回（embedding）→ 精排（reranker）→ 注入 prompt。
+链路不变：切块 → 向量化入库（bge-m3）→ 召回 → 精排（bge-reranker）→ 注入 prompt。语料来自用户自己贴的材料与 JD，不需要另外收集数据。
 
 ## 6.6 必做线（任何时间点停下来都是一个完整的毕设）
 

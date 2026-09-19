@@ -1,7 +1,7 @@
 """投递接口测试：一次请求跑完 诊断 + 匹配 + 初筛，验证两条记录的落库、进度事件、未通过说明。"""
 from app.llm.client import LLMError
 from app.models import Diagnosis, MatchReport
-from tests.conftest import H_VAGUE, apply as _apply, fulltext_reply as _full, judge_reply as _judge, review_reply as _review
+from tests.conftest import H_VAGUE, apply as _apply, fulltext_reply as _full, review_reply as _review
 
 API = "/api/v1/apply"
 
@@ -9,9 +9,7 @@ API = "/api/v1/apply"
 def test_apply_runs_diagnosis_and_match_then_gates(client, auth_headers, resume_and_job, fake_llm, events):
     rid, jid = resume_and_job
     fake_llm.replies[f"_ReviewOut:{H_VAGUE}"] = [_review(("vague", "medium", "持续改进各项功能"))]
-    fake_llm.replies["_JudgeOut:有缓存性能优化经验"] = [_judge("hit", 1)]
-    fake_llm.replies["_JudgeOut:熟悉 Kafka"] = [_judge("miss")]
-    fake_llm.replies["_FulltextOut"] = [_full((4, "miss", None))]
+    fake_llm.replies["_FulltextOut"] = [_full((3, "hit", "列表查询响应从 820ms 降至 140ms"), (4, "miss", None))]
 
     started = _apply(client, auth_headers, rid, jid)["data"]
     assert started["task_id"] == f"apply:{started['id']}" and started["status"] == "pending" and started["diagnosis_id"]
@@ -47,9 +45,7 @@ def test_failed_gate_lists_gaps_by_importance(client, auth_headers, resume_and_j
 
     monkeypatch.setattr(settings, "SCREEN_THRESHOLD", 70.0)                 # 64.3 分过不了 70 分的线
     rid, jid = resume_and_job
-    fake_llm.replies["_JudgeOut:有缓存性能优化经验"] = [_judge("partial", 1)]
-    fake_llm.replies["_JudgeOut:熟悉 Kafka"] = [_judge("miss")]
-    fake_llm.replies["_FulltextOut"] = [_full((4, "miss", None))]
+    fake_llm.replies["_FulltextOut"] = [_full((3, "partial", "列表查询响应从 820ms 降至 140ms"), (4, "miss", None))]
 
     apply_id = _apply(client, auth_headers, rid, jid, diagnose_mode="rule_only")["data"]["id"]
     result = client.get(f"{API}/{apply_id}", headers=auth_headers).json()["data"]
@@ -62,7 +58,7 @@ def test_failed_gate_lists_gaps_by_importance(client, auth_headers, resume_and_j
 def test_a_failure_in_either_branch_fails_both_records(client, auth_headers, resume_and_job, fake_llm, events,
                                                         db_session_factory):
     rid, jid = resume_and_job
-    fake_llm.replies["_JudgeOut:熟悉 Kafka"] = [LLMError("上游超时")]
+    fake_llm.replies["_FulltextOut"] = [LLMError("上游超时")]
     started = _apply(client, auth_headers, rid, jid)["data"]
 
     result = client.get(f"{API}/{started['id']}", headers=auth_headers).json()["data"]

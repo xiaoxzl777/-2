@@ -46,7 +46,7 @@
 
 匹配 1    GET  /match/{id}     匹配由投递触发，这里只查报告（id = 投递 id）
                        → status / overall_match / passed / threshold / dimension_scores / items[]
-                       items[] 每条 = 要求项内容 + status(hit|partial|miss) + matched_by(dict|profile|rag|fulltext)
+                       items[] 每条 = 要求项内容 + status(hit|partial|miss) + matched_by(dict|profile|fulltext)
                        + reason + 简历原文依据 evidence_quote 与 char 区间
 
 改写 1    POST /findings/{id}/rewrite?use_rag=&use_rerank=

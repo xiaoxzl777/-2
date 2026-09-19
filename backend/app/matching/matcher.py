@@ -1,6 +1,6 @@
 """匹配的确定性通道：能用规则判定的要求项不花钱、不调模型，结论百分之百可复现。
 
-三个判定器各管一类要求，判不了就返回 None，留给后面的 RAG + LLM 通道：
+三个判定器各管一类要求，判不了就返回 None，留给后面的模型通道：
   · 技能   要求项带 skill_id，且简历的 skill_mentions 里有同一个 skill_id
   · 学历   要求里写了学历层次（本科 / 硕士…），与简历的最高学历比
   · 年限   要求里写了"N 年"，与简历的工作 / 实习总时长比
@@ -29,7 +29,7 @@ MAX_PLAIN_EXTRA = 6           # 要求去掉技能名后最多还剩几个字，
 class MatchItem:
     requirement_id: int
     status: str                          # hit / partial / miss
-    matched_by: str | None               # dict / profile / rag / fulltext；miss 且没人判过为 None
+    matched_by: str | None               # dict / profile / fulltext；miss 且没人判过为 None
     reason: str
     evidence_quote: str | None = None    # 简历原文：full_text[char_start:char_end]
     char_start: int | None = None

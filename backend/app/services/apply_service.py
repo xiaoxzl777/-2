@@ -17,7 +17,6 @@ from app.graphs.apply_graph import build_apply_graph
 from app.llm.client import LLMClient
 from app.models import Diagnosis, Finding, Job, MatchReport, Resume
 from app.parser.pii import mask_pii
-from app.retrieval.unit_store import ResumeUnitStore
 from app.services import diagnose_service, match_service
 from app.services.parse_service import SessionFactory
 
@@ -43,8 +42,7 @@ def create_apply(db: Session, resume: Resume, job: Job, diagnose_mode: str, matc
     return report
 
 
-def run_apply(report_id: int, session_factory: SessionFactory, llm: LLMClient, store: ResumeUnitStore,
-              publish: Publish) -> None:
+def run_apply(report_id: int, session_factory: SessionFactory, llm: LLMClient, publish: Publish) -> None:
     """BackgroundTasks 入口。"""
     task_id = f"apply:{report_id}"
     with session_factory() as db:
@@ -62,7 +60,7 @@ def run_apply(report_id: int, session_factory: SessionFactory, llm: LLMClient, s
             db.commit()
 
             publish(task_id, "progress", {"stage": "analyzing", "percent": 20, "message": "正在诊断简历并对照岗位要求"})
-            result = _run_graph(task_id, report, diagnosis, resume, job, llm, store, publish)
+            result = _run_graph(task_id, report, diagnosis, resume, job, llm, publish)
         except Exception as e:  # noqa: BLE001 —— 后台任务必须落成失败状态，不能把异常抛丢
             logger.exception("投递失败 match_report_id=%s", report_id)
             db.rollback()
@@ -93,7 +91,7 @@ def _wait_until_parsed(db: Session, resume: Resume) -> None:
 
 
 def _run_graph(task_id: str, report: MatchReport, diagnosis: Diagnosis, resume: Resume, job: Job,
-               llm: LLMClient, store: ResumeUnitStore, publish: Publish) -> dict:
+               llm: LLMClient, publish: Publish) -> dict:
     structure, full_text = resume.structure or {}, resume.full_text or ""
     masked_text = mask_pii(full_text, name=structure.get("basics", {}).get("name"))
     state = {
@@ -102,7 +100,7 @@ def _run_graph(task_id: str, report: MatchReport, diagnosis: Diagnosis, resume: 
         "requirements": job.requirements or [], "structure": structure, "full_text": full_text,
         "masked_text": masked_text, "ats_signals": resume.ats_signals, "page_count": resume.page_count,
     }
-    graph = build_apply_graph(llm, match_service.make_retriever(report, resume, masked_text, store))
+    graph = build_apply_graph(llm)
 
     result: dict = {}
     for update in graph.stream(state, stream_mode="updates"):       # 每完成一个节点吐一次：{节点名: 它写回的字段}
