@@ -33,7 +33,7 @@ docker compose up -d redis
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -r requirements.lock   # 锁定版本，与开发机完全一致（Windows / Python 3.13）
 uvicorn app.main:app --reload      # http://localhost:8000/docs
                                    # 自检：http://localhost:8000/api/v1/health
 
