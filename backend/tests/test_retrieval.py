@@ -73,17 +73,19 @@ def test_transient_errors_are_retried_and_hard_failures_are_audited(monkeypatch)
 
 def test_match_units_cover_experience_skill_lines_and_awards():
     lines = ["专业技能", "1.Java生态：", "熟悉 Java 并发编程与 JVM 内存模型", "缓存：熟悉 Redis", "项目经历",
-             "订单系统", "热点数据预热至 Redis，响应降至 140ms", "荣誉", "英语 CET-6"]
+             "订单系统", "热点数据预热至 Redis，响应降至 140ms", "荣誉", "英语 CET-6", "教育经历", "某某大学 本科"]
     text = "\n".join(lines)
     at = lambda s: {"char_start": text.index(s), "char_end": text.index(s) + len(s)}  # noqa: E731
     structure = {"projects": [{"name": "订单系统", **at("订单系统\n热点数据预热至 Redis，响应降至 140ms"), "highlights": [at(lines[6])]}],
-                 "awards": [at("英语 CET-6")]}
+                 "awards": [at("英语 CET-6")], "education": [at("某某大学 本科")]}
     sections = [{"type": "skills", "title": "专业技能", "char_start": 0, "char_end": text.index("项目经历") - 1},
                 {"type": "projects", "title": "项目经历", "char_start": text.index("项目经历"), "char_end": text.index("荣誉") - 1}]
 
     units = build_match_units(structure, sections, text)
     assert [(u.unit_id, u.entry_name, u.text) for u in units] == [
         ("projects[0].highlights[0]", "订单系统", lines[6]),
+        ("projects[0].head", "订单系统", "订单系统"),                                          # 经历头部：名称 / 技术栈 / 描述
+        ("education[0]", None, "某某大学 本科"),
         ("skills.line[2]", "Java生态", lines[2]), ("skills.line[3]", "Java生态", lines[3]),   # 小标题不是单元，而是分组名
         ("awards[0]", None, "英语 CET-6")]
     assert all(text[u.char_start:u.char_end] == u.text for u in units)

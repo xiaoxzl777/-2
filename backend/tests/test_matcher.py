@@ -32,24 +32,38 @@ STRUCTURE = {
 }
 
 
-def _req(rid, category, content, skill_id=None, req_type="hard", quote=""):
+def _req(rid, category, content, skill_id=None, req_type="hard", quote="", skill=None):
     return {"id": rid, "req_type": req_type, "category": category, "content": content, "quote": quote,
-            "skill_id": skill_id, "weight": {"hard": 1.0, "plus": 0.5, "soft": 0.3}[req_type]}
+            "skill": skill, "skill_id": skill_id, "weight": {"hard": 1.0, "plus": 0.5, "soft": 0.3}[req_type]}
 
 
-def _match(req, structure=STRUCTURE):
-    return match_by_rules(req, structure, TEXT, TODAY)
+def _match(req, structure=STRUCTURE, strict=True):
+    return match_by_rules(req, structure, TEXT, TODAY, strict=strict)
 
 
 def test_skill_used_in_experience_is_a_hit_with_the_line_as_evidence():
-    item = _match(_req(1, "skill", "熟悉 Redis", skill_id=3))
+    item = _match(_req(1, "skill", "熟悉 Redis", skill_id=3, skill="Redis"))
     assert (item.status, item.matched_by) == ("hit", "dict")
     assert item.evidence_quote == LINES[3] and TEXT[item.char_start:item.char_end] == item.evidence_quote
 
 
-def test_skill_only_listed_is_partial_and_unknown_skill_is_left_to_the_model():
-    item = _match(_req(1, "skill", "熟悉 Docker", skill_id=9))
+def test_strict_mode_only_decides_what_is_certain():
+    listed_only = _req(1, "skill", "熟悉 Docker", skill_id=9, skill="Docker")
+    qualified = _req(2, "skill", "熟悉 Redis 缓存穿透、击穿、雪崩的解决方案", skill_id=3, skill="Redis")
+    plain_variants = [_req(3, "skill", c, skill_id=3, skill="Redis")
+                      for c in ("熟练使用 Redis", "有 Redis 使用经验者优先", "掌握Redis等相关技术")]
+
+    # 后面有模型兜底时：只列未用、带限定语的，都不由规则下结论
+    assert _match(listed_only) is None and _match(qualified) is None
+    assert [_match(r).status for r in plain_variants] == ["hit"] * 3
+
+    # dict_only 基线：词典能判的全判
+    item = _match(listed_only, strict=False)
     assert (item.status, item.evidence_quote) == ("partial", LINES[1]) and "技能清单" in item.reason
+    assert _match(qualified, strict=False).status == "hit"
+
+
+def test_unknown_skills_are_left_to_the_model():
     assert _match(_req(2, "skill", "熟悉 Kafka", skill_id=50)) is None        # 词典没扫到 ≠ 不会
     assert _match(_req(3, "skill", "熟悉 JVM 内存模型")) is None               # 词典里没有的技能
     assert _match(_req(4, "other", "良好的沟通能力")) is None

@@ -6,23 +6,11 @@ ensure_indexed 发现库里的单元与当前结构不一致（首次匹配、�
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from chromadb.api.models.Collection import Collection
 
 from app.diagnose.types import ReviewUnit
 from app.llm.embedding import EmbeddingClient
-
-
-@dataclass(slots=True, frozen=True)
-class Candidate:
-    unit_id: str
-    unit_type: str
-    entry_name: str | None
-    char_start: int
-    char_end: int
-    text: str             # 掩码后的文本，用于放进 prompt
-    score: float          # 精排相关度；未精排时为余弦相似度
+from app.matching.units import Candidate
 
 
 class ResumeUnitStore:

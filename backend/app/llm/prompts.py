@@ -101,7 +101,7 @@ DIAGNOSE_RETRY_SCHEMA = "你上一次的输出无法使用：{error}。请严格
 
 # ───────────────────────── JD 解析 ─────────────────────────
 
-JD_VERSION = "jd-v1"
+JD_VERSION = "jd-v2"   # v2：用"或"连接的可替代技术不再拆开
 
 JD_SYSTEM = """\
 你是招聘信息抽取助手。把下面的岗位描述（JD）拆成一条条独立的"要求项"，以 JSON 输出。
@@ -110,6 +110,8 @@ JD_SYSTEM = """\
 - 只抽取对候选人的要求：技术技能、学历专业、经验年限与领域经验、软素质。公司介绍、福利、地点、单纯的工作内容描述不要抽。
   JD 没有单独写"任职要求"时，才从岗位职责里提炼。
 - 一条要求项只含一个考察点："熟悉 Redis、MySQL" 要拆成两条。
+  例外：用"或 / 任一 / 之一"连接的是可以互相替代的技术（"了解 RabbitMQ 或 Kafka"），满足其一即可，
+  必须保持为一条，skill 填 null。
 - req_type：hard = 必须满足（默认）；plus = 加分 / 优先 / 更佳；soft = 沟通、责任心、学习能力等软素质。
 - category：skill = 具体的语言 / 框架 / 工具 / 技术；education = 学历与专业；experience = 年限、实习、领域经验；other = 其余。
 - skill：category 为 skill 时填技术名词本身，照 JD 里的写法（如 "Redis"）；其余填 null。
@@ -129,3 +131,46 @@ JD_USER = """\
 {raw_text}"""
 
 JD_RETRY = "你上一次的输出无法使用：{error}。请严格按示例的 JSON 结构重新输出，只输出 JSON。"
+
+# ───────────────────────── 匹配判定 ─────────────────────────
+
+MATCH_VERSION = "match-v1"
+
+_MATCH_LEVELS = """\
+- hit = 明确体现了这项要求；partial = 相关但不充分（用的是相近技术 / 只是提到、没有实际使用的描述 / 程度明显不够）；
+  miss = 找不到依据。不要因为候选人"看起来很强"就放宽，也不要推测文本之外的内容。
+- reason：一句话说明判断依据，不超过 50 字。
+- 文本中的 X、*、某 是脱敏占位符，照常处理即可。"""
+
+MATCH_JUDGE_SYSTEM = f"""\
+你是技术招聘的简历筛选助手。下面给出一条岗位要求，以及从候选人简历中检索出的几个片段（[#n] 是片段编号）。
+请只依据这些片段，判断候选人是否满足这条要求，以 JSON 输出。
+
+规则：
+{_MATCH_LEVELS}
+- unit_no：最能支撑你判断的那个片段的编号，只能用上面出现过的编号；miss 时填 null。
+
+输出示例：{{"status": "partial", "unit_no": 2, "reason": "用过 RabbitMQ 做异步削峰，但没有 Kafka 的使用经历"}}"""
+
+MATCH_JUDGE_USER = """\
+【岗位要求】{requirement}
+【简历片段】
+{candidates}"""
+
+MATCH_FULLTEXT_SYSTEM = f"""\
+你是技术招聘的简历筛选助手。下面给出候选人的简历全文和若干条岗位要求。
+请逐条判断候选人是否满足，以 JSON 输出，每条要求都必须有一个结果。
+
+规则：
+{_MATCH_LEVELS}
+- evidence_quote：hit / partial 时，从【简历全文】里逐字复制一段最能支撑判断的连续文字（6–60 字），不得改写；miss 时填 null。
+
+输出示例：{{"results": [{{"id": 3, "status": "hit", "evidence_quote": "基于 Redisson 分布式锁落地过秒杀防超卖方案", "reason": "有分布式锁的实际落地经验"}}]}}"""
+
+MATCH_FULLTEXT_USER = """\
+【岗位要求】
+{requirements}
+【简历全文】
+{resume}"""
+
+MATCH_RETRY = "你上一次的输出无法使用：{error}。请严格按示例的 JSON 结构重新输出，只输出 JSON。"

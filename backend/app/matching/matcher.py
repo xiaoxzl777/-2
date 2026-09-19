@@ -22,6 +22,10 @@ _DEGREES = [(4, re.compile(r"博士|ph\.?d", re.I)), (3, re.compile(r"硕士|研
             (2, re.compile(r"本科|学士|bachelor", re.I)), (1, re.compile(r"大专|专科"))]
 _DEGREE_NAMES = {4: "博士", 3: "硕士", 2: "本科", 1: "大专"}
 _YEARS = re.compile(r"(\d{1,2})\s*年")
+# 不携带额外信息的程度词 / 套话；去掉它们之后还剩很多字，说明要求里另有限定（"…索引与事务原理"）
+_FILLER = re.compile(r"熟练掌握|熟练使用|熟悉|掌握|了解|精通|熟练|使用过|使用|具备|具有|相关|开发|技术|框架|经验|能力|基础|"
+                     r"者?优先|加分|等|的|有|会|[\s，。、；：,.;:（）()/+]")
+MAX_PLAIN_RESIDUE = 2
 
 
 @dataclass(slots=True)
@@ -39,10 +43,20 @@ class MatchItem:
         return asdict(self)
 
 
-def match_by_rules(requirement: dict, structure: dict, full_text: str, today: date | None = None) -> MatchItem | None:
-    """按要求项的类别分派给对应的判定器。返回 None = 规则判不了。"""
+def match_by_rules(requirement: dict, structure: dict, full_text: str, today: date | None = None, *,
+                   strict: bool = True) -> MatchItem | None:
+    """按要求项的类别分派给对应的判定器。返回 None = 规则判不了。
+
+    strict（后面还有模型兜底时用）：技能类只在十拿九稳时下结论——要求就是技能名本身、且经历里确实用过。
+    "熟悉 Redis 缓存穿透、击穿、雪崩的解决方案"这种带限定语的，光看到 Redis 字样不能算满足；
+    "只列在技能清单里"也可能只是没写出字面（Spring Boot 项目当然用了 Java）——这些都留给模型判断。
+    不 strict（dict_only 基线）：词典能判的全判，看看纯规则能做到什么程度。
+    """
     if requirement.get("skill_id"):
-        return _match_skill(requirement, structure, full_text)
+        item = _match_skill(requirement, structure, full_text)
+        if strict and item is not None and (item.status != "hit" or not _is_plain_skill_requirement(requirement)):
+            return None
+        return item
     if requirement["category"] == "education":
         return _match_education(requirement, structure, full_text)
     if requirement["category"] == "experience":
@@ -61,6 +75,13 @@ def _match_skill(req: dict, structure: dict, full_text: str) -> MatchItem | None
         requirement_id=req["id"], status="hit" if used else "partial", matched_by="dict",
         reason="在项目 / 工作经历中用到了这项技能" if used else "只出现在技能清单里，经历中没有体现实际使用",
         evidence_quote=full_text[span[0]:span[1]], char_start=span[0], char_end=span[1])
+
+
+def _is_plain_skill_requirement(req: dict) -> bool:
+    """要求是否只是"会某项技能"：去掉技能名、程度词和标点后基本不剩什么。"""
+    rest = req["content"].replace(req.get("skill") or "", "")
+    rest = _FILLER.sub("", rest)
+    return len(rest) <= MAX_PLAIN_RESIDUE
 
 
 def _match_education(req: dict, structure: dict, full_text: str) -> MatchItem | None:
