@@ -20,19 +20,19 @@
 ## 开发环境（本地跑 API 与前端，MySQL/Redis 用本机或容器）
 
 ```powershell
-# 1. 环境变量
-Copy-Item .env.example .env        # 填 DATABASE_URL、API key
+# 1. 环境变量（唯一需要手填的地方：MySQL 密码、API key；.env 不进仓库）
+Copy-Item .env.example .env
 
-# 2. Redis（本机没装就用容器）
+# 2. Redis：启动本机 Redis；本机没装就用容器
 docker compose up -d redis
 
-# 3. 后端
+# 3. 后端（首次启动会自动建库建表，无需手动执行 SQL）
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-python scripts\init_db.py          # 建库建表
 uvicorn app.main:app --reload      # http://localhost:8000/docs
+                                   # 自检：http://localhost:8000/api/v1/health
 
 # 4. 前端（M2 起）
 cd ..\frontend

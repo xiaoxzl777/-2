@@ -1,8 +1,7 @@
 """建库建表：python scripts/init_db.py [--drop]
 
-1. 连到 MySQL 服务器（不带库名），库不存在则创建（utf8mb4）。
-2. 按 app/models.py 建出 11 张表；已存在的表不动。
---drop 先删掉全部表再建（开发期表结构变更时用，会清空数据）。
+服务启动时会自动建库建表（app.database.ensure_database），平时不需要手动跑。
+本脚本用于：不启动服务只建表；或 --drop 在开发期表结构变更后重建（会清空数据）。
 """
 from __future__ import annotations
 
@@ -12,10 +11,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sqlalchemy import create_engine, inspect, text  # noqa: E402
-from sqlalchemy.engine import make_url  # noqa: E402
-
 from app.config import settings  # noqa: E402
+from app.database import engine, ensure_database  # noqa: E402
 from app.models import Base  # noqa: E402
 
 
@@ -24,26 +21,13 @@ def main() -> None:
     parser.add_argument("--drop", action="store_true", help="先删除全部表（清空数据）")
     args = parser.parse_args()
 
-    url = make_url(settings.DATABASE_URL)
-    db_name = url.database
-
-    # 注意：URL.set(database=None) 表示"不修改"，要用空串才能去掉库名
-    server = create_engine(url.set(database=""))
-    with server.connect() as conn:
-        conn.execute(
-            text(f"CREATE DATABASE IF NOT EXISTS `{db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-        )
-        conn.commit()
-    server.dispose()
-
-    engine = create_engine(url)
+    ensure_database()  # 先保证库存在，drop 才有地方可连
     if args.drop:
         Base.metadata.drop_all(engine)
         print("已删除全部表")
-    Base.metadata.create_all(engine)
+    tables = ensure_database()
 
-    tables = sorted(inspect(engine).get_table_names())
-    print(f"数据库 {db_name}：{len(tables)} 张表")
+    print(f"数据库 {engine.url.database}（{settings.APP_ENV}）：{len(tables)} 张表")
     for t in tables:
         print(f"  - {t}")
 
