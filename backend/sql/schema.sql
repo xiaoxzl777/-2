@@ -212,7 +212,7 @@ CREATE TABLE IF NOT EXISTS findings (
   verify_result ENUM('exact','fuzzy','failed') NOT NULL, 
   match_score FLOAT, 
   attempt_no SMALLINT NOT NULL DEFAULT '1', 
-  rewrite JSON COMMENT '{used_rag, rewritten, placeholders, changes, violation_count, created_at}', 
+  rewrite JSON COMMENT '{used_rag, used_rerank, rewritten, placeholders, changes, violation_count, created_at}', 
   created_at DATETIME NOT NULL DEFAULT now(), 
   PRIMARY KEY (id), 
   FOREIGN KEY(diagnosis_id) REFERENCES diagnoses (id) ON DELETE CASCADE

@@ -82,7 +82,7 @@ DOCX         → 线性读取（段落与表格按文档流；表格逐单元格
 | 编号 | 需求 | 说明 | 优先级 |
 |---|---|---|---|
 | FR-F1 | 改写建议 | `POST /findings/{id}/rewrite`，单条同步，写回 `findings.rewrite`；**数值强制占位符 + 确定性复检**（5.8） | P1 |
-| FR-F2 | 检索增强改写 | `?use_rag=true` 检索 `cases` 作 few-shot | P1 |
+| FR-F2 | 检索增强改写 | `?use_rag=true`：两阶段检索 `cases`（embedding 召回 top-20 → reranker 精排 top-3）作 few-shot；`?use_rerank=false` 可关精排 | P1 |
 | FR-F3 | 采纳改写 | 本期不写回简历：用户填占位符 → 前端合成 → 复制/下载 | P2 |
 | FR-F4 | 报告导出 | PDF | P2 |
 
@@ -104,7 +104,7 @@ DOCX         → 线性读取（段落与表格按文档流；表格逐单元格
 
 | 编号 | 需求 | 优先级 |
 |---|---|---|
-| FR-H1 | LLM 可插拔（注册表） | P0 |
+| FR-H1 | LLM / embedding / reranker 可插拔（注册表） | P0 |
 | FR-H2 | Prompt 版本化常量，落库 `prompt_version` | P0 |
 | FR-H3 | 调用审计：`llm/client.py` 唯一出口落库，缓存命中也记一行 | P1 |
 | FR-H4 | 评测 CLI：`gen_eval_set.py` / `run_eval.py`（绕过缓存、`--repeat 3`） | P1 |

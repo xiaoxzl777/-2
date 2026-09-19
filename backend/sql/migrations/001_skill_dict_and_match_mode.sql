@@ -24,3 +24,7 @@ ALTER TABLE match_reports
   ADD COLUMN prompt_version VARCHAR(20) NULL AFTER model_name,
   ADD COLUMN llm_item_count INT NOT NULL DEFAULT 0 COMMENT 'LLM 判定的要求项数' AFTER prompt_version,
   ADD COLUMN hallucination_count INT NOT NULL DEFAULT 0 COMMENT '其中引用无法定位的条数' AFTER llm_item_count;
+
+-- findings.rewrite：注释补充 used_rerank（仅注释变化）
+ALTER TABLE findings
+  MODIFY rewrite JSON NULL COMMENT '{used_rag, used_rerank, rewritten, placeholders, changes, violation_count, created_at}';

@@ -257,7 +257,7 @@ class Finding(Base):
     attempt_no: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="1")
 
     rewrite: Mapped[dict[str, Any] | None] = mapped_column(
-        JSON, comment="{used_rag, rewritten, placeholders, changes, violation_count, created_at}"
+        JSON, comment="{used_rag, used_rerank, rewritten, placeholders, changes, violation_count, created_at}"
     )
     created_at: Mapped[datetime] = _created_at()
 

@@ -89,8 +89,12 @@ class DiagnoseState(TypedDict):
 
 | 应用点 | 检索什么 | 结果给谁 | 完整 RAG |
 |---|---|---|---|
-| 改写 few-shot | `cases`（按 job_category + tech_stack 过滤取 top-3） | LLM | ✅ |
-| 面试附加材料 | `interview_ctx`（用户粘贴的面经/公司介绍切块） | 面试计划 / 下一问 LLM | ✅ |
+| 改写 few-shot | `cases`：metadata 过滤（job_category）→ embedding 召回 top-20 → reranker 精排 top-3 | LLM | ✅ |
+| 面试附加材料 | `interview_ctx`（用户粘贴的面经/公司介绍切块）：embedding 召回 top-10 → reranker 精排 top-3 | 面试计划 / 下一问 LLM | ✅ |
+
+两处共用 `retrieval/retriever.py` 的同一条链路：**切块 → 向量化入库 → 召回（embedding）→ 精排（reranker，cross-encoder）→ 注入 prompt**。
+为什么要两阶段：embedding 是双塔模型，query 与文档各自编码，快但粗；reranker 把 query 与每个候选拼在一起过模型，准但慢——所以先用前者把上千条缩到 20 条，再用后者挑 3 条。
+reranker 失败或关闭时退化为直接取召回 top-3，功能不中断。技能匹配不走这条链路（见 5.6）。
 
 **"模拟某家公司"的信息来源**：LLM 不依赖对公司的先验记忆。必填 JD（用户粘贴）给出"这家公司要什么"；可选 `company_name` + `extra_context`（面经、公司/部门介绍）给出"这家公司怎么问"；没有 JD 时用内置岗位模板。面试官 persona 的 system prompt 显式写入这些材料。
 
@@ -113,7 +117,7 @@ client.invoke(scene, messages, schema?, ref, model?, stream?)：
   ③ Redis 令牌桶限流
   ④ 调模型；token 取自 AIMessage.usage_metadata；cost 按单价表；取 system_fingerprint
   ⑤ 写缓存（TTL 7d）+ llm_calls 落库 → Result{parsed, raw, cost, tokens}
-client.embed 同样五步；降级：失败记 WARNING，不阻塞
+client.embed / client.rerank 同样五步；降级：失败记 WARNING，不阻塞（rerank 失败退化为召回序）
 评测模式：run_id 存在 ⇒ 跳过缓存，prompt/response 写 data/eval_runs/{run_id}/calls.jsonl
 ```
 
@@ -295,7 +299,7 @@ backend/app/
 ├── diagnose/   rules.py evidence.py ★ scorer.py placeholders.py
 ├── matching/   skill_dict.py ★（extract_mentions） matcher.py ★ gap_analysis.py profile.py
 ├── interview/  planner.py（计划 prompt 组装与解析） rubric.py（评估 schema 与聚合） policy.py（推进规则）
-├── retrieval/  chroma_client.py case_store.py jd_store.py ctx_store.py
+├── retrieval/  chroma_client.py retriever.py ★（召回 + 精排） case_store.py ctx_store.py
 ├── graphs/     state.py diagnose_graph.py nodes.py
 ├── llm/        client.py ★ registry.py prompts.py
 ├── cache/      redis_client.py llm_cache.py ratelimit.py pubsub.py
@@ -314,7 +318,7 @@ frontend/src/
 ## 6.2 Redis 职责与可用性约定
 
 ```
-① LLM/embedding 缓存（面试逐轮调用不缓存）   ② 限流令牌桶   ③ 后台任务 SSE pub/sub
+① LLM/embedding/rerank 缓存（面试逐轮调用不缓存）   ② 限流令牌桶   ③ 后台任务 SSE pub/sub
 ④ LangGraph checkpoint：本期不启用
 Redis 与 MySQL 同为必需依赖，启动 ping 失败即退出；运行期唯一容错：llm_cache get/set 异常按 miss。
 ```

@@ -51,7 +51,8 @@
 | 后端 | Python 3.11+（开发机 3.13）+ FastAPI + SQLAlchemy 2.0 + Pydantic v2 + pydantic-settings |
 | 前端 | React 18 + TS + Vite + Tailwind + shadcn/ui + Zustand + TanStack Query + @microsoft/fetch-event-source |
 | 对话模型 | DeepSeek `deepseek-chat`（LangChain `ChatDeepSeek`）；结构化输出 `with_structured_output(method="json_mode", include_raw=True)`；面试问题用流式 |
-| Embedding | 硅基流动 `BAAI/bge-m3`（仅用于改写案例检索与面试附加材料检索） |
+| Embedding | 硅基流动 `BAAI/bge-m3`：RAG 第一阶段召回（改写案例库、面试附加材料） |
+| Reranker | 硅基流动 `BAAI/bge-reranker-v2-m3`：RAG 第二阶段精排（召回 top-20 → 精排 top-3），可开关 |
 | AI 编排 | LangGraph（诊断工作流）；面试为跨 HTTP 请求的多轮状态机，状态存 DB（见 4.9） |
 | 存储 | MySQL 8.0 + Chroma 嵌入式 + Redis（缓存 / 限流 / SSE 推送；checkpoint 本期不启用） |
 | 异步 | FastAPI BackgroundTasks（解析、诊断、匹配），`uvicorn --workers 1`；面试逐轮为同步流式响应 |
@@ -64,6 +65,6 @@
 ```
 DiagnoseState.mode   rule_only / llm_only / hybrid        架构消融
 MatchState.mode      dict_only / llm_only / hybrid        匹配消融
-use_rag              False / True                          改写 few-shot 对比
+use_rag / use_rerank  无检索 / 仅召回 / 召回+精排             RAG 检索消融
 MODEL_REGISTRY       deepseek-chat / 硅基流动托管 Qwen      模型对比（可选）
 ```

@@ -175,7 +175,7 @@ CREATE TABLE findings (
   verify_result ENUM('exact','fuzzy','failed') NOT NULL COMMENT '规则通道恒 exact；failed 行保留不展示',
   match_score   FLOAT,
   attempt_no    TINYINT NOT NULL DEFAULT 1 COMMENT '1=首轮，2/3=重试产出',
-  rewrite JSON NULL COMMENT '{used_rag, rewritten, placeholders, changes, violation_count, created_at}',
+  rewrite JSON NULL COMMENT '{used_rag, used_rerank, rewritten, placeholders, changes, violation_count, created_at}',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (diagnosis_id) REFERENCES diagnoses(id) ON DELETE CASCADE,
   INDEX idx_diagnosis (diagnosis_id, severity),
@@ -322,7 +322,7 @@ CREATE TABLE interview_turns (
 ```sql
 CREATE TABLE llm_calls (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  scene    VARCHAR(50) NOT NULL COMMENT 'relayout/section/structure/diagnose/jd_parse/match/rewrite/gap/iv_plan/iv_eval/iv_ask/iv_report/embed',
+  scene    VARCHAR(50) NOT NULL COMMENT 'relayout/section/structure/diagnose/jd_parse/match/rewrite/gap/iv_plan/iv_eval/iv_ask/iv_report/embed/rerank',
   ref_type VARCHAR(30) COMMENT 'resume/diagnosis/finding/match_report/interview_session/interview_turn',
   ref_id   BIGINT,
   provider       VARCHAR(30),

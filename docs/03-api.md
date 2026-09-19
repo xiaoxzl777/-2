@@ -39,7 +39,7 @@
           POST /match  {resume_id, job_id, mode?} → {id, task_id:"match:{id}"}
           GET  /match/{id}                                 含 passed / threshold
 
-改写 1    POST /findings/{id}/rewrite?use_rag=
+改写 1    POST /findings/{id}/rewrite?use_rag=&use_rerank=
 
 面试 5    POST /interviews                 {resume_id, job_id, company_name?, extra_context?, practice?}
                                            → {id, gate:{passed, overall_match, threshold}, mode, plan_summary}

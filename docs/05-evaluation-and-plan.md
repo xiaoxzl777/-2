@@ -44,7 +44,8 @@ JD 与案例采集在 M1–M4 用碎片时间并行。每个里程碑完成后�
  (4) 架构消融：rule_only / llm_only / hybrid，分「规则类子集 / 语义类子集」两张表
 可选
  (5) 模型对比：deepseek-chat vs 硅基流动托管 Qwen
- (6) 改写 RAG：占位符合规率 + 规则复检通过率；30 条 pairwise LLM-judge
+ (6) RAG 检索消融（改写）：无检索 / 仅 embedding 召回 / 召回 + rerank 三组；
+     检索质量：30 条查询人工标注相关案例，报 Recall@3、MRR；生成质量：占位符合规率 + 规则复检通过率；30 条 pairwise LLM-judge（可选）
 ```
 
 ## 8.4 模拟面试评测
