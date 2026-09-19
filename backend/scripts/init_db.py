@@ -27,7 +27,8 @@ def main() -> None:
     url = make_url(settings.DATABASE_URL)
     db_name = url.database
 
-    server = create_engine(url.set(database=None))
+    # 注意：URL.set(database=None) 表示"不修改"，要用空串才能去掉库名
+    server = create_engine(url.set(database=""))
     with server.connect() as conn:
         conn.execute(
             text(f"CREATE DATABASE IF NOT EXISTS `{db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
