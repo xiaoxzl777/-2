@@ -74,7 +74,8 @@ def db_session_factory():
 
 
 class FakeLLM:
-    """脚本化的假模型。replies 的键可以是 schema 类名，或 "类名:章节标题"（同一 schema 用于多个章节时）。
+    """脚本化的假模型。replies 的键可以是 schema 类名，或 "类名:某段文字"——后者只在 prompt 里出现这段文字时命中，
+    用来区分同一 schema 的多次调用（不同章节、不同经历）。并行调用下结果依然确定。
 
     找不到预设回复时返回一个对所有 schema 都合法的空结果，所以接口测试不必关心结构化抽取。
     """
@@ -89,8 +90,8 @@ class FakeLLM:
         from app.llm.client import LLMResult, parse_json
 
         name = schema.__name__ if schema else scene
-        system = messages[0][1]
-        key = next((k for k in self.replies if k.startswith(f"{name}:") and k.split(":", 1)[1] in system), name)
+        haystack = "\n".join(content for _, content in messages)
+        key = next((k for k in self.replies if k.startswith(f"{name}:") and k.split(":", 1)[1] in haystack), name)
         self.calls.setdefault(key, []).append(list(messages))
         queue = self.replies.get(key)
         reply = queue.pop(0) if queue else self.EMPTY

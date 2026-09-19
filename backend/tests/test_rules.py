@@ -196,3 +196,10 @@ def test_dimensions_nobody_checked_are_null_not_perfect():
     assert detail == {"completeness": None, "quantification": None, "expression": 88.0, "consistency": 100.0, "ats": None}
     assert overall == 94.0                                          # 只在 expression 与 consistency 上加权
     assert score([], mode="rule_only")[0] == 100.0
+
+
+def test_penalties_are_diluted_for_resumes_with_many_units():
+    findings = [_f("expression", "medium")] * 8                     # 96 分的扣分
+    assert score(findings, unit_count=4)[1]["expression"] == 4.0    # 基准以内不摊薄
+    assert score(findings, unit_count=2)[1]["expression"] == 4.0    # 也不放大
+    assert score(findings, unit_count=8)[1]["expression"] == 52.0   # 8 条经历 → 扣分减半
