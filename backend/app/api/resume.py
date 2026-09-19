@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db, get_session_factory
 from app.deps import get_current_user, get_owned_resume
 from app.errors import CONFLICT, PARSE_FAILED, ApiError
+from app.llm.client import LLMClient, get_llm_client
 from app.models import ParsedBlock, Resume, User
 from app.schemas import ApiResponse, BlockOut, BlocksOut, Page, ResumeOut, UploadOut, ok
 from app.services import resume_service
@@ -21,6 +22,7 @@ _PARSE_ERROR_MESSAGES = {
     "scanned_pdf": "这份 PDF 是扫描件或图片，没有可提取的文字，请上传文本版 PDF",
     "encrypted_pdf": "文件已加密，请上传未加密的 PDF",
     "interrupted": "解析被服务重启中断，请重新上传同一文件以重试",
+    "llm_failed": "调用大模型失败，请稍后重新上传同一文件以重试",
 }
 
 
@@ -32,6 +34,7 @@ def upload_resume(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     session_factory: SessionFactory = Depends(get_session_factory),
+    llm: LLMClient = Depends(get_llm_client),
 ):
     """上传简历（PDF）。立即返回，解析在后台进行：轮询 GET /resumes/{id} 查看 parse_status。"""
     data = file.file.read(resume_service.max_upload_bytes() + 1)  # 多读 1 字节即可判断超限，不必读完整个大文件
@@ -45,7 +48,7 @@ def upload_resume(
 
     # 复用旧记录时只有 failed 才重新解析：pending / parsing 说明已有任务在路上，再排一个会并发写出重复的块
     if not deduplicated or resume.parse_status == "failed":
-        background.add_task(parse_resume, resume.id, session_factory)
+        background.add_task(parse_resume, resume.id, session_factory, llm)
 
     return ok(UploadOut(id=resume.id, task_id=f"parse:{resume.id}",
                         parse_status=resume.parse_status, deduplicated=deduplicated))
@@ -99,6 +102,13 @@ def get_blocks(resume: Resume = Depends(get_owned_resume), db: Session = Depends
         blocks=[_block_out(b) for b in blocks],
         sections=resume.sections or [],
     ))
+
+
+@router.get("/{resume_id}/structure", response_model=ApiResponse[dict])
+def get_structure(resume: Resume = Depends(get_owned_resume)):
+    """结构化结果：基本信息、教育、经历、项目、技能、奖项。每个条目都带 block_ids 与 char 区间。"""
+    _require_parsed(resume)
+    return ok(resume.structure or {})
 
 
 def _require_parsed(resume: Resume) -> None:

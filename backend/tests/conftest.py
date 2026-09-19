@@ -73,12 +73,49 @@ def db_session_factory():
     engine.dispose()
 
 
+class FakeLLM:
+    """脚本化的假模型。replies 的键可以是 schema 类名，或 "类名:章节标题"（同一 schema 用于多个章节时）。
+
+    找不到预设回复时返回一个对所有 schema 都合法的空结果，所以接口测试不必关心结构化抽取。
+    """
+
+    EMPTY = '{"entries": [], "items": []}'
+
+    def __init__(self, replies: dict[str, list] | None = None):
+        self.replies = {k: list(v) for k, v in (replies or {}).items()}
+        self.calls: dict[str, list] = {}
+
+    def invoke(self, scene, messages, *, prompt_version, schema=None, ref=None, **_):
+        from app.llm.client import LLMResult, parse_json
+
+        name = schema.__name__ if schema else scene
+        system = messages[0][1]
+        key = next((k for k in self.replies if k.startswith(f"{name}:") and k.split(":", 1)[1] in system), name)
+        self.calls.setdefault(key, []).append(list(messages))
+        queue = self.replies.get(key)
+        reply = queue.pop(0) if queue else self.EMPTY
+        if isinstance(reply, Exception):
+            raise reply
+        parsed, error = parse_json(reply, schema) if schema else (None, None)
+        return LLMResult(reply, parsed, error, 100, 50, 0.001, False, "fake", "fp", 1)
+
+    @property
+    def sent_text(self) -> str:
+        return "\n".join(content for calls in self.calls.values() for msgs in calls for _, content in msgs)
+
+
 @pytest.fixture
-def client(db_session_factory, tmp_path, monkeypatch):
+def fake_llm() -> FakeLLM:
+    return FakeLLM()
+
+
+@pytest.fixture
+def client(db_session_factory, fake_llm, tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
     from app.config import settings
     from app.database import get_db, get_session_factory
+    from app.llm.client import get_llm_client
     from app.main import app
 
     def override_get_db():
@@ -91,6 +128,7 @@ def client(db_session_factory, tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "DATA_DIR", tmp_path / "data")  # 上传文件落到临时目录，不碰真实 data/
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_session_factory] = lambda: db_session_factory  # 后台任务也用测试库
+    app.dependency_overrides[get_llm_client] = lambda: fake_llm                 # 不发真实的模型请求
     yield TestClient(app)  # 不用 with：不触发 lifespan 里的 MySQL / Redis 检查
     app.dependency_overrides.clear()
 
