@@ -50,7 +50,7 @@
 |---|---|
 | 后端 | Python 3.11+（开发机 3.13）+ FastAPI + SQLAlchemy 2.0 + Pydantic v2 + pydantic-settings |
 | 前端 | React 18 + TS + Vite + Tailwind + shadcn/ui + Zustand + TanStack Query + @microsoft/fetch-event-source |
-| 对话模型 | DeepSeek `deepseek-chat`（LangChain `ChatDeepSeek`）；结构化输出 `with_structured_output(method="json_mode", include_raw=True)`；面试问题用流式 |
+| 对话模型 | DeepSeek `deepseek-chat`（LangChain `ChatDeepSeek`）；结构化输出 = JSON 模式作答 + Pydantic 校验，解析失败不抛异常而是带原因重试；直连不走系统代理；面试问题用流式 |
 | Embedding | 硅基流动 `BAAI/bge-m3`：RAG 第一阶段召回（改写案例库、面试附加材料） |
 | Reranker | 硅基流动 `BAAI/bge-reranker-v2-m3`：RAG 第二阶段精排（召回 top-20 → 精排 top-3），可开关 |
 | AI 编排 | LangGraph 两张图：图 A 投递流水线（parse / diagnose / match 三个子图，并行 + 条件边）；图 B 模拟面试（`interrupt()` 等人输入 + `SqliteSaver` 检查点） |

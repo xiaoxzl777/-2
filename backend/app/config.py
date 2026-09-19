@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     SILICONFLOW_API_KEY: str = ""
     SILICONFLOW_BASE_URL: str = "https://api.siliconflow.cn/v1"
     EMBEDDING_MODEL: str = "BAAI/bge-m3"
+    LLM_TIMEOUT_SECONDS: float = 60.0
+    LLM_USE_SYSTEM_PROXY: bool = False         # 本机配了 HTTP(S)_PROXY 时，国内模型服务直连更快（实测 1s vs 5s）
     RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
 
     # ---- 上传校验（FR-B1）----

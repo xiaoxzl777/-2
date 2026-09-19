@@ -112,7 +112,7 @@ cases / jd     仅公开数据；build_case_store.py 不读 resumes 表
 ## 4.8 成本、缓存、审计（llm/client.py 唯一出口）
 
 ```
-client.invoke(scene, messages, schema?, ref, model?, stream?)：
+client.invoke(scene, messages, prompt_version, schema?, ref?, model?, temperature, use_cache)  → LLMResult{text, parsed, parse_error, token, cost, cache_hit, model_version}：
   ① 渲染 prompt → key = llm:{scene}:{model}:{prompt_ver}:{sha256(rendered_prompt)}
   ② 缓存命中 → 记 llm_calls 一行（cache_hit=TRUE, token/cost=0）→ 返回      （面试 iv_ask / iv_eval 不走缓存：每次对话都不同）
   ③ Redis 令牌桶限流
