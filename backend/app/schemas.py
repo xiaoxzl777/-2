@@ -197,3 +197,39 @@ class DiagnosisOut(BaseModel):
     started_at: datetime | None
     finished_at: datetime | None
     findings: list[FindingOut]
+
+
+# ───────────── 岗位 ─────────────
+
+
+class JobIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    company: str | None = Field(default=None, max_length=200)
+    raw_text: str = Field(min_length=30, max_length=10000)    # 粘贴的 JD 原文
+
+
+class RequirementOut(BaseModel):
+    id: int
+    req_type: str               # hard / plus / soft
+    category: str               # skill / education / experience / other
+    content: str
+    skill: str | None
+    skill_id: int | None        # 词典里有的技能才有；没有的留给匹配阶段的 RAG + LLM 判定
+    weight: float
+    quote: str                  # JD 原文的逐字引用：raw_text[char_start:char_end]
+    char_start: int
+    char_end: int
+
+
+class JobBrief(BaseModel):
+    id: int
+    title: str
+    company: str | None
+    is_template: bool
+    requirement_count: int
+    created_at: datetime
+
+
+class JobOut(JobBrief):
+    raw_text: str
+    requirements: list[RequirementOut]

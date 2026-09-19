@@ -98,3 +98,34 @@ DIAGNOSE_RETRY_EVIDENCE = """\
 仍然无法逐字引用的问题请直接放弃，不要再报告。输出格式不变。"""
 
 DIAGNOSE_RETRY_SCHEMA = "你上一次的输出无法使用：{error}。请严格按示例的 JSON 结构重新输出，只输出 JSON。"
+
+# ───────────────────────── JD 解析 ─────────────────────────
+
+JD_VERSION = "jd-v1"
+
+JD_SYSTEM = """\
+你是招聘信息抽取助手。把下面的岗位描述（JD）拆成一条条独立的"要求项"，以 JSON 输出。
+
+规则：
+- 只抽取对候选人的要求：技术技能、学历专业、经验年限与领域经验、软素质。公司介绍、福利、地点、单纯的工作内容描述不要抽。
+  JD 没有单独写"任职要求"时，才从岗位职责里提炼。
+- 一条要求项只含一个考察点："熟悉 Redis、MySQL" 要拆成两条。
+- req_type：hard = 必须满足（默认）；plus = 加分 / 优先 / 更佳；soft = 沟通、责任心、学习能力等软素质。
+- category：skill = 具体的语言 / 框架 / 工具 / 技术；education = 学历与专业；experience = 年限、实习、领域经验；other = 其余。
+- skill：category 为 skill 时填技术名词本身，照 JD 里的写法（如 "Redis"）；其余填 null。
+- quote：从 JD 原文逐字复制的一小段连续文字（6–60 字），要包含这条要求；不得改写、拼接或增删标点。
+- content：用一句简短的话复述这条要求。
+- 按在 JD 中出现的顺序输出，最多 25 条。
+
+输出示例：
+{"requirements": [
+  {"req_type": "hard", "category": "skill", "skill": "Redis", "quote": "熟悉 Redis、MySQL 等常用中间件", "content": "熟悉 Redis"},
+  {"req_type": "plus", "category": "experience", "skill": null, "quote": "有高并发项目经验者优先", "content": "有高并发项目经验"}
+]}"""
+
+JD_USER = """\
+【岗位名称】{title}
+【JD 原文】
+{raw_text}"""
+
+JD_RETRY = "你上一次的输出无法使用：{error}。请严格按示例的 JSON 结构重新输出，只输出 JSON。"

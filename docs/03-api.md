@@ -22,7 +22,7 @@
 | 50002 | LLM 调用失败 | 500 |
 | 50003 | 简历解析失败（含扫描件） | 500 |
 
-## 3.2 接口清单（25 个）
+## 3.2 接口清单（27 个）
 
 ```
 认证 3    POST /auth/register   POST /auth/login   GET /auth/me
@@ -37,8 +37,11 @@
 
 投递 1    POST /apply  {resume_id, job_id, diagnose_mode?, match_mode?} → {match_report_id, task_id:"apply:{id}"}   图 A
 
-匹配 4    POST /jobs   {title, company?, raw_text}         GET /jobs   ?include_templates=1
-          POST /match  {resume_id, job_id, mode?} → {id, task_id:"match:{id}"}
+岗位 4    POST /jobs   {title, company?, raw_text}         同步解析（一次模型调用，约 2–4 秒）→ 岗位 + requirements[]
+                                                           每条要求带 JD 原文引用 quote 与 char 区间；定位不到的丢弃；失败则不保存
+          GET  /jobs   ?include_templates=1               GET /jobs/{id}        DELETE /jobs/{id}（软删除；模板不可删）
+
+匹配 2    POST /match  {resume_id, job_id, mode?} → {id, task_id:"match:{id}"}
           GET  /match/{id}                                 含 passed / threshold
 
 改写 1    POST /findings/{id}/rewrite?use_rag=&use_rerank=
