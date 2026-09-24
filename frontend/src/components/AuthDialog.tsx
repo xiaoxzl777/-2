@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { EMAIL_RE, PASSWORD_MAX, PASSWORD_MIN, USERNAME_RE } from '../api/auth'
 import { ApiError } from '../api/client'
 import { useAuth } from '../store/auth'
+import { AuthDeco } from './AuthDeco'
 
 export type AuthMode = 'login' | 'register'
 export type Origin = { x: number; y: number }
@@ -89,6 +90,7 @@ export function AuthDialog({ open, mode, origin, onModeChange, onClose }: {
   return (
     <div className={`auth ${open ? 'open' : ''}`} style={style} aria-hidden={!open}>
       <div className="auth-bg" onClick={onClose} />
+      <AuthDeco open={open} />
       <form className="panel" onSubmit={onSubmit} noValidate role="dialog" aria-modal="true" aria-labelledby="auth-title">
         <div className="panel-head">
           <h3 id="auth-title">{isLogin ? '欢迎回来' : '创建账号'}</h3>
