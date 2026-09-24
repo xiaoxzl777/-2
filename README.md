@@ -41,15 +41,16 @@ pip install -r requirements.lock   # 锁定版本，与开发机完全一致（W
 uvicorn app.main:app --reload      # http://localhost:8000/docs
                                    # 自检：http://localhost:8000/api/v1/health
 
-# 5. 前端（M2 起）
+# 5. 前端（另开一个终端）
 cd ..\frontend
 npm install
-npm run dev                        # Vite 代理 /api 到 8000
+npm run dev                        # http://localhost:5173，/api 由 Vite 转发到 8000
 ```
 
 ## 部署 / 答辩演示
 
 ```powershell
+cd frontend; npm run build; cd ..  # 先构建前端：nginx 直接挂载 frontend/dist
 docker compose up -d --build       # mysql + redis + backend + nginx，http://localhost
 ```
 
@@ -62,6 +63,6 @@ backend/scripts/ dump_schema · dump_seed（评测脚本 gen_eval_set / run_eval
 backend/tests/
 data/            skills_seed.csv · resumes/ · uploads/ · chroma/ · eval_runs/
 docs/            设计文档
-frontend/        React 前端（M2 起）
+frontend/        React 前端（首页 + 登录 / 注册 + 登录后占位页）
 nginx/           反向代理配置
 ```
