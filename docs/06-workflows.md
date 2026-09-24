@@ -63,7 +63,7 @@
                          END
 ```
 
-三个子图各自可以单独 `invoke`：上传简历时只跑 parse；消融实验直接调 diagnose / match 子图。
+子图各自可以单独 `invoke`：消融实验（M8 的评测脚本）直接调 diagnose / match 子图。
 
 > **实现说明（2026-09-19，与上图的两处差异）**
 > - **解析不在图里**：上传时已经触发解析；`apply_service` 在跑图之前等它完成（解析要读文件、写数据库，不属于领域层）。
@@ -121,26 +121,31 @@ RAG 更贵、更慢、还多一种出错方式，于是从匹配中移除。检�
 
 ### 图 A 的 State
 
+（与 `graphs/apply_graph.py` 一致）
+
 ```python
-class ApplyState(TypedDict):
-    resume_id: int
-    job_id: int
-    need_parse: bool
+class ApplyState(TypedDict, total=False):
+    # ── 输入 ──
+    diagnosis_id: int | None
+    match_report_id: int | None
     diagnose_mode: str
     match_mode: str
-    full_text: str                       # 已做长度不变的 PII 掩码
-    structure: dict
+    model: str | None
+    job_title: str | None
     requirements: list[dict]
-    # 两个并行子图各写各的字段，reducer 保证并行写回不冲突
-    rule_findings: Annotated[list, add]
-    llm_findings: Annotated[list, add]
-    rejected_findings: Annotated[list, add]
-    match_items: Annotated[list, add]
-    diagnose_score: dict | None
-    match_score: dict | None
-    passed: bool | None
-    cost: Annotated[float, add]
+    structure: dict
+    full_text: str                       # 原文，用来切证据
+    masked_text: str                     # 长度不变的 PII 掩码，外发给模型的是它
+    ats_signals: dict
+    page_count: int | None
+    # ── 输出 ──
+    diagnosis: dict                      # 诊断子图的完整输出
+    match: dict                          # 匹配子图的完整输出
+    passed: bool
 ```
+
+两个子图的 State 与图 A 不同，所以各用一个普通节点包一层（取输入 → invoke 子图 → 整个输出放进一个字段）。
+两个分支写的是不同字段，不需要 reducer。
 
 ## 6.3 图 B：模拟面试（走一步、等人、再走）
 

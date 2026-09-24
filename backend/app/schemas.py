@@ -202,7 +202,7 @@ class RequirementOut(BaseModel):
     category: str               # skill / education / experience / other
     content: str
     skill: str | None
-    skill_id: int | None        # 词典里有的技能才有；没有的留给匹配阶段的 RAG + LLM 判定
+    skill_id: int | None        # 词典里有的技能才有；没有的留给匹配阶段的模型全文判定
     weight: float
     quote: str                  # JD 原文的逐字引用：raw_text[char_start:char_end]
     char_start: int

@@ -22,14 +22,16 @@
 | 50002 | LLM 调用失败 | 500 |
 | 50003 | 简历解析失败（含扫描件） | 500 |
 
-## 3.2 接口清单（26 个）
+## 3.2 接口清单（26 个；已实现 18 个，标〔未实现〕的留给后续里程碑）
+
+另有 `GET /api/v1/health`（启动自检：MySQL / Redis 是否可用），不计入 26 个。
 
 ```
 认证 3    POST /auth/register   POST /auth/login   GET /auth/me
 
 简历 7    POST   /resumes                  → {id, task_id:"parse:{id}"}
           GET    /resumes                  GET /resumes/{id}                DELETE /resumes/{id}
-          GET    /resumes/{id}/blocks      GET /resumes/{id}/structure      PATCH /resumes/{id}/structure
+          GET    /resumes/{id}/blocks      GET /resumes/{id}/structure      PATCH /resumes/{id}/structure〔未实现〕
 
 诊断 1    GET  /resumes/{id}/diagnosis     ?diagnosis_id=      诊断由投递触发，这里只查结果
 
@@ -49,16 +51,17 @@
                        items[] 每条 = 要求项内容 + status(hit|partial|miss) + matched_by(dict|profile|fulltext)
                        + reason + 简历原文依据 evidence_quote 与 char 区间
 
-改写 1    POST /findings/{id}/rewrite?use_rag=&use_rerank=
+改写 1    POST /findings/{id}/rewrite〔未实现〕   本期不做检索：模型改写 + 数字占位符复检（06-workflows 6.5）
 
-面试 5    POST /interviews                 {resume_id, job_id, company_name?, extra_context?, practice?}
+面试 5    〔未实现，M7〕
+          POST /interviews                 {resume_id, job_id, company_name?, extra_context?, practice?}
                                            → {id, gate:{passed, overall_match, threshold}, mode, plan_summary}
           POST /interviews/{id}/start      → SSE：question 流
           POST /interviews/{id}/answer     {text} → SSE：evaluation → question 流 | round_end | finished
           GET  /interviews/{id}            会话 + turns
           GET  /interviews/{id}/report
 
-系统 1    GET /system/info                 模型列表 + 规则清单 + 用量（用量需 admin）
+系统 1    GET /system/info〔未实现〕       模型列表 + 规则清单 + 用量（用量需 admin）
 ```
 
 ## 3.3 异步任务与 SSE 契约

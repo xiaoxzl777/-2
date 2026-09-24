@@ -9,9 +9,11 @@
 | [00-overview](docs/00-overview.md) | 产品主线、系统不变量、技术栈 |
 | [01-requirements](docs/01-requirements.md) | 功能 / 非功能需求、诊断规则清单 |
 | [02-database](docs/02-database.md) | 11 张表建表 SQL、JSON 字段结构、Chroma collection |
-| [03-api](docs/03-api.md) | 24 个接口、错误码、SSE 契约、示例 |
+| [03-api](docs/03-api.md) | 26 个接口（已实现 18 个）、错误码、SSE 契约、示例 |
 | [04-design](docs/04-design.md) | AI 模块、核心算法、后端设计 |
 | [05-evaluation-and-plan](docs/05-evaluation-and-plan.md) | 里程碑、评估方案、验证方式 |
+| [06-workflows](docs/06-workflows.md) | 产品流程（JD 优先）、两张 LangGraph 图；与 04 冲突时以此为准 |
+| [07-代码导读](docs/07-代码导读.md) | 后端各目录干什么、建议的阅读顺序 |
 
 ## 技术栈
 
@@ -56,9 +58,9 @@ docker compose up -d --build       # mysql + redis + backend + nginx，http://lo
 ```
 backend/app/     api · services · parser · diagnose · matching · interview · retrieval · graphs · llm · cache
 backend/sql/     schema.sql（建库建表）· seed.sql（技能词典等种子数据）—— 均由脚本生成，在 MySQL 中手动执行
-backend/scripts/ dump_schema · dump_seed · build_case_store · gen_eval_set · run_eval
+backend/scripts/ dump_schema · dump_seed（评测脚本 gen_eval_set / run_eval 在 M8 加）
 backend/tests/
-data/            skills_seed.csv · jd.jsonl · cases.jsonl · resumes/ · uploads/ · chroma/ · eval_runs/
+data/            skills_seed.csv · resumes/ · uploads/ · chroma/ · eval_runs/
 docs/            设计文档
 frontend/        React 前端（M2 起）
 nginx/           反向代理配置

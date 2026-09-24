@@ -12,9 +12,9 @@
 | 4 | **语义诊断** ★ | 诊断期 | LLM | 0 | 单条目送审，json_mode，evidence 必须为子串 |
 | 5 | JD 解析 | 匹配期 | LLM | 0 | 拆要求项 |
 | 6 | **技能匹配判定** ★ | 匹配期 | LLM | 0 | 词典未命中的要求项一次送审；逐项输出 status + 逐字引用的简历原文，经 locate_span 校验 |
-| 7 | 技能语义召回 | 解析/匹配 | Embedding | — | 只对词典未命中的词条 |
-| 8 | 改写建议 | 按需 | LLM + RAG | 0.3 | 占位符 + 确定性复检 |
-| 9 | 差距分析 | 匹配期 | LLM | 0.3 | 输入为逐项匹配结果 |
+| 7 | ~~技能语义召回~~ | — | — | — | 不做：词典未命中的要求直接交给 #6 全文判定 |
+| 8 | 改写建议 | 按需 | LLM | 0.3 | 占位符 + 确定性复检；本期不检索（06-workflows 6.5）；未实现 |
+| 9 | ~~差距分析~~ | — | — | — | 不单独调模型：差距 = 匹配明细里 miss / partial 的要求，由 `GET /apply/{id}` 读取时排序组装 |
 | 10 | **面试计划** ★ | 面试创建 | LLM | 0.3 | 输入：structure、top-8 findings、requirements、gap、extra_context 片段 → topics[]，每个带来源 |
 | 11 | **回答评估** ★ | 每轮 | LLM | 0 | rubric 结构化输出，evidence 逐字引用回答并经 locate_span 校验 |
 | 12 | **下一问生成** ★ | 每轮 | LLM | 0.7 | 输入：persona、当前话题、历史摘要、上题评估 → decision + question（流式） |
@@ -23,7 +23,8 @@
 ## 4.2 明确不用 AI 的地方
 
 ```
-basics 抽取 / 规则诊断 / 证据校验 / 综合评分 / 时间归一化 / 分栏与表格 / 技能匹配判定 / 占位符复检
+basics 抽取 / 规则诊断 / 证据校验 / 综合评分 / 时间归一化 / 分栏与表格 / 占位符复检
+匹配：词典命中、学历、年限的判定与匹配度评分（模型只判规则判不了的要求，见 #6）
 面试：轮次推进（tech→hr）、追问层数上限、题数预算、每轮与综合分数的聚合、通过判定 —— 全部确定性逻辑
 ```
 
@@ -89,11 +90,12 @@ class DiagnoseState(TypedDict):
 
 | 应用点 | 检索什么 | 结果给谁 | 完整 RAG |
 |---|---|---|---|
-| 改写 few-shot | `cases`：metadata 过滤（job_category）→ embedding 召回 top-20 → reranker 精排 top-3 | LLM | ✅ |
+| ~~改写 few-shot~~ | 暂缓：本期没有范例库，改写不检索（06-workflows 6.5）；以后有 `cases` 再接 | — | — |
 | ~~匹配判定~~ | 已移除（2026-09-19）：简历与 JD 很短，全文直接给模型更准、更快、更便宜，见 06-workflows 6.2 | — | — |
-| 面试出题 | `resume_units` + `interview_ctx`（JD 原文 / 公司介绍 / 面经切块）：各自 embedding 召回 top-10 → reranker 精排 top-3 | 面试计划 / 下一问 LLM | ✅ |
+| 面试出题（M7） | `resume_units` + `interview_ctx`（JD 原文 / 公司介绍 / 面经切块）：召回 → reranker 精排 top-3 | 面试计划 / 下一问 LLM | ✅ |
 
-三处共用 `retrieval/retriever.py` 的同一条链路：**切块 → 向量化入库 → 召回（embedding）→ 精排（reranker，cross-encoder）→ 注入 prompt**。
+链路：**切块 → 向量化入库 → 召回（embedding）→ 精排（reranker，cross-encoder）→ 注入 prompt**。
+已实现部分在 `retrieval/unit_store.py`（入库、召回、精排，`recall_k` / `top_k` 由调用方传入）与 `llm/embedding.py`；目前只有单测在用，等面试接入。
 为什么要两阶段：embedding 是双塔模型，query 与文档各自编码，快但粗；reranker 把 query 与每个候选拼在一起过模型，准但慢——所以先用前者把上千条缩到 20 条，再用后者挑 3 条。
 reranker 失败或关闭时退化为直接取召回 top-3，功能不中断。
 
@@ -105,8 +107,8 @@ reranker 失败或关闭时退化为直接取召回 top-3，功能不中断。
 basics         本地抽取，永不出现在任何 prompt
 mask_pii       长度不变：手机号数字→'X'、邮箱字符→'*'；应用于所有外发的简历文本
 interview_ctx  会话 completed/abandoned 时删除该 session 的切块
-cases / jd     仅公开数据；build_case_store.py 不读 resumes 表
-清理           软删除 30 天后物理删除；llm_calls 不存正文（评测批次除外，写文件）
+cases / jd     仅公开数据（以后建案例库时，构建脚本不读 resumes 表）
+清理           软删除 30 天后物理删除（未实现）；llm_calls 不存正文（评测批次除外，写文件）
 ```
 
 ## 4.8 成本、缓存、审计（llm/client.py 唯一出口）
@@ -295,24 +297,28 @@ api/        路由层 —— 薄
 services/   业务层 —— 流程编排、事务、DB；面试状态机在 interview_service
 parser/ diagnose/ matching/ interview/ graphs/   领域层 —— 纯逻辑
 
-backend/app/
-├── main.py（lifespan：redis.ping、启动清理、技能词典正则）  config.py  database.py  deps.py
-├── models.py（11 张表）  schemas.py
-├── api/        auth.py resume.py diagnose.py job.py match.py rewrite.py interview.py system.py
-├── services/   resume_service.py diagnose_service.py match_service.py rewrite_service.py interview_service.py
-├── parser/     extract.py layout.py ★ section.py structure.py normalize.py pii.py
-├── diagnose/   rules.py evidence.py ★ scorer.py placeholders.py
-├── matching/   skill_dict.py ★（extract_mentions） matcher.py ★ gap_analysis.py profile.py
-├── interview/  planner.py（计划 prompt 组装与解析） rubric.py（评估 schema 与聚合） policy.py（推进规则）
-├── retrieval/  chroma_client.py retriever.py ★（召回 + 精排） unit_store.py case_store.py ctx_store.py
-├── graphs/     state.py apply_graph.py（图 A）parse_graph.py diagnose_graph.py match_graph.py interview_graph.py（图 B）nodes/ checkpoint.py
-├── llm/        client.py ★ registry.py prompts.py
-├── cache/      redis_client.py llm_cache.py ratelimit.py pubsub.py
-└── tasks.py
+（〔待建〕= 后续里程碑才有的文件；其余均已存在。逐文件说明见 07-代码导读）
 
-scripts/   dump_schema.py dump_seed.py build_case_store.py gen_eval_set.py run_eval.py
-data/      skills_seed.csv jd.jsonl cases.jsonl resumes/ uploads/ chroma/ eval_runs/
-tests/     test_layout.py test_fulltext_contract.py test_evidence.py test_rules.py test_normalize.py test_interview_policy.py
+backend/app/
+├── main.py（lifespan：检查 MySQL / Redis、启动清理）  config.py  database.py  deps.py  errors.py  security.py
+├── models.py（11 张表）  schemas.py
+├── api/        auth.py resume.py diagnose.py job.py match.py apply.py task.py system.py   〔待建〕rewrite.py interview.py
+├── services/   resume_service.py parse_service.py diagnose_service.py job_service.py match_service.py
+│               apply_service.py skill_service.py   〔待建〕rewrite_service.py interview_service.py
+├── parser/     extract.py layout.py ★ section.py structure.py normalize.py pii.py
+├── diagnose/   rules.py evidence.py ★ llm_review.py scorer.py types.py   〔待建〕placeholders.py
+├── matching/   skill_dict.py ★（extract_mentions） jd_parser.py matcher.py ★ llm_judge.py units.py（留给面试检索）
+├── interview/  〔待建〕planner.py（计划 prompt 组装与解析） rubric.py（评估 schema 与聚合） policy.py（推进规则）
+├── retrieval/  chroma_client.py unit_store.py（召回 + 精排）   〔待建〕ctx_store.py
+├── graphs/     state.py apply_graph.py（图 A） diagnose_graph.py match_graph.py   〔待建〕interview_graph.py（图 B）
+├── llm/        client.py ★ registry.py prompts.py audit.py embedding.py
+└── cache/      redis_client.py llm_cache.py ratelimit.py pubsub.py
+
+后台任务直接用 FastAPI BackgroundTasks，入口在 parse_service.parse_resume 与 apply_service.run_apply；解析不在图里。
+
+scripts/   dump_schema.py dump_seed.py   〔待建，M8〕gen_eval_set.py run_eval.py
+data/      skills_seed.csv resumes/ uploads/ chroma/ eval_runs/
+tests/     每个模块一个 test_*.py（272 个用例，模型 / 向量库 / Redis 全部打桩，不联网）   〔待建〕test_interview_policy.py
 
 frontend/src/
 ├── pages/       Upload  Analysis★  JobMatch（含初筛结果与"进入面试/练习模式"）  Rewrite  Interview★（流式聊天）  InterviewReport
@@ -331,11 +337,12 @@ Redis 与 MySQL 同为必需依赖，启动 ping 失败即退出；运行期唯�
 ## 6.3 启动清理（lifespan，单进程，只跑一次）
 
 ```sql
-UPDATE resumes            SET parse_status='failed', parse_error='interrupted' WHERE parse_status='parsing';
+-- pending 也算：解析任务是进程内 BackgroundTasks，进程一退出，还没开始的也永远不会跑了
+UPDATE resumes            SET parse_status='failed', parse_error='interrupted' WHERE parse_status IN ('pending','parsing');
 UPDATE diagnoses          SET status='failed', error_msg='interrupted'          WHERE status='running';
 UPDATE match_reports      SET status='failed', error_msg='interrupted'          WHERE status='running';
--- 面试：in_progress 且 last_active_at < now-24h → 按已答题聚合报告 → abandoned；删 interview_ctx 切块
--- 软删除 30 天：删文件 + DELETE resumes（CASCADE）
+-- 〔未实现〕面试：in_progress 且 last_active_at < now-24h → 按已答题聚合报告 → abandoned；删 interview_ctx 切块
+-- 〔未实现〕软删除 30 天：删文件 + DELETE resumes（CASCADE）
 ```
 
 ## 6.4 上传与存储 / 6.5 配置

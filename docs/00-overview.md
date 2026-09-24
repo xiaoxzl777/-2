@@ -2,7 +2,7 @@
 
 # 智能求职辅助系统：简历诊断与模拟面试 — 需求分析与技术设计（v3）
 
-> v2 → v3：用「模拟面试」替换 HR 批量筛选端，产品变为求职者单端闭环。表数仍 11 张，接口 24 个。
+> v2 → v3：用「模拟面试」替换 HR 批量筛选端，产品变为求职者单端闭环。表数仍 11 张，接口 26 个（已实现 18 个，见 03-api）。
 > v1 → v2：6 视角审查 + 双角色核验，采纳 26 项修订（矛盾抹平、约定定死、多余去掉）。
 
 ## Context
@@ -51,9 +51,9 @@
 | 后端 | Python 3.11+（开发机 3.13）+ FastAPI + SQLAlchemy 2.0 + Pydantic v2 + pydantic-settings |
 | 前端 | React 18 + TS + Vite + Tailwind + shadcn/ui + Zustand + TanStack Query + @microsoft/fetch-event-source |
 | 对话模型 | DeepSeek `deepseek-chat`（LangChain `ChatDeepSeek`）；结构化输出 = JSON 模式作答 + Pydantic 校验，解析失败不抛异常而是带原因重试；直连不走系统代理；面试问题用流式 |
-| Embedding | 硅基流动 `BAAI/bge-m3`：RAG 第一阶段召回（改写案例库、面试附加材料） |
-| Reranker | 硅基流动 `BAAI/bge-reranker-v2-m3`：RAG 第二阶段精排（召回 top-20 → 精排 top-3），可开关 |
-| AI 编排 | LangGraph 两张图：图 A 投递流水线（parse / diagnose / match 三个子图，并行 + 条件边）；图 B 模拟面试（`interrupt()` 等人输入 + `SqliteSaver` 检查点） |
+| Embedding | 硅基流动 `BAAI/bge-m3`：RAG 第一阶段召回，只用在模拟面试的材料检索（匹配、改写都不检索，见 06-workflows 6.5） |
+| Reranker | 硅基流动 `BAAI/bge-reranker-v2-m3`：RAG 第二阶段精排（召回 → 精排 top-3） |
+| AI 编排 | LangGraph：图 A 投递流水线（diagnose ∥ match 两个子图并行 → 初筛；解析在图外，上传时触发）；图 B 模拟面试（`interrupt()` 等人输入 + `SqliteSaver` 检查点，未实现） |
 | 存储 | MySQL 8.0 + Chroma 嵌入式 + Redis（缓存 / 限流 / SSE 推送；checkpoint 本期不启用） |
 | 异步 | FastAPI BackgroundTasks（解析、诊断、匹配），`uvicorn --workers 1`；面试逐轮为同步流式响应 |
 | 部署 | Nginx 反向代理 + Docker Compose；开发期本地跑 API / 前端 |
@@ -65,6 +65,6 @@
 ```
 DiagnoseState.mode   rule_only / llm_only / hybrid        架构消融
 match_mode           dict_only / llm_fulltext / hybrid            匹配消融（规则 / 模型 / 两者结合）
-use_rag / use_rerank  无检索 / 仅召回 / 召回+精排             RAG 检索消融
+use_rag / use_rerank  无检索 / 仅召回 / 召回+精排             RAG 检索消融（可选；改写接入范例库后才有）
 MODEL_REGISTRY       deepseek-chat / 硅基流动托管 Qwen      模型对比（可选）
 ```

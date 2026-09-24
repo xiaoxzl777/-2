@@ -93,11 +93,11 @@ CREATE TABLE resumes (
   "skills":   [ { "name": "Spring Boot", "level": "熟悉", "skill_id": 133, "char_start": 900, "char_end": 911 } ],
   "awards":   [ ],
   "skill_mentions": [ { "skill_id": 133, "surface": "SpringBoot", "char_start": 880, "char_end": 890,
-                        "section_type": "projects", "matched_by": "alias" } ]
+                        "section_type": "projects", "matched_by": "dict" } ]
 }
 ```
 
-> `basics` 本地正则抽取（不变量⑤）；`kind ∈ {work, internship, campus}`；日期 `YYYY-MM` / `YYYY` / null；`matched_by ∈ {alias, embedding}`。
+> `basics` 本地正则抽取（不变量⑤）；`kind ∈ {work, internship, campus}`；日期 `YYYY-MM` / `YYYY` / null；`skill_mentions.matched_by` 目前恒为 `dict`（同义词词典命中）。
 
 ### ③ parsed_blocks
 
@@ -193,12 +193,12 @@ CREATE TABLE jobs (
   title       VARCHAR(200) NOT NULL,
   company     VARCHAR(200) NULL,
   raw_text    TEXT         NOT NULL,
-  requirements JSON COMMENT '[{id, req_type:hard|plus|soft, category:skill|education|experience|other, content, skill_id, weight}]',
-  parse_status ENUM('pending','success','failed') NOT NULL DEFAULT 'pending',
+  requirements JSON COMMENT '[{id, req_type:hard|plus|soft, category:skill|education|experience|other, content, skill, skill_id, weight, quote, char_start, char_end}]',
+  parse_status ENUM('pending','success','failed') NOT NULL DEFAULT 'pending' COMMENT 'JD 同步解析，失败不保存，所以目前只会写 success',
   is_deleted BOOLEAN  NOT NULL DEFAULT FALSE,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id),
-  INDEX idx_user (user_id, is_deleted),
+  INDEX idx_job_user (user_id, is_deleted),
   INDEX idx_template (is_template)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
@@ -215,10 +215,10 @@ CREATE TABLE match_reports (
   overall_match    DECIMAL(5,2),
   passed           BOOLEAN NULL COMMENT 'overall_match >= SCREEN_THRESHOLD',
   dimension_scores JSON COMMENT '{skill, experience, education, project}',
-  items            JSON COMMENT '[{requirement_id, content, status:hit|partial|miss, similarity, matched_evidence, char_start, char_end, match_path, matched_by, suggestion}]',
-  gap_summary      TEXT,
+  items            JSON COMMENT '[{content, req_type, category, weight, skill, requirement_id, status:hit|partial|miss, matched_by:dict|profile|fulltext|null, reason, evidence_quote, char_start, char_end, unit_id}]',
+  gap_summary      TEXT COMMENT '预留，目前不写：未通过说明由 GET /apply/{id} 读取时组装',
   diagnosis_id     BIGINT NULL COMMENT '同一次投递产生的诊断，未通过说明要用',
-  mode             ENUM('dict_only','llm_fulltext','llm_rag','hybrid') NOT NULL DEFAULT 'hybrid' COMMENT '匹配消融开关',
+  mode             ENUM('dict_only','llm_fulltext','hybrid') NOT NULL DEFAULT 'hybrid' COMMENT '匹配消融开关',
   model_name       VARCHAR(50),
   prompt_version   VARCHAR(20),
   llm_item_count      INT NOT NULL DEFAULT 0 COMMENT 'LLM 判定的要求项数',
@@ -229,6 +229,7 @@ CREATE TABLE match_reports (
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (resume_id) REFERENCES resumes(id) ON DELETE CASCADE,
   FOREIGN KEY (job_id)    REFERENCES jobs(id)    ON DELETE CASCADE,
+  FOREIGN KEY (diagnosis_id) REFERENCES diagnoses(id) ON DELETE SET NULL,
   INDEX idx_resume_job (resume_id, job_id),
   INDEX idx_job        (job_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -286,7 +287,7 @@ CREATE TABLE interview_sessions (
   FOREIGN KEY (resume_id)       REFERENCES resumes(id)       ON DELETE CASCADE,
   FOREIGN KEY (job_id)          REFERENCES jobs(id)          ON DELETE CASCADE,
   FOREIGN KEY (match_report_id) REFERENCES match_reports(id) ON DELETE SET NULL,
-  INDEX idx_user (user_id, created_at),
+  INDEX idx_iv_user (user_id, created_at),
   INDEX idx_active (status, last_active_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
@@ -345,22 +346,25 @@ CREATE TABLE llm_calls (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-## 2.3 Chroma（3 个 collection）
+## 2.3 Chroma
+
+匹配不再检索（06-workflows 6.2），目前主流程**没有写入任何 collection**。检索层代码（`retrieval/unit_store.py`、`llm/embedding.py`）保留给模拟面试。
 
 ```
-resume_units   简历经历（每条 highlight）按简历数   metadata {resume_id, unit_id, char_start, char_end, section_type}；解析完成写入，简历删除时清理
-cases          优秀描述案例      1,000+    metadata {job_category, tech_stack[], source}    仅公开数据
-interview_ctx  岗位知识库切块     按需      JD 原文 + 公司介绍 + 面经；metadata {session_id, chunk_idx, source}；会话结束即删
+resume_units   简历经历切块      代码已有（retrieval/chroma_client.py），主流程未写入；留给面试检索
+               metadata {resume_id, unit_id, char_start, char_end, section_type}
+interview_ctx  面试材料切块      未实现（M7）：JD 原文 + 公司介绍 + 面经；metadata {session_id, chunk_idx, source}；会话结束即删
+cases          优秀描述案例      暂缓：改写本期不检索（06-workflows 6.5），有范例库后再建
 ```
 
-`scripts/build_case_store.py` 幂等重建 `cases`；skills 表与岗位模板由 `backend/sql/seed.sql` 手动导入；`uploads/`、`chroma/`、`.env` 进 `.gitignore`。
+skills 表由 `backend/sql/seed.sql` 手动导入（岗位模板待补）；`uploads/`、`chroma/`、`.env` 进 `.gitignore`。
 
 ## 2.4 设计说明（v3 变更点）
 
 | 决策 | 理由 |
 |---|---|
 | 去掉 screenings / screening_items，加 interview_sessions / interview_turns | 模拟面试替换 HR 端；表数不变 |
-| 面试状态（round / topic / depth）存 DB，不用 LangGraph checkpoint | 面试跨 HTTP 请求，DB 就是检查点，刷新可续 |
+| 面试记录（round / topic / depth、turns）存 DB，是权威来源；图 B 另用 `SqliteSaver` 检查点续跑（v4 更正，见 06-workflows 6.3） | 报告、页面、评测都读 DB；检查点丢失时由 turns 重建 |
 | 计划与报告存 JSON | 只整体读写 |
 | 评分 evidence 走同一个 `locate_span` | 一个反幻觉机制，三处复用 |
 | `jobs.is_template` | 无具体 JD 的用户也能面试 |
