@@ -22,9 +22,9 @@
 | 50002 | LLM 调用失败 | 500 |
 | 50003 | 简历解析失败（含扫描件） | 500 |
 
-## 3.2 接口清单（26 个；已实现 18 个，标〔未实现〕的留给后续里程碑）
+## 3.2 接口清单（27 个；已实现 20 个，标〔未实现〕的留给后续里程碑）
 
-另有 `GET /api/v1/health`（启动自检：MySQL / Redis 是否可用），不计入 26 个。
+另有 `GET /api/v1/health`（启动自检：MySQL / Redis 是否可用），不计入 27 个。
 
 ```
 认证 3    POST /auth/register   POST /auth/login   GET /auth/me
@@ -51,7 +51,11 @@
                        items[] 每条 = 要求项内容 + status(hit|partial|miss) + matched_by(dict|profile|fulltext)
                        + reason + 简历原文依据 evidence_quote 与 char 区间
 
-改写 1    POST /findings/{id}/rewrite〔未实现〕   本期不做检索：模型改写 + 数字占位符复检（06-workflows 6.5）
+建议 2    POST /findings/{id}/advice                          简历里的一条问题：【问题】【改成】【为什么】
+          POST /match/{id}/items/{requirement_id}/advice      岗位里没满足 / 部分满足的一条要求：【考察什么】【怎么补】【面试怎么答】
+                       结果页点开一条时现场生成，流式返回（POST + text/event-stream，见 3.3）；生成过的存库，再请求直接回一个 done
+                       分别存进 findings.rewrite 与 match_reports.items[k].advice，GET /apply/{id} 与 GET /match/{id} 会带回来
+                       本期不做检索：模型针对原句写建议 + 数字占位符复检（06-workflows 6.5；提示词见 docs/design/具体建议-提示词草稿.md）
 
 面试 5    〔未实现，M7〕
           POST /interviews                 {resume_id, job_id, company_name?, extra_context?, practice?}
@@ -72,6 +76,10 @@
            progress 来自 Redis 频道（只有 apply 会发）；done {"kind","id","status"} / error 以数据库里的任务状态为准，
            SSE 接口每秒顺带查一次——连上来时任务已结束、或中途漏了消息，都一定能收到结束事件；15s 无事件发一行 ": keep-alive"
            兜底：SSE 连不上或 30s 无事件 → 每 3s 轮询对应资源 status（apply 轮询 GET /apply/{id} 的 stage）
+具体建议   同步流式响应（POST + text/event-stream），不经 pub/sub：
+           event: delta {"text":"..."}  ×N                                 ← 边生成边显示
+           event: done  {"text","violation_count","prompt_version","model","created_at"}   ← 数字复检后的全文，以它为准整段替换
+           event: error {"code","message"}                                 ← 什么都不存，前端可以重试
 面试逐轮   同步流式响应（POST + text/event-stream），不经 pub/sub：
            event: evaluation {"turn_id","scores","feedback","decision"}      ← 上一题的评估（answer 接口才有）
            event: question   {"turn_id","delta":"..."}  ×N                   ← 下一问逐 token
@@ -125,4 +133,4 @@ data: {"round":"tech","score":72}
 } }
 ```
 
-**GET /resumes/{id}/diagnosis** 与 **POST /findings/{id}/rewrite** 示例同 v2（略）。
+**GET /resumes/{id}/diagnosis** 示例同 v2（略）。

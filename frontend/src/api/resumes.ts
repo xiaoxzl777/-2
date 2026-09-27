@@ -44,10 +44,26 @@ export function parseErrorText(code: string | null): string {
 
 export const isParsing = (r: Resume) => r.parse_status === 'pending' || r.parse_status === 'parsing'
 
+/** 解析结果（原文纸面用）：块按阅读顺序排好，char 区间相对 full_text，开区间 */
+export type ResumeBlocks = {
+  full_text: string
+  blocks: { block_index: number; char_start: number; char_end: number }[]
+  sections: { type: string; block_start: number; block_end: number; matched_by: string }[]
+}
+
+type Entry = { block_ids?: number[] }
+/** 结构化结果里只用到各条经历由哪些块组成（纸面上把每条经历的标题行加粗） */
+export type ResumeStructure = Partial<Record<'education' | 'work' | 'projects' | 'awards', Entry[]>>
+
+
 export const resumesApi = {
   list: () => request<Page<Resume>>('/resumes?page_size=50'),
 
   get: (id: number) => request<Resume>(`/resumes/${id}`),
+
+  blocks: (id: number) => request<ResumeBlocks>(`/resumes/${id}/blocks`),
+
+  structure: (id: number) => request<ResumeStructure>(`/resumes/${id}/structure`),
 
   /** 立即返回，解析在后台进行 */
   upload: (file: File) => {

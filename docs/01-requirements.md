@@ -74,7 +74,7 @@ DOCX         → 线性读取（段落与表格按文档流；表格逐单元格
 | FR-E3 | 规则 + LLM 匹配 | ① 规则先判（同义词词典命中且经历里用过、学历、年限；确定、免费）→ ② 规则判不了的要求连同简历全文一次交给 LLM，逐条判定 hit/partial/miss 并逐字引用简历依据，经 `locate_span` 定位，定位失败按 miss；`mode ∈ {dict_only, llm_fulltext, hybrid}` 供消融。匹配不用 RAG（简历与 JD 很短，见 06-workflows 6.2） | P0 |
 | FR-E4 | 逐项匹配 | 命中/部分/缺失，证据取自 `skill_mentions` | P0 |
 | FR-E5 | 匹配度评分 | 技能/经验/学历/项目四维 + 总分；学历与年限由 `degree_level()` / `experience_years()` 从 structure 算 | P0 |
-| FR-E6 | 差距分析 | 缺失项 + 补齐建议 | P1 |
+| FR-E6 | 差距分析 | 缺失项 + 补齐建议：`POST /match/{id}/items/{requirement_id}/advice`，点开时现场生成、流式返回，存进 `match_reports.items[k].advice` | P1 |
 | FR-E8 | **一键投递** | `POST /apply {resume_id, job_id}`：后台跑图 A（需要时解析 → 诊断与匹配并行 → 初筛），SSE 推进度；诊断由此自动触发并带上岗位名 | P0 |
 | FR-E9 | 未通过说明 | 「哪里不符合」= 匹配差距 + 诊断 findings 合并排序；每条可跳原文高亮与改写 | P0 |
 | FR-E7 | **初筛门槛** | `overall_match ≥ SCREEN_THRESHOLD`（默认 60）为"通过"；未通过展示差距与改写入口，**允许以练习模式进入面试** | P0 |
@@ -83,7 +83,7 @@ DOCX         → 线性读取（段落与表格按文档流；表格逐单元格
 
 | 编号 | 需求 | 说明 | 优先级 |
 |---|---|---|---|
-| FR-F1 | 改写建议 | `POST /findings/{id}/rewrite`，单条同步，写回 `findings.rewrite`；**数值强制占位符 + 确定性复检**（5.8） | P1 |
+| FR-F1 | 改写建议 | `POST /findings/{id}/advice`：点开时现场生成、流式返回，写回 `findings.rewrite`；针对原句给出【问题】【改成】【为什么】，**数值强制占位符 + 确定性复检**（5.8） | P1 |
 | FR-F2 | 检索增强改写 | **暂缓**（06-workflows 6.5）：本期没有范例库，改写只做「模型改写 + 数字占位符复检」。以后有了 `cases` 再加 `?use_rag=true`（召回 top-20 → 精排 top-3 作 few-shot） | P2 |
 | FR-F3 | 采纳改写 | 本期不写回简历：用户填占位符 → 前端合成 → 复制/下载 | P2 |
 | FR-F4 | 报告导出 | PDF | P2 |

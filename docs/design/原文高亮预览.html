@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原文高亮 · 求职辅助</title>
+<style>
+  :root {
+    --cream: #f6f0e6; --cream-2: #efe6d7; --paper: #fffaf2;
+    --ink: #221d17; --ink-2: #6b6157; --ink-3: #8a7f73;
+    --line: rgba(34,29,23,.1);
+    --accent: #d9542b; --accent-ink: #b8431f;
+    --good: #2f7d4f; --warn: #b7791f; --bad: #c2362b;
+    --ease: cubic-bezier(.22,1,.36,1); --spring: cubic-bezier(.34,1.56,.64,1);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--cream); color: var(--ink); overflow-x: hidden;
+    font-family: "PingFang SC","HarmonyOS Sans SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,sans-serif; -webkit-font-smoothing: antialiased; }
+  body.locked { overflow: hidden; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  ::selection { background: rgba(217,84,43,.2); }
+  .grain { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .35; background-image: radial-gradient(rgba(34,29,23,.08) 1px, transparent 1px); background-size: 22px 22px; }
+  .glow { position: fixed; left: 0; top: 0; width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%; pointer-events: none; z-index: 0;
+    background: radial-gradient(circle, rgba(242,140,90,.28) 0%, rgba(242,140,90,0) 65%); }
+  .wrap { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+
+  /* ── 导航、按钮、左侧大标题：同工作台 ── */
+  nav { position: sticky; top: 0; z-index: 20; padding: 18px 0; }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: .5px; }
+  .logo-mark { width: 30px; height: 30px; border-radius: 10px; background: var(--ink); color: var(--cream); display: grid; place-items: center; font-size: 15px; }
+  .links a { padding: 8px 14px; border-radius: 999px; color: var(--ink-2); text-decoration: none; font-size: 15px; }
+  .me { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink-2); }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+  .top-progress { position: relative; z-index: 1; height: 3px; background: var(--accent); }
+  .btn { position: relative; height: 44px; padding: 0 22px; border-radius: 999px; border: none; font-size: 15px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform .35s var(--spring), background .2s, box-shadow .3s; }
+  .btn.ghost { background: transparent; height: 36px; padding: 0 14px; font-size: 14px; }
+  .btn.outline { background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .btn.lg { height: 56px; padding: 0 30px; font-size: 17px; }
+  .btn.soon { background: var(--cream-2); color: var(--ink-3); box-shadow: inset 0 0 0 1.5px var(--line); cursor: default; }
+  .btn.soon small { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--paper); color: var(--ink-2); }
+  .btn:active { transform: scale(.96); }
+
+  .screen { display: grid; grid-template-columns: 1fr 1.05fr; gap: 64px; align-items: center; min-height: calc(100vh - 83px); padding: 40px 0 80px; }
+  .tag { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 999px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); font-size: 13px; color: var(--ink-2); }
+  .tag b { padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--cream); font-weight: 600; font-size: 12px; }
+  h1 { margin: 22px 0 20px; font-size: clamp(40px, 5vw, 64px); line-height: 1.14; letter-spacing: -1px; font-weight: 800; }
+  h1 .line { display: block; overflow: hidden; padding-bottom: 6px; }
+  h1 .line > span { display: inline-block; transform: translateY(110%); animation: rise .9s var(--ease) forwards; }
+  h1 .line:nth-child(2) > span { animation-delay: .1s; }
+  .mark { position: relative; white-space: nowrap; }
+  .mark svg { position: absolute; left: -4%; bottom: -8px; width: 108%; height: 20px; overflow: visible; }
+  .mark path { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 400; stroke-dashoffset: 400; animation: draw 1s .7s var(--ease) forwards; }
+  .sub { margin: 0 0 24px; max-width: 460px; font-size: 18px; line-height: 1.7; color: var(--ink-2); }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .fade { opacity: 0; transform: translateY(18px); animation: fadeUp .8s var(--ease) forwards; }
+  .d1 { animation-delay: .25s; } .d2 { animation-delay: .4s; } .d3 { animation-delay: .55s; } .d4 { animation-delay: .7s; }
+  @keyframes rise { to { transform: none; } }
+  @keyframes fadeUp { to { opacity: 1; transform: none; } }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @keyframes pop { to { opacity: 1; transform: none; } }
+
+  .score-hero { display: flex; align-items: center; gap: 22px; margin: 0 0 26px; }
+  .ring { position: relative; width: 120px; height: 120px; flex: none; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 10; }
+  .ring .t { stroke: var(--cream-2); }
+  .ring .b { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 314.2; stroke-dashoffset: 314.2; transition: stroke-dashoffset 1.4s var(--ease); }
+  .ring .num { position: absolute; inset: 0; display: grid; place-items: center; font-size: 38px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .dims { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; flex: 1; max-width: 300px; }
+  .dim .l { font-size: 12px; color: var(--ink-3); display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .dim .l b { color: var(--ink); }
+  .dim .tk { height: 5px; border-radius: 5px; background: var(--cream-2); overflow: hidden; }
+  .dim .tk i { display: block; height: 100%; width: 0; background: var(--ink); transition: width 1.2s var(--ease); }
+
+  /* ── 右侧问题卡：同工作台，展开后多一个「在原文中查看」 ── */
+  .stage { position: relative; perspective: 1200px; }
+  .card { position: relative; background: var(--paper); border-radius: 28px; padding: 24px;
+    box-shadow: 0 1px 0 rgba(255,255,255,.8) inset, 0 30px 60px -20px rgba(80,50,20,.25), 0 0 0 1px var(--line); }
+  .floaty { position: absolute; z-index: 3; left: -54px; top: -26px; padding: 10px 14px; border-radius: 14px; background: var(--paper); box-shadow: 0 16px 36px -12px rgba(80,50,20,.3), 0 0 0 1px var(--line); font-size: 13px; animation: bob 5s ease-in-out infinite; }
+  .floaty b { display: block; font-size: 17px; } .floaty span { color: var(--ink-3); }
+  @keyframes bob { 50% { translate: 0 -10px; } }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .tabs { position: relative; display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 4px; border-radius: 999px; background: var(--cream-2); }
+  .tabs .knob { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / var(--n)); border-radius: 999px; background: var(--paper); box-shadow: 0 2px 8px rgba(80,50,20,.12); transform: translateX(calc(var(--i) * 100%)); transition: transform .45s var(--spring); }
+  .tabs button { position: relative; z-index: 1; height: 32px; padding: 0 14px; border: none; background: none; font-weight: 600; font-size: 13px; color: var(--ink-2); white-space: nowrap; }
+  .tabs button.on { color: var(--ink); }
+  .link { background: none; border: none; padding: 0; color: var(--accent-ink); font-size: 13px; font-weight: 600; }
+  .link:hover { text-decoration: underline; }
+  .issues { max-height: 470px; overflow: auto; margin: -2px; padding: 2px; }
+  .issue { border-radius: 14px; background: #fff; box-shadow: inset 0 0 0 1px var(--line); margin-bottom: 8px; opacity: 0; transform: translateY(8px); animation: pop .5s var(--spring) forwards; transition: box-shadow .25s; }
+  .issue:hover, .issue.open { box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+  .issue-row { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 12px 14px; border: none; background: none; text-align: left; font-size: 14px; }
+  .issue-text { display: flex; flex-direction: column; min-width: 0; }
+  .issue .why { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+  .tagx { flex: none; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+  .tagx.miss { background: rgba(194,54,43,.12); color: var(--bad); }
+  .tagx.part { background: rgba(183,121,31,.15); color: var(--warn); }
+  .tagx.high { background: var(--bad); color: #fff; }
+  .tagx.med { background: var(--warn); color: #fff; }
+  .tagx.low { background: rgba(34,29,23,.08); color: var(--ink-2); }
+  .tagx.hit { background: rgba(47,125,79,.14); color: var(--good); }
+  .issue-arrow { margin-left: auto; color: var(--ink-3); font-size: 18px; line-height: 20px; transition: transform .35s var(--spring); }
+  .issue.open .issue-arrow { transform: rotate(90deg); color: var(--ink); }
+  .detail { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .4s var(--ease); }
+  .detail > div { overflow: hidden; }
+  .issue.open .detail { grid-template-rows: 1fr; }
+  .detail-in { padding: 0 14px 14px; font-size: 13px; line-height: 1.7; color: var(--ink-2); }
+  .detail-in p { display: flex; gap: 10px; margin: 6px 0 0; }
+  .detail-in .k { flex: none; width: 56px; font-size: 12px; color: var(--ink-3); }
+  .detail-in .q { padding: 8px 10px; border-radius: 10px; background: var(--cream); color: var(--ink); }
+  .to-paper { margin-top: 10px; height: 32px; padding: 0 14px; border: none; border-radius: 999px; background: var(--ink); color: var(--cream); font-size: 13px; font-weight: 600; transition: transform .35s var(--spring), background .2s; }
+  .to-paper:hover { background: #000; transform: translateX(3px); }
+
+  /* ── 原文纸面：从右侧滑出 ── */
+  .veil { position: fixed; inset: 0; z-index: 40; background: rgba(34,29,23,.26); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity .35s; }
+  .veil.open { opacity: 1; pointer-events: auto; }
+  .sheet { position: fixed; z-index: 41; top: 12px; right: 12px; bottom: 12px; width: min(640px, calc(100vw - 24px)); display: flex; flex-direction: column;
+    border-radius: 28px; background: var(--paper); box-shadow: 0 30px 80px -20px rgba(40,25,10,.45), 0 0 0 1px var(--line);
+    transform: translateX(calc(100% + 24px)); transition: transform .55s var(--ease); }
+  .sheet.open { transform: none; }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 12px 24px; }
+  .sheet-title { font-size: 18px; font-weight: 800; }
+  .sheet-title span { margin-left: 8px; font-size: 13px; font-weight: 400; color: var(--ink-3); }
+  .x { width: 38px; height: 38px; border-radius: 50%; border: none; background: rgba(34,29,23,.07); display: grid; place-items: center; transition: transform .4s var(--spring), background .2s; }
+  .x:hover { transform: rotate(90deg); background: rgba(34,29,23,.12); }
+
+  /* 当前这条：说明 + 上一条 / 下一条 */
+  .focus-card { margin: 0 16px; padding: 14px 16px; border-radius: 18px; background: #fff; box-shadow: inset 0 0 0 1.5px var(--line); max-height: 52vh; overflow: auto; }
+
+  /* 针对这一句 / 这条要求的具体建议：点开才生成，边生成边显示 */
+  .advice { margin-top: 10px; padding: 12px 14px; border-radius: 14px; background: linear-gradient(180deg, #fff6ee, #fffdfa); box-shadow: inset 0 0 0 1.5px rgba(217,84,43,.2); }
+  .advice-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; font-size: 12px; font-weight: 700; color: var(--accent-ink); }
+  .advice-head span { font-weight: 400; color: var(--ink-3); }
+  .advice p { display: flex; gap: 10px; margin: 7px 0 0; font-size: 13px; line-height: 1.75; color: var(--ink); }
+  .advice .k { flex: none; width: 64px; padding-top: 1px; font-size: 12px; color: var(--ink-3); }
+  .advice .rewrite { font-weight: 600; }
+  .advice .thinking { color: var(--ink-3); }
+  .dots::after { content: ""; animation: dots 1.2s steps(4) infinite; }
+  @keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+  .ph { padding: 0 3px; border-radius: 4px; background: rgba(217,84,43,.13); color: var(--accent-ink); font-weight: 600; }
+  .caret { display: inline-block; width: 2px; height: 1em; margin-left: 2px; background: var(--accent); vertical-align: -2px; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .copy { margin-left: 8px; padding: 0; border: none; background: none; font-size: 12px; font-weight: 600; color: var(--accent-ink); }
+  .copy:hover { text-decoration: underline; }
+  .advice-foot { margin-top: 8px; font-size: 11px; color: var(--ink-3); }
+  .fc-top { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; font-weight: 600; }
+  .fc-top .why { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--ink-3); }
+  .fc-fix { margin: 8px 0 0; font-size: 13px; line-height: 1.7; color: var(--ink-2); }
+  .fc-fix b { font-weight: 600; color: var(--ink); margin-right: 6px; }
+  .fc-missing { margin: 10px 0 0; padding: 8px 12px; border-radius: 12px; border: 1.5px dashed rgba(194,54,43,.35); font-size: 13px; color: var(--bad); }
+  .fc-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 13px; color: var(--ink-3); }
+  .fc-nav button { height: 30px; padding: 0 12px; border: none; border-radius: 999px; background: var(--cream-2); font-size: 13px; font-weight: 600; color: var(--ink); transition: background .2s; }
+  .fc-nav button:hover:not(:disabled) { background: #e6dccb; }
+  .fc-nav button:disabled { opacity: .4; cursor: default; }
+  .fc-in { animation: fcIn .45s var(--ease); }
+  @keyframes fcIn { from { opacity: 0; transform: translateY(6px); } }
+
+  /* 纸面 */
+  .paper-wrap { position: relative; flex: 1; overflow: auto; margin: 12px 16px 0; padding: 30px 34px 60px; border-radius: 18px 18px 0 0; background: #fff; box-shadow: inset 0 0 0 1px var(--line); scroll-behavior: smooth; }
+  .paper .name { margin: 0 0 4px; font-size: 24px; font-weight: 800; letter-spacing: 1px; }
+  .paper .contact { margin: 0 0 6px; font-size: 13px; color: var(--ink-3); }
+  .paper h4 { margin: 20px 0 8px; padding-bottom: 5px; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 700; letter-spacing: 2px; color: var(--ink-3); }
+  .paper p { margin: 0 0 5px; font-size: 14px; line-height: 1.9; }
+  .paper p.entry { margin-top: 10px; font-weight: 700; }
+  .hl { border-radius: 3px; cursor: pointer; transition: background .3s, box-shadow .3s; }
+  .hl.good { background: rgba(47,125,79,.09); box-shadow: 0 2px 0 rgba(47,125,79,.45); }
+  .hl.part { background: rgba(183,121,31,.13); box-shadow: 0 2px 0 var(--warn); }
+  .hl.bad { background: rgba(194,54,43,.11); box-shadow: 0 2px 0 var(--bad); }
+  .hl:hover { background: rgba(217,84,43,.16); }
+  .hl.focus { position: relative; background: rgba(217,84,43,.2); box-shadow: 0 0 0 2px var(--accent); animation: flash 1.2s var(--ease); }
+  @keyframes flash { 0% { box-shadow: 0 0 0 8px rgba(217,84,43,.35); } 100% { box-shadow: 0 0 0 2px var(--accent); } }
+  .note { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 2; width: max-content; max-width: 260px; padding: 5px 10px; border-radius: 8px;
+    background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; line-height: 1.5; white-space: normal; pointer-events: none;
+    animation: noteIn .45s var(--spring), noteOut .5s 2.6s forwards; }   /* 弹出后几秒淡出，别一直挡住上一行的字 */
+  .note::after { content: ""; position: absolute; left: 12px; top: 100%; border: 5px solid transparent; border-top-color: var(--accent); }
+  @keyframes noteIn { from { opacity: 0; transform: translateY(6px) scale(.9); } }
+  @keyframes noteOut { to { opacity: 0; } }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 24px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-3); }
+  .legend i { display: inline-block; width: 18px; height: 10px; margin-right: 6px; border-radius: 3px; vertical-align: -1px; }
+  .legend .bad { background: rgba(194,54,43,.11); box-shadow: 0 2px 0 var(--bad); }
+  .legend .part { background: rgba(183,121,31,.13); box-shadow: 0 2px 0 var(--warn); }
+  .legend .good { background: rgba(47,125,79,.09); box-shadow: 0 2px 0 rgba(47,125,79,.45); }
+  .legend .keys { margin-left: auto; }
+
+  .demo-flag { position: fixed; left: 16px; bottom: 16px; z-index: 30; font-size: 12px; padding: 6px 12px; border-radius: 999px; background: var(--ink); color: var(--cream); }
+
+  @media (max-width: 960px) {
+    .screen { grid-template-columns: 1fr; gap: 40px; } .links { display: none; } .wrap { padding: 0 16px; } .floaty { display: none; }
+    .score-hero { flex-wrap: wrap; } .legend .keys { display: none; }
+  }
+  @media (max-width: 640px) {
+    .sheet { top: 0; right: 0; bottom: 0; width: 100vw; border-radius: 0; }
+    .paper-wrap { padding: 22px 18px 60px; margin: 12px 10px 0; }
+    .focus-card { margin: 0 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; } .glow { display: none; } }
+</style>
+</head>
+<body>
+<div class="grain"></div><div class="glow" id="glow"></div>
+<nav>
+  <div class="wrap">
+    <div class="logo"><span class="logo-mark">求</span>求职辅助</div>
+    <div class="links"><a href="#">新的投递</a></div>
+    <div class="me"><span class="avatar">U</span>user<button class="btn ghost">退出</button></div>
+  </div>
+</nav>
+<div class="top-progress"></div>
+<main class="wrap"><section class="screen" id="result"></section></main>
+
+<!-- 原文纸面 -->
+<div class="veil" id="veil"></div>
+<aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" aria-hidden="true">
+  <div class="sheet-head">
+    <div class="sheet-title" id="sheetTitle">简历原文<span id="sheetFile"></span></div>
+    <button class="x" id="close" aria-label="关闭"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg></button>
+  </div>
+  <div class="focus-card" id="focus"></div>
+  <div class="paper-wrap" id="paperWrap"><div class="paper" id="paper"></div></div>
+  <div class="legend">
+    <span><i class="bad"></i>简历问题</span><span><i class="part"></i>部分满足的要求</span><span><i class="good"></i>满足的要求</span>
+    <span class="keys">← → 切换 · Esc 关闭</span>
+  </div>
+</aside>
+
+<span class="demo-flag">效果预览 · 数据来自本机一次真实投递（虚构简历）</span>
+
+<script>
+const DATA = {"job_title": "后端开发实习生", "resume_title": "test_resume.pdf", "overall": 76.7, "threshold": 60.0, "dims": {"other": 50.0, "skill": 81.2, "education": 100.0, "experience": 25.0}, "gaps": [{"status": "miss", "req_type": "hard", "content": "了解消息队列（Kafka 或 RocketMQ）", "reason": "简历中未提及 Kafka 或 RocketMQ 等消息队列。", "matched_by": "fulltext", "evidence_quote": null, "char_start": null, "char_end": null, "advice": "【考察什么】Kafka/RocketMQ 的 topic、分区、消费者组，消息可靠投递、重复消费、积压怎么处理。\n【怎么补】你简历里订单模块最接近：如果你用 MQ 解耦过支付回调或退款通知，就写\"引入 RocketMQ 异步处理支付回调，削峰【数值】QPS\"；没做过就本地搭 Kafka 做下单异步通知小练习。\n【面试怎么答】先讲为什么用 MQ（解耦、削峰），再说怎么保证不丢不重：手动提交 offset、幂等消费、失败重试加死信队列。"}, {"status": "partial", "req_type": "hard", "content": "了解常见缓存问题", "reason": "有缓存使用经验，但未提及缓存穿透等常见问题。", "matched_by": "fulltext", "evidence_quote": "使用 Redis 缓存热门商品，商品详情接口响应从 800ms 降到 120ms。", "char_start": 186, "char_end": 227, "advice": "【考察什么】缓存穿透、击穿、雪崩的区别与应对：空值缓存、布隆过滤器、互斥锁/逻辑过期、过期时间加随机值。\n【怎么补】就用二手交易平台那条 Redis 缓存经历，如果你做过，就写成「针对热点商品缓存，用【具体手段，如空值缓存/互斥锁】处理【穿透/击穿】，缓存过期时间加【数值】随机值防雪崩」。\n【面试怎么答】先分清三者触发场景，再各说一个落地手段，最后结合自己项目说实际用了哪个、效果如何。"}, {"status": "miss", "req_type": "plus", "content": "有高并发场景经验", "reason": "项目为校园二手交易平台，未体现高并发场景经验。", "matched_by": "fulltext", "evidence_quote": null, "char_start": null, "char_end": null, "advice": "【考察什么】高并发下缓存穿透/击穿、限流降级、接口压测QPS、数据库连接池与慢查询优化，面试会问你怎么扛住流量峰值。\n【怎么补】你项目里\"Redis缓存热门商品、800ms降到120ms\"最接近。如果你做过压测，就写成\"用JMeter对商品详情接口压测，【数值】并发下QPS达【数值】，缓存命中率【数值】%\"；没做过就本地用JMeter压这个接口，记录优化前后QPS写进去。\n【面试怎么答】先讲压测数据，再说缓存扛读、限流保护、慢查询加索引，最后说瓶颈和下一步优化。"}, {"status": "partial", "req_type": "plus", "content": "有 SQL 调优经验", "reason": "提到性能优化但未明确 SQL 调优，程度不充分。", "matched_by": "fulltext", "evidence_quote": "参与了数据库设计，对系统性能进行了优化，响应速度明显提升。", "char_start": 231, "char_end": 260, "advice": "【考察什么】会问慢 SQL 怎么定位（explain、慢查询日志）、加了什么索引、为什么没走索引、优化前后耗时对比。\n【怎么补】把二手交易平台第 3 条改写：如果你做过订单/商品表查询优化，就写成\"订单列表接口慢查询用 explain 定位全表扫描，为【字段】加联合索引，耗时从【数值】降到【数值】\"；没做过就本地造百万行数据，用 explain 练一遍索引优化写进项目。\n【面试怎么答】先讲怎么发现慢 SQL（慢查询日志/explain 看 type、key、rows），再说改了什么索引或 SQL，最后给优化前后数字。"}, {"status": "partial", "req_type": "soft", "content": "良好的沟通能力与团队协作意识", "reason": "有团队项目开发经历，但未直接描述沟通协作能力。", "matched_by": "fulltext", "evidence_quote": "负责订单模块的开发，完成下单、支付回调与退款流程。", "char_start": 157, "char_end": 182, "advice": "【考察什么】面试会问：需求评审怎么对齐、接口联调冲突怎么处理、代码评审怎么给反馈、跨模块协作怎么推进。\n【怎么补】用校园二手交易平台订单模块那段：如果你和前端/测试/其他后端对接过，就写成\"与【角色】通过【方式】对齐【接口/字段】，联调解决【问题】，保证【结果】\"。\n【面试怎么答】举订单模块一次联调或需求变更：先说清分歧，再说你主动同步、定接口、跟进到上线。"}], "issues": [{"severity": "high", "source": "rule", "title": "成果缺少量化数据", "evidence_quote": "响应速度明显提升", "char_start": 251, "char_end": 259, "advice": "【问题】「参与了数据库设计」没说你设计了什么表，「响应速度明显提升」也没数字，等于没写。\n【改成】参与了数据库设计，【具体做法，如为订单表建立联合索引】，【某接口】响应从【数值】ms 降到【数值】ms。\n【为什么】后端实习看重可量化的优化结果。"}, {"severity": "high", "source": "llm", "title": "表述模糊", "evidence_quote": "负责系统的优化工作，持续改进各项功能。", "char_start": 294, "char_end": 313, "advice": "【问题】\"优化工作\"\"持续改进各项功能\"全是套话，没写优化了哪个功能、怎么优化、效果如何。\n【改成】1. 【负责 / 参与，按实际】图书管理系统的【具体功能，如借阅查询】优化，通过【具体做法，如加索引】使【指标】从【数值】降至【数值】。\n【为什么】后端实习看重具体优化手段与量化结果。"}, {"severity": "medium", "source": "rule", "title": "只有做了什么，没有结果", "evidence_quote": "负责订单模块的开发，完成下单、支付回调与退款流程", "char_start": 157, "char_end": 181, "advice": "【问题】\"完成下单、支付回调与退款流程\"只说了做啥，没提订单量、成功率或耗时等结果。\n【改成】负责订单模块开发，实现下单、支付回调与退款流程，支撑【数值】笔订单，支付回调成功率【数值】。\n【为什么】后端实习看重模块产出与稳定性数据。"}, {"severity": "medium", "source": "llm", "title": "职责边界不清", "evidence_quote": "参与了数据库设计", "char_start": 231, "char_end": 239, "advice": "【问题】「参与了数据库设计」看不出你负责哪部分表、做了哪些优化，「响应速度明显提升」也没数字。\n【改成】【负责 / 参与，按实际】数据库设计，设计【具体表，如订单表、商品表】并【具体做法，如加索引】，【某接口】响应从【数值】ms 降到【数值】ms。\n【为什么】后端实习看重你独立负责的模块与量化结果。"}, {"severity": "medium", "source": "rule", "title": "只有做了什么，没有结果", "evidence_quote": "负责系统的优化工作，持续改进各项功能", "char_start": 294, "char_end": 312, "advice": "【问题】「优化工作」「持续改进各项功能」全是空词，看不出改了哪个功能、优化了什么指标，对后端实习岗毫无信息量。\n【改成】1. 【负责 / 参与，按实际】图书管理系统的【具体模块，如借阅查询】优化，将【指标，如接口响应时间】从【数值】降至【数值】。\n【为什么】后端实习看重可量化的性能与模块产出。"}, {"severity": "medium", "source": "rule", "title": "只有做了什么，没有结果", "evidence_quote": "基于 Spring Boot 实现借阅、归还与逾期提醒接口", "char_start": 317, "char_end": 346, "advice": "【问题】「实现借阅、归还与逾期提醒接口」只说了做接口，没提接口数量、调用量或响应结果。\n【改成】基于 Spring Boot 实现借阅、归还与逾期提醒接口，【具体做法，如用定时任务扫描逾期记录】，【数值】个接口，【结果，如平均响应【数值】ms】。\n【为什么】后端实习看重接口产出与性能结果。"}, {"severity": "medium", "source": "llm", "title": "表述模糊", "evidence_quote": "基于 Spring Boot 实现借阅、归还与逾期提醒接口", "char_start": 317, "char_end": 346, "advice": "【问题】只写\"实现借阅、归还与逾期提醒接口\"，没说逾期提醒怎么触发、借还状态怎么流转，看不出你的设计。\n【改成】基于 Spring Boot 实现借阅、归还、逾期提醒接口：借还状态按【具体状态流转，如借出→归还】流转，逾期提醒通过【具体做法，如定时任务】触发。\n【为什么】后端实习看重接口设计与业务逻辑，写清触发机制才显技术含量。"}, {"severity": "medium", "source": "rule", "title": "技能「Java」在经历中没有体现", "evidence_quote": "Java", "char_start": 356, "char_end": 360, "advice": "【问题】技能栏写了 Java，但两段项目经历里都没出现 Java 相关描述。\n【改成】在「校园二手交易平台」里写：技术栈：Java、Spring Boot、MySQL、Redis，负责订单模块开发。\n【为什么】后端实习岗要看到 Java 落在项目里。"}], "hits": [{"req_type": "hard", "content": "本科及以上学历，计算机相关专业", "reason": "最高学历为本科，满足要求的本科", "matched_by": "profile", "char_start": 51, "char_end": 88}, {"req_type": "hard", "content": "熟悉 Java", "reason": "专业技能明确列出熟悉 Java。", "matched_by": "fulltext", "char_start": 353, "char_end": 391}, {"req_type": "hard", "content": "熟悉 Spring Boot", "reason": "在项目 / 工作经历中用到了这项技能", "matched_by": "dict", "char_start": 126, "char_end": 153}, {"req_type": "hard", "content": "熟悉 MyBatis", "reason": "专业技能明确列出熟悉 MyBatis。", "matched_by": "fulltext", "char_start": 353, "char_end": 391}, {"req_type": "hard", "content": "熟悉 MySQL", "reason": "在项目 / 工作经历中用到了这项技能", "matched_by": "dict", "char_start": 126, "char_end": 153}, {"req_type": "hard", "content": "有 Redis 使用经验", "reason": "在项目 / 工作经历中用到了这项技能", "matched_by": "dict", "char_start": 126, "char_end": 153}, {"req_type": "hard", "content": "熟悉 Linux 常用命令", "reason": "专业技能明确列出熟悉 Linux 常用命令。", "matched_by": "fulltext", "char_start": 415, "char_end": 433}], "full_text": "测试同学\n电话：13800001234  邮箱：test_demo@example.com\n教育背景\n示例理工大学  计算机科学与技术  本科  2022.09-2026.06\n项目经历\n校园二手交易平台  后端开发  2024.03-2024.08\n技术栈：Spring Boot、MySQL、Redis\n1. 负责订单模块的开发，完成下单、支付回调与退款流程。\n2. 使用 Redis 缓存热门商品，商品详情接口响应从 800ms 降到 120ms。\n3. 参与了数据库设计，对系统性能进行了优化，响应速度明显提升。\n图书管理系统  课程设计  2023.09-2023.12\n1. 负责系统的优化工作，持续改进各项功能。\n2. 基于 Spring Boot 实现借阅、归还与逾期提醒接口。\n专业技能\n熟悉 Java、Spring Boot、MyBatis，了解 Docker。\n熟悉 MySQL 与 Redis 的常用操作，熟悉 Linux 常用命令、Git。", "blocks": [{"i": 0, "s": 0, "e": 4}, {"i": 1, "s": 5, "e": 45}, {"i": 2, "s": 46, "e": 50}, {"i": 3, "s": 51, "e": 88}, {"i": 4, "s": 89, "e": 93}, {"i": 5, "s": 94, "e": 125}, {"i": 6, "s": 126, "e": 153}, {"i": 7, "s": 154, "e": 182}, {"i": 8, "s": 183, "e": 227}, {"i": 9, "s": 228, "e": 260}, {"i": 10, "s": 261, "e": 290}, {"i": 11, "s": 291, "e": 313}, {"i": 12, "s": 314, "e": 347}, {"i": 13, "s": 348, "e": 352}, {"i": 14, "s": 353, "e": 391}, {"i": 15, "s": 392, "e": 433}], "sections": [{"type": "basics", "block_start": 0, "block_end": 1, "matched_by": "implicit"}, {"type": "education", "block_start": 2, "block_end": 3, "matched_by": "dict"}, {"type": "projects", "block_start": 4, "block_end": 12, "matched_by": "dict"}, {"type": "skills", "block_start": 13, "block_end": 15, "matched_by": "dict"}], "entry_blocks": [3, 5, 10]};
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* 光晕 */
+let mx = innerWidth / 2, my = innerHeight / 3, gx = mx, gy = my;
+addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+(function loop() { gx += (mx - gx) * .08; gy += (my - gy) * .08; $('glow').style.transform = `translate(${gx}px,${gy}px)`; requestAnimationFrame(loop); })();
+
+/* ── 把三类标注整理成统一的条目：对照岗位（差距）/ 简历本身（问题）/ 满足的要求 ── */
+const REQ_TYPE = { hard: '必须项', plus: '加分项', soft: '软素质' };
+const MATCHED_BY = { dict: '规则判定（技能词典）', profile: '规则判定（学历 / 年限）', fulltext: '大模型判定' };
+const SEVERITY = { high: ['high', '严重'], medium: ['med', '中等'], low: ['low', '轻微'] };
+const LIST_NAME = { gap: '对照岗位', self: '简历本身', hit: '满足的要求' };
+const located = (x) => x.start !== null && x.end !== null;   // 条目在原文里有没有位置（缺失的要求、针对整份简历的问题没有）
+
+const LISTS = {
+  gap: DATA.gaps.map((g, i) => ({
+    key: `gap-${i}`, list: 'gap', color: g.status === 'miss' ? null : 'part',
+    tag: g.status === 'miss' ? ['miss', '缺失'] : ['part', '部分'], text: g.content, why: `${REQ_TYPE[g.req_type]} · ${g.reason}`,
+    note: g.status === 'miss' ? '' : `部分满足：${g.content}`,
+    fix: ['判定方式', MATCHED_BY[g.matched_by] + (g.matched_by === 'fulltext' && g.evidence_quote ? ' · 引用已在原文中核实' : '')],
+    detail: [g.evidence_quote ? ['简历原文', `「${g.evidence_quote}」`, true] : ['简历原文', '没有找到相关的内容']],
+    start: g.char_start, end: g.char_end, advice: g.advice,
+  })),
+  // 原来的「问题 / 怎么改」是规则的固定模板，太泛，换成针对这一句现场生成的建议
+  self: DATA.issues.map((f, i) => ({
+    key: `self-${i}`, list: 'self', color: 'bad',
+    tag: SEVERITY[f.severity], text: f.evidence_quote ? `「${f.evidence_quote}」` : f.title, why: f.evidence_quote ? f.title : '针对整份简历',
+    note: f.title, fix: null,
+    detail: [['来源', f.source === 'rule' ? '规则检查' : '大模型审阅 · 引用已在原文中核实']],
+    start: f.char_start, end: f.char_end, advice: f.advice,
+  })),
+  hit: DATA.hits.map((h, i) => ({
+    key: `hit-${i}`, list: 'hit', color: 'good',
+    tag: ['hit', '满足'], text: h.content, why: `${REQ_TYPE[h.req_type]} · ${h.reason}`,
+    note: `满足：${h.content}`, fix: ['判定方式', MATCHED_BY[h.matched_by]],
+    detail: [], start: h.char_start, end: h.char_end,
+  })),
+};
+const BY_KEY = Object.fromEntries(Object.values(LISTS).flat().map(x => [x.key, x]));
+const PRIORITY = { bad: 3, part: 2, good: 1 };
+
+/* ── 左边：结果（同工作台的结果页） ── */
+const MARK_SVG = '<svg viewBox="0 0 300 22" preserveAspectRatio="none"><path d="M4 16 C 80 4, 200 4, 296 12"/></svg>';
+let tab = 'gap';
+
+function issueHtml(x, i) {
+  const rows = [...x.detail, ...(x.fix ? [x.fix] : [])].map(([k, v, q]) => `<p${q ? ' class="q"' : ''}><span class="k">${k}</span><span>${esc(v)}</span></p>`).join('');
+  const to = located(x) ? '在原文中查看 →' : '打开原文，看看缺在哪 →';
+  return `<div class="issue" style="animation-delay:${(.1 + i * .06).toFixed(2)}s" data-key="${x.key}">
+    <button class="issue-row"><span class="tagx ${x.tag[0]}">${x.tag[1]}</span><span class="issue-text"><span>${esc(x.text)}</span><span class="why">${esc(x.why)}</span></span><span class="issue-arrow">›</span></button>
+    <div class="detail"><div><div class="detail-in">${rows}${x.advice ? `<div class="advice" data-advice="${x.key}"></div>` : ''}<button class="to-paper" data-open="${x.key}">${to}</button></div></div></div>
+  </div>`;
+}
+
+/* ── 具体建议：点开一条才生成，一个字一个字打出来；生成过的再打开直接显示。
+   演示里的文字是用真实数据调 DeepSeek 生成的，这里按真实速度（首字约 0.7 秒）回放 ── */
+const ADV = {};   // key → { shown: 已显示的字数, done }
+const SECTION = /【(问题|改成|为什么|考察什么|怎么补|面试怎么答)】/;
+
+/** 把【…】标成待填的占位（可以嵌套，只包最外层）；还没写完的半个占位先按普通文字显示 */
+function placeholders(s) {
+  let out = '', buf = '', depth = 0;
+  for (const ch of s) {
+    if (ch === '【') { if (depth === 0) { out += esc(buf); buf = ''; } depth++; buf += ch; continue; }
+    buf += ch;
+    if (ch === '】' && depth > 0 && --depth === 0) { out += `<span class="ph">${esc(buf)}</span>`; buf = ''; }
+  }
+  return out + esc(buf);
+}
+
+function adviceHtml(key) {
+  const x = BY_KEY[key], st = ADV[key];
+  const head = `<div class="advice-head">针对这${x.list === 'gap' ? '条要求' : '一句'}的建议<span>DeepSeek 生成</span></div>`;
+  if (!st || !st.shown) return head + `<p class="thinking">正在针对这${x.list === 'gap' ? '条要求' : '一句'}写建议<span class="dots"></span></p>`;
+  // 流到一半时，末尾可能是半个段标题（如「【改」），先不显示
+  const text = st.done ? x.advice : x.advice.slice(0, st.shown).replace(/【[^】]{0,5}$/, '');
+  const parts = text.split(new RegExp(SECTION.source, 'g'));   // ['', '问题', '……', '改成', '……', …]
+  let rows = '';
+  for (let i = 1; i < parts.length; i += 2) {
+    const k = parts[i], v = (parts[i + 1] || '').trim(), last = i + 2 >= parts.length;
+    const copy = k === '改成' && st.done ? `<button class="copy" data-copy="${key}">复制</button>` : '';
+    rows += `<p><span class="k">${k}</span><span class="${k === '改成' ? 'rewrite' : ''}">${placeholders(v)}${last && !st.done ? '<i class="caret"></i>' : ''}${copy}</span></p>`;
+  }
+  const foot = x.list === 'gap' ? '「如果你做过」的写法，只在确实做过时再用；【】里按实际填写' : '【】里的内容按你的实际情况填写，别照抄';
+  return head + rows + (st.done ? `<div class="advice-foot">${foot}</div>` : '');
+}
+
+function paintAdvice(key) { document.querySelectorAll(`[data-advice="${key}"]`).forEach(el => { el.innerHTML = adviceHtml(key); }); }
+
+function startAdvice(key) {
+  const x = BY_KEY[key];
+  if (!x.advice) return;
+  if (ADV[key]) return paintAdvice(key);          // 生成过或正在生成：照当前进度显示
+  const st = ADV[key] = { shown: 0, done: false };
+  paintAdvice(key);
+  setTimeout(function tick() {
+    st.shown += 2 + Math.floor(Math.random() * 2);
+    st.done = st.shown >= x.advice.length;
+    paintAdvice(key);
+    if (!st.done) setTimeout(tick, 28);
+  }, 700);
+}
+
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-copy]');
+  if (!b) return;
+  const rewrite = (BY_KEY[b.dataset.copy].advice.match(/【改成】([\s\S]*?)(?=【(?:为什么|问题)】|$)/) || [])[1] || '';
+  try { await navigator.clipboard.writeText(rewrite.trim()); b.textContent = '已复制'; } catch { b.textContent = '复制失败，请手动选中'; }
+});
+
+function renderResult() {
+  const o = Math.round(DATA.overall);
+  const dims = [['skill', '技能'], ['education', '学历'], ['experience', '经验'], ['other', '其他']]
+    .filter(([k]) => DATA.dims[k] !== null).map(([k, l]) => `<div class="dim"><div class="l">${l}<b>${Math.round(DATA.dims[k])}</b></div><div class="tk"><i data-w="${DATA.dims[k]}"></i></div></div>`).join('');
+  $('result').innerHTML = `
+    <div>
+      <span class="tag fade d1"><b>初筛结果</b>${esc(DATA.job_title)}</span>
+      <h1><span class="line"><span>通过初筛，</span></span><span class="line"><span>可以去<span class="mark">面试${MARK_SVG}</span>了。</span></span></h1>
+      <p class="sub fade d2">匹配度 ${o}，过了 ${DATA.threshold} 分的初筛线。下面还有几处可以写得更好，面试前值得先改。</p>
+      <div class="score-hero fade d2">
+        <div class="ring"><svg width="120" height="120" viewBox="0 0 120 120"><circle class="t" cx="60" cy="60" r="50"/><circle class="b" id="ringBar" cx="60" cy="60" r="50"/></svg><div class="num" id="num">0</div></div>
+        <div class="dims">${dims}</div>
+      </div>
+      <div class="cta fade d3"><button class="btn soon lg">进入模拟面试 <small>即将开放</small></button><button class="btn outline lg">再投一个</button></div>
+    </div>
+    <div class="stage fade d4">
+      <div class="floaty"><b>${o} / ${DATA.threshold}</b><span>匹配度 / 初筛线</span></div>
+      <div class="card">
+        <div class="card-head">
+          <div class="tabs" id="tabs" style="--n:2;--i:0"><span class="knob"></span><button class="on" data-tab="gap">对照岗位 · ${LISTS.gap.length}</button><button data-tab="self">简历本身 · ${LISTS.self.length}</button></div>
+          <button class="link" data-open="">查看简历原文 →</button>
+        </div>
+        <div class="issues" id="issues"></div>
+      </div>
+    </div>`;
+  renderList();
+  setTimeout(() => {
+    $('ringBar').style.strokeDashoffset = 314.2 * (1 - o / 100);
+    document.querySelectorAll('.dim .tk i').forEach(i => i.style.width = i.dataset.w + '%');
+    const t0 = performance.now();
+    (function tick(t) { const k = Math.min(1, (t - t0) / 1400); $('num').textContent = Math.round(o * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(tick); })(t0);
+  }, 500);
+}
+function renderList() { $('issues').innerHTML = LISTS[tab].map(issueHtml).join(''); }
+
+document.addEventListener('click', e => {
+  const tabBtn = e.target.closest('#tabs button');
+  if (tabBtn) {
+    tab = tabBtn.dataset.tab;
+    document.querySelectorAll('#tabs button').forEach((b, i) => { b.classList.toggle('on', b === tabBtn); if (b === tabBtn) $('tabs').style.setProperty('--i', i); });
+    return renderList();
+  }
+  const open = e.target.closest('[data-open]');
+  if (open) return openSheet(open.dataset.open || null);
+  const row = e.target.closest('.issue-row');
+  if (row && row.parentElement.classList.toggle('open')) startAdvice(row.parentElement.dataset.key);   // 展开 = 开始生成
+});
+
+/* ── 纸面：按块渲染原文，高亮按字符区间切段（一段可以同时属于好几条标注） ── */
+function renderPaper() {
+  const ft = DATA.full_text;
+  const marks = Object.values(BY_KEY).filter(x => x.color && located(x));
+  const heading = new Set(DATA.sections.filter(s => s.matched_by !== 'implicit').map(s => s.block_start));
+  const basics = DATA.sections.find(s => s.type === 'basics');
+  const entryStarts = new Set(DATA.entry_blocks);
+  const html = DATA.blocks.map(b => {
+    const cuts = new Set([b.s, b.e]);
+    marks.forEach(m => { if (m.start < b.e && m.end > b.s) { cuts.add(Math.max(m.start, b.s)); cuts.add(Math.min(m.end, b.e)); } });
+    const points = [...cuts].sort((a, c) => a - c);
+    let inner = '';
+    for (let i = 0; i < points.length - 1; i++) {
+      const [a, z] = [points[i], points[i + 1]];
+      const cover = marks.filter(m => m.start < z && m.end > a);
+      const text = esc(ft.slice(a, z));
+      if (!cover.length) { inner += text; continue; }
+      const top = cover.reduce((p, m) => (PRIORITY[m.color] > PRIORITY[p.color] ? m : p));
+      inner += `<span class="hl ${top.color}" data-keys="${cover.map(m => m.key).join(' ')}" title="${esc(cover.map(m => m.note).join('\n'))}">${text}</span>`;
+    }
+    if (heading.has(b.i)) return `<h4>${inner}</h4>`;
+    if (basics && b.i === basics.block_start) return `<p class="name">${inner}</p>`;
+    if (basics && b.i <= basics.block_end) return `<p class="contact">${inner}</p>`;
+    return `<p${entryStarts.has(b.i) ? ' class="entry"' : ''}>${inner}</p>`;
+  }).join('');
+  $('paper').innerHTML = html;
+}
+
+let current = null;   // 当前聚焦的条目
+
+function openSheet(key) {
+  $('sheet').classList.add('open'); $('veil').classList.add('open'); $('sheet').setAttribute('aria-hidden', 'false');
+  document.body.classList.add('locked');
+  focusOn(key ? BY_KEY[key] : null);
+}
+function closeSheet() {
+  $('sheet').classList.remove('open'); $('veil').classList.remove('open'); $('sheet').setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('locked');
+}
+
+function focusOn(item) {
+  current = item;
+  document.querySelectorAll('.hl.focus').forEach(s => s.classList.remove('focus'));
+  document.querySelectorAll('.note').forEach(n => n.remove());
+
+  if (!item) {
+    const n = (l) => LISTS[l].filter(located).length;
+    $('focus').innerHTML = `<div class="fc-in"><div class="fc-top"><span>全部标注</span></div>
+      <p class="fc-fix">红色是简历本身的问题（${n('self')} 处），橙色是部分满足的岗位要求（${n('gap')} 处），绿色是已经满足的要求（${n('hit')} 条）。点任意一处看说明。</p>
+      <div class="fc-nav"><span>${esc(DATA.resume_title)}</span><button data-go="first">从第一条问题开始 →</button></div></div>`;
+    $('paperWrap').scrollTop = 0;
+    return;
+  }
+
+  const list = LISTS[item.list], idx = list.indexOf(item);
+  const missing = !located(item)
+    ? `<p class="fc-missing">${item.list === 'gap' ? '简历里没有找到能证明这条要求的内容 —— 这正是需要补上的地方。' : '这条针对整份简历，没有具体的某一句。'}</p>` : '';
+  $('focus').innerHTML = `<div class="fc-in">
+    <div class="fc-top"><span class="tagx ${item.tag[0]}">${item.tag[1]}</span><span>${esc(item.text)}<span class="why">${esc(item.why)}</span></span></div>
+    ${item.fix ? `<p class="fc-fix"><b>${item.fix[0]}</b>${esc(item.fix[1])}</p>` : ''}
+    ${missing}
+    ${item.advice ? `<div class="advice" data-advice="${item.key}"></div>` : ''}
+    <div class="fc-nav"><button data-go="-1" ${idx <= 0 ? 'disabled' : ''}>‹ 上一条</button><span>${LIST_NAME[item.list]} · ${idx + 1} / ${list.length}</span><button data-go="1" ${idx >= list.length - 1 ? 'disabled' : ''}>下一条 ›</button></div>
+  </div>`;
+  startAdvice(item.key);   // 切到这一条 = 开始生成（生成过的直接显示）
+
+  if (!located(item)) { $('paperWrap').scrollTop = 0; return; }
+  const segs = [...document.querySelectorAll('.hl')].filter(s => s.dataset.keys.split(' ').includes(item.key));
+  segs.forEach(s => { s.classList.remove('focus'); void s.offsetWidth; s.classList.add('focus'); });   // 重新触发闪一下
+  const first = segs[0];
+  if (!first) return;
+  const note = document.createElement('span');
+  note.className = 'note'; note.textContent = item.note;
+  first.appendChild(note);
+  // 批注别超出纸面右边
+  const over = note.getBoundingClientRect().right - $('paperWrap').getBoundingClientRect().right + 12;
+  if (over > 0) note.style.left = `${-over}px`;
+  first.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+}
+
+function step(d) {
+  if (!current) return focusOn(LISTS.self[0]);
+  const list = LISTS[current.list], next = list[list.indexOf(current) + d];
+  if (next) focusOn(next);
+}
+
+$('focus').addEventListener('click', e => {
+  const b = e.target.closest('[data-go]'); if (!b) return;
+  b.dataset.go === 'first' ? focusOn(LISTS.self[0]) : step(+b.dataset.go);
+});
+$('paper').addEventListener('click', e => {
+  const seg = e.target.closest('.hl'); if (!seg) return;
+  // 一段属于好几条时：优先当前列表里的，其次问题 > 部分满足 > 满足
+  const keys = seg.dataset.keys.split(' ').map(k => BY_KEY[k]);
+  const pick = keys.find(x => current && x.list === current.list && x !== current)
+    || keys.sort((a, b) => PRIORITY[b.color] - PRIORITY[a.color]).find(x => x !== current) || keys[0];
+  focusOn(pick);
+});
+$('close').addEventListener('click', closeSheet);
+$('veil').addEventListener('click', closeSheet);
+addEventListener('keydown', e => {
+  if (!$('sheet').classList.contains('open')) return;
+  if (e.key === 'Escape') closeSheet();
+  if (e.key === 'ArrowRight') step(1);
+  if (e.key === 'ArrowLeft') step(-1);
+});
+
+$('sheetFile').textContent = DATA.resume_title;
+renderResult();
+renderPaper();
+</script>
+</body>
+</html>

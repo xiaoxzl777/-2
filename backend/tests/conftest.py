@@ -89,16 +89,28 @@ class FakeLLM:
     def invoke(self, scene, messages, *, prompt_version, schema=None, ref=None, **_):
         from app.llm.client import LLMResult, parse_json
 
-        name = schema.__name__ if schema else scene
+        reply = self._next_reply(schema.__name__ if schema else scene, messages, self.EMPTY)
+        parsed, error = parse_json(reply, schema) if schema else (None, None)
+        return LLMResult(reply, parsed, error, 100, 50, 0.001, False, "fake", "fp", 1)
+
+    def stream(self, scene, messages, *, prompt_version, ref=None, **_):
+        """流式版本：回复按 scene 名（rewrite / gap）预设，每 4 个字吐一段。预设成异常时在吐出第一段之后抛，模拟中途断掉。"""
+        reply = self._next_reply(scene, messages, "【问题】默认回复")
+        if isinstance(reply, tuple):              # (已经吐出的文字, 异常)
+            yield reply[0]
+            raise reply[1]
+        for i in range(0, len(reply), 4):
+            yield reply[i:i + 4]
+
+    def _next_reply(self, name, messages, default):
         haystack = "\n".join(content for _, content in messages)
         key = next((k for k in self.replies if k.startswith(f"{name}:") and k.split(":", 1)[1] in haystack), name)
         self.calls.setdefault(key, []).append(list(messages))
         queue = self.replies.get(key)
-        reply = queue.pop(0) if queue else self.EMPTY
+        reply = queue.pop(0) if queue else default
         if isinstance(reply, Exception):
             raise reply
-        parsed, error = parse_json(reply, schema) if schema else (None, None)
-        return LLMResult(reply, parsed, error, 100, 50, 0.001, False, "fake", "fp", 1)
+        return reply
 
     @property
     def sent_text(self) -> str:

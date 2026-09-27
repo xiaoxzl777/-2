@@ -17,7 +17,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Protocol, TypeVar
@@ -102,22 +102,11 @@ class LLMClient:
         use_cache: bool = True,
     ) -> LLMResult:
         model = model or settings.CHAT_MODEL
-        rendered = json.dumps(
-            {"messages": list(messages), "schema": schema.__name__ if schema else None, "temperature": temperature},
-            ensure_ascii=False, sort_keys=True,
-        )
+        rendered, key, base_record = self._prepare(scene, messages, prompt_version, schema, ref, model, temperature)
         if schema is not None and "json" not in rendered.lower():
             raise ValueError("JSON 模式要求 prompt 中出现 'json' 字样（DeepSeek 的限制），请在 prompt 里给出 JSON 示例")
 
-        run_id = current_run_id.get()
-        key = llm_cache.make_key(scene, model, prompt_version, rendered)
-        base_record = {
-            "scene": scene, "ref_type": ref[0] if ref else None, "ref_id": ref[1] if ref else None,
-            "provider": registry.PROVIDERS.get(model), "model_name": model,
-            "prompt_version": prompt_version, "run_id": run_id,
-        }
-
-        cacheable = use_cache and run_id is None
+        cacheable = use_cache and base_record["run_id"] is None
         if cacheable and (hit := self._cache.get(key)) is not None:
             parsed, parse_error = parse_json(hit["text"], schema) if schema else (None, None)
             self._write_audit({**base_record, "model_version": hit.get("model_version"), "cache_hit": True,
@@ -151,6 +140,77 @@ class LLMClient:
         self._write_audit({**base_record, "model_version": model_version, "token_input": token_in,
                            "token_output": token_out, "cost": cost, "latency_ms": latency})
         return LLMResult(text, parsed, parse_error, token_in, token_out, cost, False, model, model_version, latency)
+
+    def stream(
+        self,
+        scene: str,
+        messages: Sequence[Message],
+        *,
+        prompt_version: str,
+        ref: tuple[str, int] | None = None,
+        model: str | None = None,
+        temperature: float = 0.0,
+        use_cache: bool = True,
+    ) -> Iterator[str]:
+        """流式调用：模型每吐一段文字就产出一段，给要"边生成边显示"的场景用（纯文本，不做结构化解析）。
+
+        同样的五步：缓存命中时一次产出全文；限流；调用；写缓存；记账（token 用量来自最后一个分块）。
+        中途失败抛 LLMError，已经产出的部分由调用方决定怎么处理；调用方提前关闭生成器也记一行失败，费用照记不漏。
+        """
+        model = model or settings.CHAT_MODEL
+        _, key, base_record = self._prepare(scene, messages, prompt_version, None, ref, model, temperature)
+        cacheable = use_cache and base_record["run_id"] is None
+        if cacheable and (hit := self._cache.get(key)) is not None:
+            self._write_audit({**base_record, "model_version": hit.get("model_version"), "cache_hit": True,
+                               "latency_ms": 0})
+            yield hit["text"]
+            return
+
+        self._acquire(registry.PROVIDERS.get(model, model), settings.DEEPSEEK_RPM)
+        started = time.perf_counter()
+        text, usage, model_version = "", {}, None
+
+        def failed(reason: str) -> dict:
+            return {**base_record, "success": False, "latency_ms": int((time.perf_counter() - started) * 1000),
+                    "error_msg": reason[:500]}
+
+        try:
+            for chunk in self._chat_factory(model, temperature).stream(list(messages)):
+                usage = chunk.usage_metadata or usage
+                model_version = (chunk.response_metadata or {}).get("system_fingerprint") or model_version
+                piece = chunk.content if isinstance(chunk.content, str) else ""
+                if piece:
+                    text += piece
+                    yield piece
+        except GeneratorExit:
+            self._write_audit(failed("调用方提前结束了流式读取"))
+            raise
+        except Exception as e:
+            self._write_audit(failed(f"{type(e).__name__}: {e}"))
+            raise LLMError(f"{scene} 调用 {model} 失败：{type(e).__name__}") from e
+
+        token_in, token_out = usage.get("input_tokens", 0), usage.get("output_tokens", 0)
+        if cacheable and text.strip():
+            self._cache.put(key, {"text": text, "model_version": model_version})
+        self._write_audit({**base_record, "model_version": model_version, "token_input": token_in,
+                           "token_output": token_out, "cost": registry.estimate_cost(model, token_in, token_out),
+                           "latency_ms": int((time.perf_counter() - started) * 1000)})
+
+    @staticmethod
+    def _prepare(scene: str, messages: Sequence[Message], prompt_version: str, schema: type[BaseModel] | None,
+                 ref: tuple[str, int] | None, model: str, temperature: float) -> tuple[str, str, dict]:
+        """渲染 prompt、算缓存 key、拼审计记录的公共部分。评测批次号（run_id）也在这里取。"""
+        rendered = json.dumps(
+            {"messages": list(messages), "schema": schema.__name__ if schema else None, "temperature": temperature},
+            ensure_ascii=False, sort_keys=True,
+        )
+        key = llm_cache.make_key(scene, model, prompt_version, rendered)
+        base_record = {
+            "scene": scene, "ref_type": ref[0] if ref else None, "ref_id": ref[1] if ref else None,
+            "provider": registry.PROVIDERS.get(model), "model_name": model,
+            "prompt_version": prompt_version, "run_id": current_run_id.get(),
+        }
+        return rendered, key, base_record
 
 
 _default_client: LLMClient | None = None

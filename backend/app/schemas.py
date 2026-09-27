@@ -155,7 +155,7 @@ class FindingOut(BaseModel):
     bbox: list[float] | None
     verify_result: str
     match_score: float | None
-    rewrite: dict | None
+    rewrite: dict | None        # 生成过的具体建议 {text, violation_count, …}；没生成过为 null
 
 
 class DiagnosisStats(BaseModel):
@@ -240,6 +240,7 @@ class MatchItemOut(BaseModel):
     char_start: int | None
     char_end: int | None
     unit_id: str | None
+    advice: dict | None = None  # 生成过的具体建议 {text, violation_count, …}；没生成过为 null
 
 
 class MatchReportOut(BaseModel):

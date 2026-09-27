@@ -461,6 +461,85 @@ button { cursor: pointer; }
 .detail-in p { display: flex; gap: 10px; margin: 6px 0 0; }
 .detail-in .k { flex: none; width: 56px; font-size: 12px; color: var(--color-ink-3); }
 .detail-in .q { padding: 8px 10px; border-radius: 10px; background: var(--color-cream); color: var(--color-ink); }
+.to-paper {
+  margin-top: 10px; height: 32px; padding: 0 14px; border: none; border-radius: 999px; background: var(--color-ink); color: var(--color-cream);
+  font-size: 13px; font-weight: 600; transition: transform 0.35s var(--spring), background 0.2s;
+}
+.to-paper:hover { background: #000; transform: translateX(3px); }
+.card-head .link { font-size: 13px; white-space: nowrap; }
+
+/* 具体建议：点开才生成，边生成边显示；【】是留给用户填的占位 */
+.advice { margin-top: 10px; padding: 12px 14px; border-radius: 14px; background: linear-gradient(180deg, #fff6ee, #fffdfa); box-shadow: inset 0 0 0 1.5px rgba(217, 84, 43, 0.2); }
+.advice-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; font-size: 12px; font-weight: 700; color: var(--color-accent-ink); }
+.advice-head span { font-weight: 400; color: var(--color-ink-3); }
+.advice p { display: flex; gap: 10px; margin: 7px 0 0; font-size: 13px; line-height: 1.75; color: var(--color-ink); }
+.advice .k { flex: none; width: 64px; padding-top: 1px; font-size: 12px; color: var(--color-ink-3); }
+.advice .rewrite { font-weight: 600; }
+.advice .thinking { color: var(--color-ink-3); }
+.advice-err { color: var(--color-bad); }
+.advice-foot { margin-top: 8px; font-size: 11px; color: var(--color-ink-3); }
+.wait-dots::after { content: ""; animation: waitDots 1.2s steps(4) infinite; }
+@keyframes waitDots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+.ph { padding: 0 3px; border-radius: 4px; background: rgba(217, 84, 43, 0.13); color: var(--color-accent-ink); font-weight: 600; }
+.caret { display: inline-block; width: 2px; height: 1em; margin-left: 2px; background: var(--color-accent); vertical-align: -2px; animation: blinkCaret 1s steps(2) infinite; }
+@keyframes blinkCaret { 50% { opacity: 0; } }
+.copy { margin-left: 8px; padding: 0; border: none; background: none; font-size: 12px; font-weight: 600; color: var(--color-accent-ink); }
+.copy:hover { text-decoration: underline; }
+
+/* 简历原文纸面：从右侧滑出。关上时 visibility 延迟到滑出动画结束再隐藏，里面的按钮也就不会被 Tab 选中 */
+.veil { position: fixed; inset: 0; z-index: 40; background: rgba(34, 29, 23, 0.26); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity 0.35s; }
+.veil.open { opacity: 1; pointer-events: auto; }
+.sheet {
+  position: fixed; z-index: 41; top: 12px; right: 12px; bottom: 12px; width: min(640px, calc(100vw - 24px)); display: flex; flex-direction: column;
+  border-radius: 28px; background: var(--color-paper); box-shadow: 0 30px 80px -20px rgba(40, 25, 10, 0.45), 0 0 0 1px var(--line);
+  transform: translateX(calc(100% + 24px)); visibility: hidden; transition: transform 0.55s var(--ease), visibility 0s 0.55s;
+}
+.sheet.open { transform: none; visibility: visible; transition: transform 0.55s var(--ease); }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 12px 24px; }
+.sheet-title { font-size: 18px; font-weight: 800; }
+.sheet-title span { margin-left: 8px; font-size: 13px; font-weight: 400; color: var(--color-ink-3); }
+.focus-card { max-height: 52vh; overflow: auto; margin: 0 16px; padding: 14px 16px; border-radius: 18px; background: #fff; box-shadow: inset 0 0 0 1.5px var(--line); }
+.fc-in { animation: fcIn 0.45s var(--ease); }
+@keyframes fcIn { from { opacity: 0; transform: translateY(6px); } }
+.fc-top { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; font-weight: 600; }
+.fc-top .why { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--color-ink-3); }
+.fc-fix { margin: 8px 0 0; font-size: 13px; line-height: 1.7; color: var(--color-ink-2); }
+.fc-fix b { margin-right: 6px; font-weight: 600; color: var(--color-ink); }
+.fc-missing { margin: 10px 0 0; padding: 8px 12px; border-radius: 12px; border: 1.5px dashed rgba(194, 54, 43, 0.35); font-size: 13px; color: var(--color-bad); }
+.fc-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 13px; color: var(--color-ink-3); }
+.fc-nav button { height: 30px; padding: 0 12px; border: none; border-radius: 999px; background: var(--color-cream-2); font-size: 13px; font-weight: 600; color: var(--color-ink); transition: background 0.2s; }
+.fc-nav button:hover:not(:disabled) { background: #e6dccb; }
+.fc-nav button:disabled { opacity: 0.4; cursor: default; }
+.paper-wrap { position: relative; flex: 1; overflow: auto; margin: 12px 16px 0; padding: 30px 34px 60px; border-radius: 18px 18px 0 0; background: #fff; box-shadow: inset 0 0 0 1px var(--line); scroll-behavior: smooth; }
+.paper .name { margin: 0 0 4px; font-size: 24px; font-weight: 800; letter-spacing: 1px; }
+.paper .contact { margin: 0 0 6px; font-size: 13px; color: var(--color-ink-3); }
+.paper h4 { margin: 20px 0 8px; padding-bottom: 5px; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 700; letter-spacing: 2px; color: var(--color-ink-3); }
+.paper p { margin: 0 0 5px; font-size: 14px; line-height: 1.9; }
+.paper p.entry { margin-top: 10px; font-weight: 700; }
+.paper .hl { border-radius: 3px; cursor: pointer; transition: background 0.3s, box-shadow 0.3s; }
+.paper .hl.good { background: rgba(47, 125, 79, 0.09); box-shadow: 0 2px 0 rgba(47, 125, 79, 0.45); }
+.paper .hl.part { background: rgba(183, 121, 31, 0.13); box-shadow: 0 2px 0 #b7791f; }
+.paper .hl.bad { background: rgba(194, 54, 43, 0.11); box-shadow: 0 2px 0 var(--color-bad); }
+.paper .hl:hover { background: rgba(217, 84, 43, 0.16); }
+.paper .hl.focus { position: relative; background: rgba(217, 84, 43, 0.2); box-shadow: 0 0 0 2px var(--color-accent); animation: flashFocus 1.2s var(--ease); }
+@keyframes flashFocus { 0% { box-shadow: 0 0 0 8px rgba(217, 84, 43, 0.35); } 100% { box-shadow: 0 0 0 2px var(--color-accent); } }
+/* 批注弹出几秒后淡出，别一直挡住上一行的字 */
+.paper-note {
+  position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 2; width: max-content; max-width: 260px; padding: 5px 10px; border-radius: 8px;
+  background: var(--color-accent); color: #fff; font-size: 12px; font-weight: 600; line-height: 1.5; white-space: normal; pointer-events: none;
+  animation: noteIn 0.45s var(--spring), noteOut 0.5s 2.6s forwards;
+}
+.paper-note::after { content: ""; position: absolute; left: 12px; top: 100%; border: 5px solid transparent; border-top-color: var(--color-accent); }
+@keyframes noteIn { from { opacity: 0; transform: translateY(6px) scale(0.9); } }
+@keyframes noteOut { to { opacity: 0; } }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 24px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--color-ink-3); }
+.legend i { display: inline-block; width: 18px; height: 10px; margin-right: 6px; border-radius: 3px; vertical-align: -1px; }
+.legend .bad { background: rgba(194, 54, 43, 0.11); box-shadow: 0 2px 0 var(--color-bad); }
+.legend .part { background: rgba(183, 121, 31, 0.13); box-shadow: 0 2px 0 #b7791f; }
+.legend .good { background: rgba(47, 125, 79, 0.09); box-shadow: 0 2px 0 rgba(47, 125, 79, 0.45); }
+.legend .keys { margin-left: auto; }
+.tagx.hit { background: rgba(47, 125, 79, 0.14); color: var(--color-good); }
+
 .tech-msg { margin: 0; padding: 12px 14px; border-radius: 12px; background: #fff; box-shadow: inset 0 0 0 1px var(--line); font-family: ui-monospace, Consolas, monospace; font-size: 12px; line-height: 1.6; color: var(--color-ink-2); word-break: break-all; }
 
 @media (max-width: 960px) {
@@ -474,6 +553,12 @@ button { cursor: pointer; }
   .screen { grid-template-columns: 1fr; gap: 40px; }
   .par, .row2 { grid-template-columns: 1fr; }
   .score-hero { flex-wrap: wrap; }
+  .legend .keys { display: none; }
+}
+@media (max-width: 640px) {
+  .sheet { top: 0; right: 0; bottom: 0; width: 100vw; border-radius: 0; }
+  .focus-card { margin: 0 10px; }
+  .paper-wrap { margin: 12px 10px 0; padding: 22px 18px 60px; }
 }
 @media (max-width: 520px) {
   .match { grid-template-columns: 1fr; }

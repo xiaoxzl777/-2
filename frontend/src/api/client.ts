@@ -80,11 +80,57 @@ export async function request<T>(path: string, options: { method?: string; body?
   return payload.data
 }
 
-/** 带令牌打开一个流式响应（SSE 进度）。EventSource 带不了请求头，所以用 fetch 读流；401 同样触发退出 */
-export async function openStream(path: string, signal: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+/** 带令牌打开一个流式响应（SSE）。EventSource 带不了请求头，也发不了 POST，所以用 fetch 读流；401 同样触发退出 */
+export async function openStream(path: string, signal: AbortSignal, method = 'GET'): Promise<ReadableStream<Uint8Array>> {
   const token = tokenStore.get()
-  const res = await fetch(`/api/v1${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {}, signal })
+  let res: Response
+  try {
+    res = await fetch(`/api/v1${path}`, { method, headers: token ? { Authorization: `Bearer ${token}` } : {}, signal })
+  } catch (e) {
+    if (signal.aborted) throw e
+    throw new ApiError(0, '网络连接失败，请稍后重试')
+  }
   if (res.status === 401 && token) onUnauthorized?.()
-  if (!res.ok || !res.body) throw new ApiError(res.status * 100, '进度连接失败')
+  if (!res.ok || !res.body) {
+    // 还没开始流就被拒（404、409…）时，后端回的是普通的 {code, message}
+    const payload = (await res.json().catch(() => null)) as Envelope<unknown> | null
+    throw new ApiError(payload?.code ?? res.status * 100, payload?.message ?? '连接失败，请稍后重试')
+  }
   return res.body
+}
+
+export type SseEvent = { name: string; data: Record<string, unknown> }
+
+/** 把 SSE 字节流切成一个个事件，心跳注释行（": keep-alive"）跳过。onChunk：每收到一段数据就调一次，用来做"多久没动静"的判断 */
+export async function* sseEvents(stream: ReadableStream<Uint8Array>, onChunk?: () => void): AsyncGenerator<SseEvent> {
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) return
+    onChunk?.()
+    buffer += decoder.decode(value, { stream: true })
+    let cut: number
+    while ((cut = buffer.indexOf('\n\n')) >= 0) {
+      const event = parseEvent(buffer.slice(0, cut))
+      buffer = buffer.slice(cut + 2)
+      if (event) yield event
+    }
+  }
+}
+
+function parseEvent(block: string): SseEvent | null {
+  let name = 'message'
+  let data = ''
+  for (const line of block.split('\n')) {
+    if (line.startsWith('event:')) name = line.slice(6).trim()
+    else if (line.startsWith('data:')) data += line.slice(5).trim()
+  }
+  if (!data) return null
+  try {
+    return { name, data: JSON.parse(data) as Record<string, unknown> }
+  } catch {
+    return null
+  }
 }

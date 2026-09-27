@@ -144,3 +144,66 @@ def test_json_mode_requires_the_word_json_in_the_prompt():
     with pytest.raises(ValueError, match="json"):
         h.client.invoke("diagnose", [("user", "评价一下")], prompt_version="v1", schema=Answer)
     assert h.model_calls == 0
+
+
+# ───────────── 流式调用 ─────────────
+
+
+class StreamingChat:
+    """流式的假模型：按给定分块逐个吐，最后一块带 token 用量；fail_at 表示吐到第几块时连接断掉。"""
+
+    def __init__(self, pieces: list[str], fail_at: int | None = None):
+        self.pieces, self.fail_at, self.calls = pieces, fail_at, 0
+
+    def stream(self, messages):
+        from langchain_core.messages import AIMessageChunk
+
+        self.calls += 1
+        for i, piece in enumerate(self.pieces):
+            if i == self.fail_at:
+                raise ConnectionError("连接断了")
+            last = i == len(self.pieces) - 1
+            yield AIMessageChunk(
+                content=piece,
+                usage_metadata={"input_tokens": 800, "output_tokens": 60, "total_tokens": 860} if last else None,
+                response_metadata={"system_fingerprint": "fp_s"} if last else {})
+
+
+def _streaming(chat: StreamingChat, cache: FakeCache | None = None):
+    audits: list[dict] = []
+    client = LLMClient(chat_factory=lambda model, temperature: chat, cache=cache or FakeCache(),
+                       acquire=lambda provider, rpm: None, write_audit=audits.append)
+    return client, audits
+
+
+def test_stream_yields_pieces_then_caches_and_accounts():
+    chat, cache = StreamingChat(["【问题】", "这句", "太虚"]), FakeCache()
+    client, audits = _streaming(chat, cache)
+    assert list(client.stream("rewrite", MESSAGES, prompt_version="a1", ref=("finding", 7))) == ["【问题】", "这句", "太虚"]
+    assert audits[-1]["scene"] == "rewrite" and audits[-1]["ref_id"] == 7 and audits[-1]["model_version"] == "fp_s"
+    assert (audits[-1]["token_input"], audits[-1]["token_output"]) == (800, 60)
+    assert audits[-1]["cost"] == estimate_cost("deepseek-chat", 800, 60) > 0
+
+    # 同样的请求再来一次：缓存里一次给出全文，不再调模型，记一行 cache_hit
+    assert list(client.stream("rewrite", MESSAGES, prompt_version="a1", ref=("finding", 7))) == ["【问题】这句太虚"]
+    assert chat.calls == 1 and audits[-1]["cache_hit"] is True
+
+
+def test_stream_failure_midway_is_audited_raised_and_not_cached():
+    chat, cache = StreamingChat(["【问题】", "半截", "后面"], fail_at=2), FakeCache()
+    client, audits = _streaming(chat, cache)
+    got = []
+    with pytest.raises(LLMError):
+        for piece in client.stream("rewrite", MESSAGES, prompt_version="a1"):
+            got.append(piece)
+    assert got == ["【问题】", "半截"]                      # 已经吐出的部分照常到了调用方手里
+    assert audits[-1]["success"] is False and "ConnectionError" in audits[-1]["error_msg"]
+    assert cache.store == {}
+
+
+def test_stream_closed_early_by_the_caller_is_still_audited():
+    client, audits = _streaming(StreamingChat(["一", "二", "三"]))
+    gen = client.stream("gap", MESSAGES, prompt_version="a1")
+    assert next(gen) == "一"
+    gen.close()                                            # 比如浏览器中途关了页面
+    assert audits[-1]["success"] is False and "提前结束" in audits[-1]["error_msg"]

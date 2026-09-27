@@ -9,7 +9,7 @@
 | [00-overview](docs/00-overview.md) | 产品主线、系统不变量、技术栈 |
 | [01-requirements](docs/01-requirements.md) | 功能 / 非功能需求、诊断规则清单 |
 | [02-database](docs/02-database.md) | 11 张表建表 SQL、JSON 字段结构、Chroma collection |
-| [03-api](docs/03-api.md) | 26 个接口（已实现 18 个）、错误码、SSE 契约、示例 |
+| [03-api](docs/03-api.md) | 27 个接口（已实现 20 个）、错误码、SSE 契约、示例 |
 | [04-design](docs/04-design.md) | AI 模块、核心算法、后端设计 |
 | [05-evaluation-and-plan](docs/05-evaluation-and-plan.md) | 里程碑、评估方案、验证方式 |
 | [06-workflows](docs/06-workflows.md) | 产品流程（JD 优先）、两张 LangGraph 图；与 04 冲突时以此为准 |

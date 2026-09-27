@@ -31,6 +31,7 @@ def _deepseek(temperature: float) -> BaseChatModel:
         api_base=settings.DEEPSEEK_BASE_URL,
         temperature=temperature,
         max_retries=3,                      # openai 客户端内置指数退避（NFR-3）
+        stream_usage=True,                  # 流式调用时最后一个分块带 token 用量，记账要用
         timeout=settings.LLM_TIMEOUT_SECONDS,
         http_client=_http_client(),
     )

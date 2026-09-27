@@ -13,7 +13,7 @@
 | 5 | JD 解析 | 匹配期 | LLM | 0 | 拆要求项 |
 | 6 | **技能匹配判定** ★ | 匹配期 | LLM | 0 | 词典未命中的要求项一次送审；逐项输出 status + 逐字引用的简历原文，经 locate_span 校验 |
 | 7 | ~~技能语义召回~~ | — | — | — | 不做：词典未命中的要求直接交给 #6 全文判定 |
-| 8 | 改写建议 | 按需 | LLM | 0.3 | 占位符 + 确定性复检；本期不检索（06-workflows 6.5）；未实现 |
+| 8 | 具体建议 | 点开时 | LLM | 0.3 | 简历问题：【问题】【改成】【为什么】；岗位差距：【考察什么】【怎么补】【面试怎么答】。流式输出纯文本；占位符 + 确定性复检；本期不检索（06-workflows 6.5） |
 | 9 | ~~差距分析~~ | — | — | — | 不单独调模型：差距 = 匹配明细里 miss / partial 的要求，由 `GET /apply/{id}` 读取时排序组装 |
 | 10 | **面试计划** ★ | 面试创建 | LLM | 0.3 | 输入：structure、top-8 findings、requirements、gap、extra_context 片段 → topics[]，每个带来源 |
 | 11 | **回答评估** ★ | 每轮 | LLM | 0 | rubric 结构化输出，evidence 逐字引用回答并经 locate_span 校验 |
@@ -272,7 +272,9 @@ dim_score[d] = max(0, 100 − Σ penalty)，high 25 / medium 12 / low 5；无来
 
 ```
 check_placeholders(original, rewritten)：正则提取 rewritten 中的 \d+(\.\d+)?\s*(%|倍|ms|万|k)?，original 中不存在的即违规
-违规 → 带反馈重试 1 次；仍违规 → 替换为【数值】并追加 placeholder，violation_count 入 rewrite JSON
+违规 → 替换为【数值】，violation_count 入 findings.rewrite / items[k].advice
+（原设计是违规先带反馈重试 1 次；改成流式后已经显示出去的字撤不回来，所以直接替换，以复检后的全文为准存库、在 done 事件里下发）
+实现：rewrite/advice.fix_numbers；只查【改成】（问题）/【怎么补】（差距）一段，【】里的占位不动
 评测复检时占位符视作已量化
 ```
 
@@ -302,11 +304,12 @@ parser/ diagnose/ matching/ interview/ graphs/   领域层 —— 纯逻辑
 backend/app/
 ├── main.py（lifespan：检查 MySQL / Redis、启动清理）  config.py  database.py  deps.py  errors.py  security.py
 ├── models.py（11 张表）  schemas.py
-├── api/        auth.py resume.py diagnose.py job.py match.py apply.py task.py system.py   〔待建〕rewrite.py interview.py
+├── api/        auth.py resume.py diagnose.py job.py match.py apply.py task.py system.py advice.py   〔待建〕interview.py
 ├── services/   resume_service.py parse_service.py diagnose_service.py job_service.py match_service.py
-│               apply_service.py skill_service.py   〔待建〕rewrite_service.py interview_service.py
+│               apply_service.py skill_service.py advice_service.py   〔待建〕interview_service.py
 ├── parser/     extract.py layout.py ★ section.py structure.py normalize.py pii.py
-├── diagnose/   rules.py evidence.py ★ llm_review.py scorer.py types.py   〔待建〕placeholders.py
+├── diagnose/   rules.py evidence.py ★ llm_review.py scorer.py types.py
+├── rewrite/    advice.py（具体建议：拼 prompt、数字占位符复检）
 ├── matching/   skill_dict.py ★（extract_mentions） jd_parser.py matcher.py ★ llm_judge.py units.py（留给面试检索）
 ├── interview/  〔待建〕planner.py（计划 prompt 组装与解析） rubric.py（评估 schema 与聚合） policy.py（推进规则）
 ├── retrieval/  chroma_client.py unit_store.py（召回 + 精排）   〔待建〕ctx_store.py
@@ -318,13 +321,13 @@ backend/app/
 
 scripts/   dump_schema.py dump_seed.py   〔待建，M8〕gen_eval_set.py run_eval.py
 data/      skills_seed.csv resumes/ uploads/ chroma/ eval_runs/
-tests/     每个模块一个 test_*.py（272 个用例，模型 / 向量库 / Redis 全部打桩，不联网）   〔待建〕test_interview_policy.py
+tests/     每个模块一个 test_*.py（283 个用例，模型 / 向量库 / Redis 全部打桩，不联网）   〔待建〕test_interview_policy.py
 
 frontend/src/
 ├── pages/       Home（首页 + 登录）  Workbench（新的投递：选岗位 → 选简历 → 投递）  ApplyResult（初筛结果，含"进入面试 / 练习模式"入口）
 │                〔待建〕Rewrite  Interview★（流式聊天）  InterviewReport
-├── components/  JobPicker  ResumePicker  Pipeline（投递进度）  IssueItem  Tabs  Headline  AppShell  effects
-│                〔待建〕ResumeViewer★（文本视图，char 区间高亮） DiffView ChatStream
+├── components/  JobPicker  ResumePicker  Pipeline（投递进度）  IssueItem  AdviceBlock（具体建议，流式）
+│                ResumeSheet★（原文纸面，char 区间高亮）  Tabs  Headline  AppShell  effects   〔待建〕ChatStream
 └── store/ api/ types/
 ```
 

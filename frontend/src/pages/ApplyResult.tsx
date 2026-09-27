@@ -1,15 +1,19 @@
 // 初筛结果：/app/apply/:id。通过 / 未通过两种；还在分析就显示流程卡，跑完自动换成结果；分析失败给出重投入口。
-// 每条问题可以点开看原文、依据、建议；在简历原文里高亮下一轮再做。
-import { useEffect, useState } from 'react'
+// 每条问题点开看依据和针对这一句的具体建议（现场生成），也可以在简历原文纸面上定位。
+import { useCallback, useMemo, useRef, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { applyApi, isAbort, isRunning, type ApplyResult as Result, type Dimension, type Finding, type MatchItem } from '../api/apply'
+import { applyApi, isAbort, isRunning, type ApplyResult as Result, type Dimension, type MatchItem } from '../api/apply'
+import { adviceApi } from '../api/advice'
 import { ApiError } from '../api/client'
 import { jobsApi, REQ_TYPE_LABEL } from '../api/jobs'
+import { resumesApi, type ResumeStructure } from '../api/resumes'
+import { AdviceBlock } from '../components/AdviceBlock'
 import { AppShell } from '../components/AppShell'
 import { MagneticButton, TiltCard, useCountUp } from '../components/effects'
 import { Headline, Mark } from '../components/Headline'
 import { IssueItem, type DetailRow } from '../components/IssueItem'
 import { Pipeline, useApplyTracker, type PipeState } from '../components/Pipeline'
+import { ResumeSheet, type SheetDoc, type SheetItem } from '../components/ResumeSheet'
 import { Tabs } from '../components/Tabs'
 
 const DIMENSIONS: [Dimension, string][] = [['skill', '技能'], ['education', '学历'], ['experience', '经验'], ['other', '其他']]
@@ -64,6 +68,36 @@ function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Res
     return () => window.clearTimeout(t)
   }, [])
 
+  // 原文纸面：第一次打开时才去取原文、结构和完整匹配明细（绿色的"满足"要用）
+  const [sheet, setSheet] = useState<{ open: boolean; focus: string | null }>({ open: false, focus: null })
+  const [doc, setDoc] = useState<SheetDoc | null>(null)
+  const [docError, setDocError] = useState<string | null>(null)
+  const [resumeTitle, setResumeTitle] = useState('')
+  const [hits, setHits] = useState<MatchItem[]>([])
+  const loading = useRef(false)
+  const openSheet = (focus: string | null) => {
+    setSheet({ open: true, focus })
+    if (loading.current) return
+    loading.current = true
+    setDocError(null)
+    Promise.all([
+      resumesApi.blocks(data.resume_id),
+      resumesApi.structure(data.resume_id).catch((): ResumeStructure => ({})),
+      resumesApi.get(data.resume_id).then((r) => r.title).catch(() => ''),
+      applyApi.match(data.id).then((m) => m.items).catch((): MatchItem[] => []),
+    ]).then(([blocks, structure, title, items]) => {
+      setDoc({ ...blocks, entryBlocks: entryBlocksOf(structure) })
+      setResumeTitle(title)
+      setHits(items.filter((i) => i.status === 'hit'))
+    }).catch((err) => {
+      loading.current = false
+      setDocError(err instanceof ApiError ? err.message : '请稍后重试')
+    })
+  }
+  const closeSheet = useCallback(() => setSheet((s) => ({ ...s, open: false })), [])
+  const focusOn = useCallback((key: string | null) => setSheet((s) => ({ ...s, focus: key })), [])
+  const items = useMemo(() => sheetItems(data, hits), [data, hits])
+
   const passed = gate.passed
   const overall = gate.overall_match === null ? null : Math.round(gate.overall_match)
   const count = useCountUp(shown ? overall ?? 0 : 0)
@@ -80,6 +114,7 @@ function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Res
       (hasHardGap ? '先看「对照岗位」里的必须项，补上它们分数涨得最快；简历本身的问题也顺手改掉。' : '先看「对照岗位」里没满足的要求，简历本身的问题也顺手改掉。')
 
   return (
+    <>
     <section className="screen">
       <div>
         <Headline badge="初筛结果" label={jobTitle || '岗位'}
@@ -124,14 +159,18 @@ function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Res
               { key: 'gap', label: `对照岗位 · ${data.gaps.length}` },
               { key: 'self', label: `简历本身 · ${data.resume_issues.length}` },
             ]} />
-            <span className="hint">点一条看详情</span>
+            <button type="button" className="link" onClick={() => openSheet(null)}>查看简历原文 →</button>
           </div>
           <div className="issues">
-            {tab === 'gap' ? <GapList gaps={data.gaps} /> : <FindingList findings={data.resume_issues} />}
+            <ItemList key={tab} items={items.filter((x) => x.list === tab)} onLocate={openSheet}
+              empty={tab === 'gap' ? '岗位要求都满足了。' : '简历本身没发现明显问题。'} />
           </div>
         </TiltCard>
       </div>
     </section>
+    <ResumeSheet open={sheet.open} title={resumeTitle} doc={doc} loadError={docError} items={items}
+      focusKey={sheet.focus} onFocus={focusOn} onClose={closeSheet} />
+    </>
   )
 }
 
@@ -141,39 +180,62 @@ function matchedByText(g: MatchItem): string {
   return MATCHED_BY[g.matched_by] + verified
 }
 
-function GapList({ gaps }: { gaps: MatchItem[] }) {
-  if (gaps.length === 0) return <p className="empty">岗位要求都满足了。</p>
-  return (
-    <>
-      {gaps.map((g, i) => (
-        <IssueItem key={g.requirement_id} index={i}
-          tag={g.status === 'miss' ? '缺失' : '部分'} tagClass={g.status === 'miss' ? 'miss' : 'part'}
-          text={g.content} why={`${REQ_TYPE_LABEL[g.req_type]} · ${g.reason}`}
-          rows={[
-            g.evidence_quote ? { label: '简历原文', value: `「${g.evidence_quote}」`, quote: true } : { label: '简历原文', value: '没有找到相关的内容' },
-            { label: '判定方式', value: matchedByText(g) },
-          ]} />
-      ))}
-    </>
-  )
+function entryBlocksOf(structure: ResumeStructure): number[] {
+  return (['education', 'work', 'projects', 'awards'] as const)
+    .flatMap((k) => structure[k] ?? []).map((e) => e.block_ids?.[0]).filter((i): i is number => i !== undefined)
 }
 
-function FindingList({ findings }: { findings: Finding[] }) {
-  if (findings.length === 0) return <p className="empty">简历本身没发现明显问题。</p>
+type ListItem = SheetItem & { rows: DetailRow[] }
+
+/** 三类条目：对照岗位的差距、简历本身的问题、满足的要求（只在原文纸面上用）。列表与纸面共用同一份，具体建议也共享 */
+function sheetItems(data: Result, hits: MatchItem[]): ListItem[] {
+  const gap = data.gaps.map((g): ListItem => {
+    const key = `gap:${data.id}:${g.requirement_id}`
+    return {
+      key, list: 'gap', color: g.status !== 'miss' && g.char_start !== null ? 'part' : null,
+      tag: g.status === 'miss' ? ['miss', '缺失'] : ['part', '部分'], text: g.content,
+      why: `${REQ_TYPE_LABEL[g.req_type]} · ${g.reason}`, note: `部分满足：${g.content}`,
+      fix: ['判定方式', matchedByText(g)], start: g.char_start, end: g.char_end,
+      advice: { key, path: adviceApi.gapPath(data.id, g.requirement_id), cached: g.advice ?? null, kind: 'gap' },
+      rows: [
+        g.evidence_quote ? { label: '简历原文', value: `「${g.evidence_quote}」`, quote: true } : { label: '简历原文', value: '没有找到相关的内容' },
+        { label: '判定方式', value: matchedByText(g) },
+      ],
+    }
+  })
+  // 页数、图片这类问题针对整份简历，没有具体的原文。规则的"问题 / 怎么改"是固定模板，太泛，换成针对这一句现场生成的建议
+  const self = data.resume_issues.map((f): ListItem => {
+    const key = `finding:${f.id}`
+    const [cls, label] = SEVERITY[f.severity]
+    return {
+      key, list: 'self', color: f.char_start !== null ? 'bad' : null, tag: [cls, label],
+      text: f.evidence_quote ? `「${f.evidence_quote}」` : f.title, why: f.evidence_quote ? f.title : '针对整份简历',
+      note: f.title, start: f.char_start, end: f.char_end,
+      advice: { key, path: adviceApi.findingPath(f.id), cached: f.rewrite, kind: 'finding', fallback: f.suggestion },
+      rows: [{ label: '来源', value: f.source === 'rule' ? '规则检查' : '大模型审阅 · 引用已在原文中核实' }],
+    }
+  })
+  const hit = hits.map((h): ListItem => ({
+    key: `hit:${data.id}:${h.requirement_id}`, list: 'hit', color: h.char_start !== null ? 'good' : null,
+    tag: ['hit', '满足'], text: h.content, why: `${REQ_TYPE_LABEL[h.req_type]} · ${h.reason}`, note: `满足：${h.content}`,
+    fix: ['判定方式', matchedByText(h)], start: h.char_start, end: h.char_end, rows: [],
+  }))
+  return [...gap, ...self, ...hit]
+}
+
+function ItemList({ items, empty, onLocate }: { items: ListItem[]; empty: string; onLocate: (key: string) => void }) {
+  if (items.length === 0) return <p className="empty">{empty}</p>
   return (
     <>
-      {findings.map((f, i) => {
-        const [cls, label] = SEVERITY[f.severity]
-        const rows: DetailRow[] = []
-        if (f.description) rows.push({ label: '问题', value: f.description })
-        if (f.suggestion) rows.push({ label: '怎么改', value: f.suggestion })
-        rows.push({ label: '来源', value: f.source === 'rule' ? '规则检查' : '大模型审阅 · 引用已在原文中核实' })
-        // 页数、图片这类问题针对整份简历，没有具体的原文
-        return (
-          <IssueItem key={f.id} index={i} tag={label} tagClass={cls}
-            text={f.evidence_quote ? `「${f.evidence_quote}」` : f.title} why={f.evidence_quote ? f.title : '针对整份简历'} rows={rows} />
-        )
-      })}
+      {items.map((x, i) => (
+        <IssueItem key={x.key} index={i} tag={x.tag[1]} tagClass={x.tag[0]} text={x.text} why={x.why} rows={x.rows}
+          locate={{
+            label: x.color ? '在原文中查看 →' : x.list === 'gap' ? '打开原文，看看缺在哪 →' : '打开简历原文 →',
+            onClick: () => onLocate(x.key),
+          }}>
+          {x.advice && <AdviceBlock source={x.advice} />}
+        </IssueItem>
+      ))}
     </>
   )
 }

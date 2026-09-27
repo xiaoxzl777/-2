@@ -1,5 +1,6 @@
 // 对应后端 app/api/apply.py、app/api/task.py 与 app/schemas.py 的 ApplyOut / MatchItemOut / FindingOut
-import { openStream, request } from './client'
+import type { Advice } from './advice'
+import { openStream, request, sseEvents } from './client'
 import type { Requirement } from './jobs'
 
 export type MatchItem = {
@@ -16,6 +17,7 @@ export type MatchItem = {
   char_start: number | null
   char_end: number | null
   unit_id: string | null
+  advice?: Advice | null // 生成过的具体建议（只有没满足 / 部分满足的才会有）
 }
 
 export type Finding = {
@@ -36,7 +38,7 @@ export type Finding = {
   bbox: number[] | null
   verify_result: string
   match_score: number | null
-  rewrite: Record<string, unknown> | null
+  rewrite: Advice | null // 生成过的具体建议
 }
 
 export type Dimension = 'skill' | 'education' | 'experience' | 'other'
@@ -68,6 +70,9 @@ export const applyApi = {
       '/apply', { method: 'POST', body: { resume_id: resumeId, job_id: jobId } }),
 
   get: (id: number) => request<ApplyResult>(`/apply/${id}`),
+
+  /** 完整的逐条匹配明细（含已满足的），原文纸面上的绿色标注要用 */
+  match: (id: number) => request<{ items: MatchItem[] }>(`/match/${id}`),
 }
 
 // ───────────── 跟踪进度 ─────────────
@@ -94,46 +99,22 @@ async function streamApply(id: number, onStage: (stage: string) => void, signal:
   const abort = () => ctrl.abort()
   signal.addEventListener('abort', abort)
   let idle = window.setTimeout(abort, IDLE_MS)
+  const alive = () => {
+    window.clearTimeout(idle)
+    idle = window.setTimeout(abort, IDLE_MS)
+  }
   try {
-    const reader = (await openStream(`/tasks/apply/${id}/stream`, ctrl.signal)).getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    for (;;) {
-      const { value, done } = await reader.read()
-      if (done) return null
-      window.clearTimeout(idle)
-      idle = window.setTimeout(abort, IDLE_MS)
-      buffer += decoder.decode(value, { stream: true })
-      let cut: number
-      while ((cut = buffer.indexOf('\n\n')) >= 0) {
-        const event = parseEvent(buffer.slice(0, cut))
-        buffer = buffer.slice(cut + 2)
-        if (!event) continue
-        if (event.name === 'progress') onStage(String(event.data.stage))
-        else if (event.name === 'done') return String(event.data.status)
-        // 流开了 10 分钟还没结束，后端会发 status=timeout：任务可能还在跑，改用轮询
-        else if (event.name === 'error') return event.data.status === 'timeout' ? null : 'failed'
-      }
+    for await (const event of sseEvents(await openStream(`/tasks/apply/${id}/stream`, ctrl.signal), alive)) {
+      if (event.name === 'progress') onStage(String(event.data.stage))
+      else if (event.name === 'done') return String(event.data.status)
+      // 流开了 10 分钟还没结束，后端会发 status=timeout：任务可能还在跑，改用轮询
+      else if (event.name === 'error') return event.data.status === 'timeout' ? null : 'failed'
     }
+    return null
   } finally {
     window.clearTimeout(idle)
     signal.removeEventListener('abort', abort)
     ctrl.abort()
-  }
-}
-
-function parseEvent(block: string): { name: string; data: Record<string, unknown> } | null {
-  let name = 'message'
-  let data = ''
-  for (const line of block.split('\n')) {
-    if (line.startsWith('event:')) name = line.slice(6).trim()
-    else if (line.startsWith('data:')) data += line.slice(5).trim()
-  }
-  if (!data) return null // ": keep-alive" 心跳
-  try {
-    return { name, data: JSON.parse(data) as Record<string, unknown> }
-  } catch {
-    return null
   }
 }
 

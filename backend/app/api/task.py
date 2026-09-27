@@ -69,7 +69,7 @@ def _status(session_factory: SessionFactory, kind: str, task_ref: int) -> str | 
         return getattr(row, field) if row else None
 
 
-def _sse(event: str, data: dict) -> str:
+def sse_event(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
@@ -81,15 +81,15 @@ def _events(kind: str, task_ref: int, session_factory: SessionFactory, subscribe
             status = _status(session_factory, kind, task_ref)
             if status not in _IN_PROGRESS:
                 failed = status in ("failed", None)
-                yield _sse("error" if failed else "done", {"kind": kind, "id": task_ref, "status": status})
+                yield sse_event("error" if failed else "done", {"kind": kind, "id": task_ref, "status": status})
                 return
             message = subscription.get(timeout=POLL_SECONDS)
             if message and message.get("event") == "progress":
-                yield _sse("progress", message["data"])
+                yield sse_event("progress", message["data"])
                 last_sent = time.monotonic()
             elif time.monotonic() - last_sent > HEARTBEAT_SECONDS:
                 yield ": keep-alive\n\n"
                 last_sent = time.monotonic()
-        yield _sse("error", {"kind": kind, "id": task_ref, "status": "timeout"})
+        yield sse_event("error", {"kind": kind, "id": task_ref, "status": "timeout"})
     finally:
         subscription.close()
