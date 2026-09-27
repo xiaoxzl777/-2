@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>新的投递 · 求职辅助</title>
+<style>
+  :root {
+    --cream: #f6f0e6; --cream-2: #efe6d7; --paper: #fffaf2;
+    --ink: #221d17; --ink-2: #6b6157; --ink-3: #8a7f73;
+    --line: rgba(34,29,23,.1);
+    --accent: #d9542b; --accent-ink: #b8431f;
+    --good: #2f7d4f; --warn: #b7791f; --bad: #c2362b;
+    --ease: cubic-bezier(.22,1,.36,1); --spring: cubic-bezier(.34,1.56,.64,1);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--cream); color: var(--ink); overflow-x: hidden;
+    font-family: "PingFang SC","HarmonyOS Sans SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,sans-serif; -webkit-font-smoothing: antialiased; }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  ::selection { background: rgba(217,84,43,.2); }
+  .grain { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .35; background-image: radial-gradient(rgba(34,29,23,.08) 1px, transparent 1px); background-size: 22px 22px; }
+  .glow { position: fixed; left: 0; top: 0; width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%; pointer-events: none; z-index: 0;
+    background: radial-gradient(circle, rgba(242,140,90,.28) 0%, rgba(242,140,90,0) 65%); }
+  .wrap { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+
+  /* ── 导航（同首页） ── */
+  nav { position: sticky; top: 0; z-index: 20; padding: 18px 0; }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: .5px; }
+  .logo-mark { width: 30px; height: 30px; border-radius: 10px; background: var(--ink); color: var(--cream); display: grid; place-items: center; font-size: 15px; transition: transform .5s var(--spring); }
+  .logo:hover .logo-mark { transform: rotate(-12deg) scale(1.08); }
+  .links { display: flex; gap: 4px; }
+  .links a { padding: 8px 14px; border-radius: 999px; color: var(--ink-2); text-decoration: none; font-size: 15px; transition: background .2s, color .2s; }
+  .links a:hover { background: rgba(34,29,23,.06); color: var(--ink); }
+  .links a.on { color: var(--ink); font-weight: 600; }
+  .me { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink-2); }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+
+  /* ── 按钮（同首页） ── */
+  .btn { position: relative; height: 44px; padding: 0 22px; border-radius: 999px; border: none; font-size: 15px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform .35s var(--spring), background .2s, box-shadow .3s, opacity .2s; will-change: transform; }
+  .btn.dark { background: var(--ink); color: var(--cream); } .btn.dark:hover { background: #000; box-shadow: 0 10px 24px rgba(34,29,23,.22); }
+  .btn.ghost { background: transparent; } .btn.ghost:hover { background: rgba(34,29,23,.06); }
+  .btn.accent { background: var(--accent); color: #fff; } .btn.accent:hover { background: var(--accent-ink); box-shadow: 0 12px 28px rgba(217,84,43,.3); }
+  .btn.outline { background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .btn.lg { height: 56px; padding: 0 30px; font-size: 17px; }
+  .btn.sm { height: 34px; padding: 0 14px; font-size: 13px; }
+  .btn .arrow { transition: transform .35s var(--spring); } .btn:hover:not(:disabled) .arrow { transform: translateX(4px); }
+  .btn:active { transform: scale(.96) !important; }
+  .btn:disabled { opacity: .35; cursor: default; box-shadow: none; }
+
+  /* ── 进度：细线 + 第几步 ── */
+  .progress { position: relative; z-index: 1; height: 3px; background: rgba(34,29,23,.06); }
+  .progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .8s var(--ease); }
+
+  /* ── 每一步一屏 ── */
+  .screens { position: relative; }
+  .screen { display: none; }
+  .screen.on { display: grid; }
+  .screen { grid-template-columns: 1fr 1.05fr; gap: 64px; align-items: center; min-height: calc(100vh - 83px); padding: 40px 0 80px; }
+  .tag { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 999px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); font-size: 13px; color: var(--ink-2); }
+  .tag b { padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--cream); font-weight: 600; font-size: 12px; }
+  h1 { margin: 22px 0 20px; font-size: clamp(40px, 5vw, 64px); line-height: 1.14; letter-spacing: -1px; font-weight: 800; }
+  h1 .line { display: block; overflow: hidden; padding-bottom: 6px; }
+  h1 .line > span { display: inline-block; transform: translateY(110%); }
+  .screen.on h1 .line > span { animation: rise .9s var(--ease) forwards; }
+  .screen.on h1 .line:nth-child(2) > span { animation-delay: .1s; }
+  .mark { position: relative; white-space: nowrap; }
+  .mark svg { position: absolute; left: -4%; bottom: -8px; width: 108%; height: 20px; overflow: visible; }
+  .mark path { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 400; stroke-dashoffset: 400; }
+  .screen.on .mark path { animation: draw 1s .7s var(--ease) forwards; }
+  .sub { margin: 0 0 32px; max-width: 460px; font-size: 18px; line-height: 1.7; color: var(--ink-2); }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .fade { opacity: 0; transform: translateY(18px); }
+  .screen.on .fade { animation: fadeUp .8s var(--ease) forwards; }
+  .screen.on .d1 { animation-delay: .25s; } .screen.on .d2 { animation-delay: .4s; } .screen.on .d3 { animation-delay: .55s; } .screen.on .d4 { animation-delay: .7s; }
+  @keyframes rise { to { transform: none; } }
+  @keyframes fadeUp { to { opacity: 1; transform: none; } }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  .back { background: none; border: none; color: var(--ink-3); font-size: 14px; padding: 0; margin-bottom: 4px; transition: color .2s; }
+  .back:hover { color: var(--ink); }
+
+  /* ── 右侧操作卡（同首页演示卡：可倾斜、周围漂浮小卡） ── */
+  .stage { position: relative; perspective: 1200px; }
+  .card { position: relative; background: var(--paper); border-radius: 28px; padding: 24px;
+    box-shadow: 0 1px 0 rgba(255,255,255,.8) inset, 0 30px 60px -20px rgba(80,50,20,.25), 0 0 0 1px var(--line);
+    transition: transform .6s var(--ease), box-shadow .3s; }
+  .card.over { box-shadow: 0 0 0 3px var(--accent), 0 30px 60px -20px rgba(80,50,20,.3); }
+  .floaty { position: absolute; z-index: 3; padding: 10px 14px; border-radius: 14px; background: var(--paper); box-shadow: 0 16px 36px -12px rgba(80,50,20,.3), 0 0 0 1px var(--line);
+    font-size: 13px; animation: bob 5s ease-in-out infinite; opacity: 0; transform: scale(.9); transition: opacity .4s, transform .5s var(--spring); pointer-events: none; }
+  .floaty.show { opacity: 1; transform: none; }
+  .floaty b { display: block; font-size: 17px; }
+  .floaty span { color: var(--ink-3); }
+  .floaty.tl { left: -54px; top: -26px; } .floaty.br { right: -40px; bottom: -64px; animation-delay: -2.5s; } .floaty.tr { right: -34px; top: 40px; animation-delay: -1.2s; }
+  @keyframes bob { 50% { translate: 0 -10px; } }
+
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .dots { display: flex; gap: 6px; } .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--cream-2); }
+  .seg { position: relative; display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 4px; border-radius: 999px; background: var(--cream-2); }
+  .seg .knob { position: absolute; top: 4px; bottom: 4px; left: 4px; border-radius: 999px; background: var(--paper); box-shadow: 0 2px 8px rgba(80,50,20,.12); transition: transform .45s var(--spring), width .3s; }
+  .seg button { position: relative; z-index: 1; height: 32px; padding: 0 14px; border: none; background: none; font-weight: 600; font-size: 13px; color: var(--ink-2); white-space: nowrap; }
+  .seg button.on { color: var(--ink); }
+
+  .field { position: relative; margin-bottom: 10px; }
+  .field input, .field textarea { width: 100%; border: none; outline: none; background: #fff; box-shadow: inset 0 0 0 1.5px var(--line); border-radius: 16px; font-size: 15px; transition: box-shadow .25s; }
+  .field input { height: 54px; padding: 22px 16px 6px; }
+  .field textarea { height: 170px; padding: 28px 16px 12px; resize: none; line-height: 1.7; }
+  .field input:focus, .field textarea:focus { box-shadow: inset 0 0 0 2px var(--ink); }
+  .field label { position: absolute; left: 17px; top: 17px; color: var(--ink-3); pointer-events: none; transition: transform .25s var(--ease), font-size .25s; transform-origin: left top; }
+  .field input:focus + label, .field input:not(:placeholder-shown) + label,
+  .field textarea:focus + label, .field textarea:not(:placeholder-shown) + label { transform: translateY(-10px); font-size: 12px; color: var(--ink-2); }
+  .row2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px; }
+  .card-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
+  .link { background: none; border: none; color: var(--accent-ink); font-size: 14px; font-weight: 600; padding: 0; }
+  .link:hover { text-decoration: underline; }
+
+  .reqs { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
+  .reqs-head { font-size: 13px; color: var(--ink-2); margin-bottom: 10px; }
+  .reqs-head b { color: var(--ink); font-size: 15px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; padding: 6px 11px; border-radius: 999px; font-size: 13px; background: var(--cream); box-shadow: inset 0 0 0 1px var(--line);
+    opacity: 0; transform: translateY(8px) scale(.94); animation: pop .5s var(--spring) forwards; }
+  .chip.hard { background: var(--ink); color: var(--cream); box-shadow: none; }
+  .chip.soft { background: transparent; }
+  @keyframes pop { to { opacity: 1; transform: none; } }
+  .skeleton { height: 30px; border-radius: 999px; background: linear-gradient(90deg, var(--cream-2) 0%, #f8f2e8 50%, var(--cream-2) 100%); background-size: 200% 100%; animation: shimmer 1.2s infinite; margin-bottom: 8px; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .item { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 16px; background: #fff; border: none; text-align: left; box-shadow: inset 0 0 0 1.5px var(--line);
+    transition: box-shadow .25s, transform .35s var(--spring), background .25s; }
+  .item:hover { transform: translateX(4px); box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+  .item.sel { box-shadow: inset 0 0 0 2px var(--ink); }
+  .item .ic { width: 40px; height: 40px; border-radius: 12px; background: var(--cream-2); display: grid; place-items: center; flex: none; font-weight: 800; font-size: 12px; color: var(--ink-2); transition: background .25s, color .25s; }
+  .item.sel .ic { background: var(--ink); color: var(--cream); }
+  .item .t { font-weight: 700; font-size: 15px; } .item .s { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+  .item .radio { margin-left: auto; width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--line); flex: none; transition: box-shadow .3s var(--spring); }
+  .item.sel .radio { box-shadow: inset 0 0 0 7px var(--ink); }
+
+  .drop { display: grid; place-items: center; text-align: center; gap: 8px; padding: 30px 16px; border-radius: 20px; border: 2px dashed rgba(34,29,23,.18); background: #fff;
+    cursor: pointer; margin-bottom: 16px; transition: border-color .25s, background .25s; }
+  .drop:hover, .card.over .drop { border-color: var(--accent); background: #fff7f1; }
+  .drop svg { transition: transform .5s var(--spring); } .drop:hover svg, .card.over .drop svg { transform: translateY(-6px); }
+  .drop b { font-size: 16px; } .drop span { font-size: 13px; color: var(--ink-3); }
+  .up { display: none; margin-bottom: 14px; padding: 14px 16px; border-radius: 16px; background: #fff; box-shadow: inset 0 0 0 1.5px var(--line); font-size: 14px; }
+  .up.show { display: block; }
+  .up-top { display: flex; justify-content: space-between; margin-bottom: 8px; } .up-top span { color: var(--ink-3); }
+  .track { height: 6px; border-radius: 6px; background: var(--cream-2); overflow: hidden; }
+  .track i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s linear; }
+  .small-h { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--ink-3); margin: 0 0 8px 2px; }
+
+  /* 第 3 步：左侧的"本次投递" */
+  .pick-sum { display: flex; flex-direction: column; gap: 10px; margin: 0 0 30px; max-width: 460px; }
+  .pick-sum div { display: flex; align-items: baseline; gap: 14px; padding-bottom: 10px; border-bottom: 1px dashed var(--line); }
+  .pick-sum span { flex: none; width: 36px; font-size: 13px; color: var(--ink-3); }
+  .pick-sum b { font-size: 19px; }
+  .pick-sum button { margin-left: auto; }
+
+  /* 流程卡 */
+  .pipe { display: flex; flex-direction: column; gap: 10px; }
+  .node { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 16px; background: #fff; box-shadow: inset 0 0 0 1.5px var(--line); transition: box-shadow .3s, background .3s, transform .45s var(--spring); }
+  .node .ring { width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--line); flex: none; display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 800; }
+  .node .n { font-weight: 700; font-size: 15px; } .node .d { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+  .node .t { margin-left: auto; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .node.run { box-shadow: inset 0 0 0 2px var(--accent); transform: translateX(4px); }
+  .node.run .ring { box-shadow: none; border: 2px solid rgba(217,84,43,.25); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+  .node.ok .ring { background: var(--good); box-shadow: none; }
+  .node.ok .ring::after { content: "✓"; }
+  .par { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; position: relative; }
+  .par-label { font-size: 11px; font-weight: 700; color: var(--ink-3); letter-spacing: 1px; margin: 4px 0 -2px 4px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .big { margin-top: 16px; }
+  .big-top { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-2); margin-bottom: 8px; }
+  .big-top b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .big .track { height: 8px; } .big .track i { background: var(--ink); transition: width .8s var(--ease); }
+
+  /* 结果 */
+  .score-hero { display: flex; align-items: center; gap: 22px; margin: 0 0 26px; }
+  .ring-big { position: relative; width: 120px; height: 120px; flex: none; }
+  .ring-big svg { transform: rotate(-90deg); }
+  .ring-big circle { fill: none; stroke-width: 10; }
+  .ring-big .tr { stroke: var(--cream-2); }
+  .ring-big .br { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 314.2; stroke-dashoffset: 314.2; transition: stroke-dashoffset 1.4s var(--ease); }
+  .ring-big .num { position: absolute; inset: 0; display: grid; place-items: center; font-size: 38px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .dims { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; flex: 1; max-width: 300px; }
+  .dim .l { font-size: 12px; color: var(--ink-3); display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .dim .l b { color: var(--ink); }
+  .dim .tk { height: 5px; border-radius: 5px; background: var(--cream-2); overflow: hidden; }
+  .dim .tk i { display: block; height: 100%; width: 0; background: var(--ink); transition: width 1.2s var(--ease); }
+  .issue { display: flex; gap: 10px; width: 100%; padding: 12px 14px; border-radius: 14px; background: #fff; border: none; text-align: left; box-shadow: inset 0 0 0 1px var(--line);
+    font-size: 14px; margin-bottom: 8px; opacity: 0; animation: pop .5s var(--spring) forwards; transition: transform .35s var(--spring), box-shadow .25s; }
+  .issue:hover { transform: translateX(4px); box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+  .issue .why { display: block; font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+  .tagx { flex: none; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+  .tagx.miss { background: rgba(194,54,43,.12); color: var(--bad); }
+  .tagx.part { background: rgba(183,121,31,.15); color: var(--warn); }
+  .tagx.high { background: var(--bad); color: #fff; }
+  .tagx.med { background: var(--warn); color: #fff; }
+  .issue-arrow { margin-left: auto; color: var(--ink-3); transition: transform .35s var(--spring); } .issue:hover .issue-arrow { transform: translateX(3px); color: var(--ink); }
+
+  .demo-flag { position: fixed; right: 16px; bottom: 16px; z-index: 30; font-size: 12px; padding: 6px 12px; border-radius: 999px; background: var(--ink); color: var(--cream); }
+
+  @media (max-width: 960px) {
+    .screen, .screen.on { grid-template-columns: 1fr; gap: 40px; } .links { display: none; } .wrap { padding: 0 16px; }
+    .floaty { display: none; } .par, .row2 { grid-template-columns: 1fr; } .score-hero { flex-wrap: wrap; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; } .glow { display: none; } }
+</style>
+</head>
+<body>
+<div class="grain"></div><div class="glow" id="glow"></div>
+
+<nav>
+  <div class="wrap">
+    <div class="logo"><span class="logo-mark">求</span>求职辅助</div>
+    <div class="links"><a href="#" class="on">新的投递</a><a href="#">投递记录</a><a href="#">我的简历</a></div>
+    <div class="me"><span class="avatar">U</span>user<button class="btn ghost magnetic" style="height:36px;padding:0 14px;font-size:14px">退出</button></div>
+  </div>
+</nav>
+<div class="progress"><i id="prog"></i></div>
+
+<main class="wrap screens">
+
+  <!-- ① 岗位 -->
+  <section class="screen on" data-screen="0">
+    <div>
+      <span class="tag fade d1"><b>1 / 3</b>目标岗位</span>
+      <h1>
+        <span class="line"><span>你想投</span></span>
+        <span class="line"><span>哪个<span class="mark">岗位<svg viewBox="0 0 300 22" preserveAspectRatio="none"><path d="M4 16 C 80 4, 200 4, 296 12"/></svg></span>？</span></span>
+      </h1>
+      <p class="sub fade d2">把招聘信息里的「岗位要求」整段贴过来，我会拆成一条条，之后逐条对照你的简历。</p>
+      <div class="cta fade d3">
+        <button class="btn accent lg magnetic" id="next0" disabled>下一步：选简历 <span class="arrow">→</span></button>
+      </div>
+    </div>
+    <div class="stage fade d4">
+      <div class="floaty tl" id="fReq"><b id="fReqN">12 条</b><span>要求已拆出</span></div>
+      <div class="floaty br" id="fJob"><b id="fJobN">后端开发实习生</b><span>已选岗位</span></div>
+      <div class="card tilt">
+        <div class="card-head">
+          <div class="dots"><i></i><i></i><i></i></div>
+          <div class="seg" id="seg"><span class="knob"></span><button class="on" data-tab="paste">粘贴 JD</button><button data-tab="mine">我的岗位</button><button data-tab="tpl">模板</button></div>
+        </div>
+        <div data-view="paste">
+          <div class="row2">
+            <div class="field"><input id="title" placeholder=" "><label>岗位名称</label></div>
+            <div class="field"><input id="company" placeholder=" "><label>公司（选填）</label></div>
+          </div>
+          <div class="field"><textarea id="jd" placeholder=" "></textarea><label>岗位要求原文</label></div>
+          <div class="card-foot">
+            <button class="link" id="sample">填一份示例 JD</button>
+            <button class="btn dark sm" id="parse" disabled>解析要求</button>
+          </div>
+          <div id="reqs"></div>
+        </div>
+        <div data-view="mine" hidden>
+          <div class="list" data-pick="job">
+            <button class="item" data-name="后端开发实习生" data-n="12"><span class="ic">JD</span><div><div class="t">后端开发实习生</div><div class="s">字节跳动 · 12 条要求</div></div><span class="radio"></span></button>
+            <button class="item" data-name="Java 开发工程师" data-n="10"><span class="ic">JD</span><div><div class="t">Java 开发工程师（校招）</div><div class="s">美团 · 10 条要求</div></div><span class="radio"></span></button>
+          </div>
+        </div>
+        <div data-view="tpl" hidden>
+          <div class="list" data-pick="job">
+            <button class="item" data-name="后端开发（模板）" data-n="11"><span class="ic">后端</span><div><div class="t">后端开发</div><div class="s">Java / Go、数据库、缓存</div></div><span class="radio"></span></button>
+            <button class="item" data-name="前端开发（模板）" data-n="10"><span class="ic">前端</span><div><div class="t">前端开发</div><div class="s">React / Vue、TypeScript</div></div><span class="radio"></span></button>
+            <button class="item" data-name="算法工程师（模板）" data-n="9"><span class="ic">算法</span><div><div class="t">算法工程师</div><div class="s">机器学习、深度学习框架</div></div><span class="radio"></span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ② 简历 -->
+  <section class="screen" data-screen="1">
+    <div>
+      <button class="back fade d1" data-go="0">← 换个岗位</button><br>
+      <span class="tag fade d1"><b>2 / 3</b>简历</span>
+      <h1>
+        <span class="line"><span>用哪份</span></span>
+        <span class="line"><span><span class="mark">简历<svg viewBox="0 0 300 22" preserveAspectRatio="none"><path d="M4 16 C 80 4, 200 4, 296 12"/></svg></span>去投？</span></span>
+      </h1>
+      <p class="sub fade d2">PDF 或 Word 都行，两栏排版也认得。同一份简历可以投很多个岗位，只需上传一次。</p>
+      <div class="cta fade d3">
+        <button class="btn accent lg magnetic" id="next1" disabled>下一步：确认 <span class="arrow">→</span></button>
+      </div>
+    </div>
+    <div class="stage fade d4">
+      <div class="floaty tl show"><b id="f2Job">后端开发实习生</b><span>目标岗位</span></div>
+      <div class="floaty br" id="fRes"><b id="fResN">—</b><span>已选简历</span></div>
+      <div class="card tilt" id="dropCard">
+        <label class="drop">
+          <input type="file" accept=".pdf,.docx" hidden id="file">
+          <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#d9542b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>
+          <b>拖进来，或点这里选文件</b>
+          <span>PDF / Word · 20MB 以内 · 扫描件认不出</span>
+        </label>
+        <div class="up" id="up"><div class="up-top"><b id="upName">简历.pdf</b><span id="upState">上传中…</span></div><div class="track"><i id="upBar"></i></div></div>
+        <p class="small-h">已上传</p>
+        <div class="list" data-pick="resume" id="resList">
+          <button class="item" data-name="张同学_后端_2026.pdf"><span class="ic">PDF</span><div><div class="t">张同学_后端_2026.pdf</div><div class="s">2 页 · 已解析 · 9 月 19 日</div></div><span class="radio"></span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ③ 投递 -->
+  <section class="screen" data-screen="2">
+    <div>
+      <span class="tag fade d1"><b>3 / 3</b>投递</span>
+      <h1 id="h3">
+        <span class="line"><span>准备好了，</span></span>
+        <span class="line"><span><span class="mark">投<svg viewBox="0 0 300 22" preserveAspectRatio="none"><path d="M4 16 C 80 4, 200 4, 296 12"/></svg></span>吧。</span></span>
+      </h1>
+      <div class="pick-sum fade d2">
+        <div><span>岗位</span><b id="sJob">—</b><button class="link" data-go="0">换</button></div>
+        <div><span>简历</span><b id="sRes">—</b><button class="link" data-go="1">换</button></div>
+      </div>
+      <div class="cta fade d3" id="applyCta">
+        <button class="btn accent lg magnetic" id="apply">投递 <span class="arrow">→</span></button>
+        <span style="font-size:13px;color:var(--ink-3)">约 20–40 秒 · 会调用一次大模型</span>
+      </div>
+    </div>
+    <div class="stage fade d4">
+      <div class="floaty tr" id="fDone"><b>全部通过</b><span>模型引用都能在原文找到</span></div>
+      <div class="card tilt">
+        <div class="card-head"><div class="dots"><i></i><i></i><i></i></div><span style="font-size:13px;color:var(--ink-3)" id="pipeState">点「投递」后开始</span></div>
+        <div class="pipe">
+          <div class="node" id="nP"><span class="ring"></span><div><div class="n">解析简历</div><div class="d">版面 → 章节 → 结构化</div></div><span class="t" id="tP"></span></div>
+          <div class="par-label">同时进行</div>
+          <div class="par">
+            <div class="node" id="nD"><span class="ring"></span><div><div class="n">诊断简历</div><div class="d">规则 + 大模型</div></div></div>
+            <div class="node" id="nM"><span class="ring"></span><div><div class="n">对照岗位</div><div class="d">逐条判定要求</div></div></div>
+          </div>
+          <div class="node" id="nG"><span class="ring"></span><div><div class="n">初筛判定</div><div class="d">匹配度 ≥ 60 即通过</div></div></div>
+        </div>
+        <div class="big"><div class="big-top"><span id="stageText">等待开始</span><b id="pct">0%</b></div><div class="track"><i id="bar"></i></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 结果 -->
+  <section class="screen" data-screen="3">
+    <div>
+      <span class="tag fade d1"><b>初筛结果</b>后端开发实习生</span>
+      <h1>
+        <span class="line"><span>通过初筛，</span></span>
+        <span class="line"><span>可以去<span class="mark">面试<svg viewBox="0 0 300 22" preserveAspectRatio="none"><path d="M4 16 C 80 4, 200 4, 296 12"/></svg></span>了。</span></span>
+      </h1>
+      <div class="score-hero fade d2">
+        <div class="ring-big">
+          <svg width="120" height="120" viewBox="0 0 120 120"><circle class="tr" cx="60" cy="60" r="50"/><circle class="br" id="ring" cx="60" cy="60" r="50"/></svg>
+          <div class="num" id="score">0</div>
+        </div>
+        <div class="dims">
+          <div class="dim"><div class="l">技能<b>78</b></div><div class="tk"><i data-w="78"></i></div></div>
+          <div class="dim"><div class="l">经验<b>65</b></div><div class="tk"><i data-w="65"></i></div></div>
+          <div class="dim"><div class="l">学历<b>100</b></div><div class="tk"><i data-w="100"></i></div></div>
+          <div class="dim"><div class="l">项目<b>60</b></div><div class="tk"><i data-w="60"></i></div></div>
+        </div>
+      </div>
+      <div class="cta fade d3">
+        <button class="btn accent lg magnetic">进入模拟面试 <span class="arrow">→</span></button>
+        <button class="btn outline lg magnetic" id="again">再投一个</button>
+      </div>
+    </div>
+    <div class="stage fade d4">
+      <div class="floaty tl show"><b>72 / 60</b><span>匹配度 / 初筛线</span></div>
+      <div class="card tilt">
+        <div class="card-head">
+          <div class="seg" id="seg2"><span class="knob"></span><button class="on" data-tab2="gap">对照岗位 · 3</button><button data-tab2="self">简历本身 · 3</button></div>
+          <span style="font-size:12px;color:var(--ink-3)">点一条看原文</span>
+        </div>
+        <div data-view2="gap">
+          <button class="issue" style="animation-delay:.1s"><span class="tagx miss">缺失</span><span>了解消息队列（Kafka / RocketMQ）<span class="why">必须项 · 简历里没有提到</span></span><span class="issue-arrow">→</span></button>
+          <button class="issue" style="animation-delay:.2s"><span class="tagx part">部分</span><span>有高并发场景经验<span class="why">加分项 · 只提到缓存优化，没写并发量级</span></span><span class="issue-arrow">→</span></button>
+          <button class="issue" style="animation-delay:.3s"><span class="tagx part">部分</span><span>熟悉 Linux 常用命令<span class="why">加分项 · 只出现在技能清单里</span></span><span class="issue-arrow">→</span></button>
+        </div>
+        <div data-view2="self" hidden>
+          <button class="issue" style="animation-delay:.1s"><span class="tagx high">严重</span><span>「负责订单模块的开发」<span class="why">没有结果：做到了什么程度？</span></span><span class="issue-arrow">→</span></button>
+          <button class="issue" style="animation-delay:.2s"><span class="tagx med">中等</span><span>「参与了数据库设计」<span class="why">「参与」太弱，写清你具体做了什么</span></span><span class="issue-arrow">→</span></button>
+          <button class="issue" style="animation-delay:.3s"><span class="tagx med">中等</span><span>技能写了 Docker，经历里没用到<span class="why">技能与项目不一致</span></span><span class="issue-arrow">→</span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<span class="demo-flag">效果预览 · 示例数据</span>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* 光晕 */
+let mx = innerWidth/2, my = innerHeight/3, gx = mx, gy = my;
+addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+(function loop(){ gx += (mx-gx)*.08; gy += (my-gy)*.08; $('glow').style.transform = `translate(${gx}px,${gy}px)`; requestAnimationFrame(loop); })();
+
+/* 磁吸按钮、卡片倾斜 */
+document.querySelectorAll('.magnetic').forEach(b => {
+  b.addEventListener('mousemove', e => { if (b.disabled || reduce) return; const r = b.getBoundingClientRect();
+    b.style.transform = `translate(${(e.clientX - r.left - r.width/2) * .22}px, ${(e.clientY - r.top - r.height/2) * .3}px)`; });
+  b.addEventListener('mouseleave', () => b.style.transform = '');
+});
+document.querySelectorAll('.tilt').forEach(c => {
+  c.addEventListener('mousemove', e => { if (reduce) return; const r = c.getBoundingClientRect();
+    c.style.transform = `rotateY(${((e.clientX - r.left)/r.width - .5) * 5}deg) rotateX(${-((e.clientY - r.top)/r.height - .5) * 5}deg)`; });
+  c.addEventListener('mouseleave', () => c.style.transform = '');
+});
+
+/* 切屏 */
+const state = { job: null, n: 0, resume: null };
+function show(i) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', +s.dataset.screen === i));
+  $('prog').style.width = [18, 50, 82, 100][i] + '%';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (i === 1) $('f2Job').textContent = state.job;
+  if (i === 2) { $('sJob').textContent = state.job; $('sRes').textContent = state.resume; }
+}
+document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => show(+b.dataset.go)));
+$('next0').addEventListener('click', () => show(1));
+$('next1').addEventListener('click', () => show(2));
+show(0);
+
+/* 分段 */
+function seg(el, attr, viewAttr) {
+  const knob = el.querySelector('.knob'), btns = [...el.querySelectorAll('button')];
+  const place = b => { knob.style.width = b.offsetWidth + 'px'; knob.style.transform = `translateX(${b.offsetLeft - 4}px)`; };
+  btns.forEach(b => b.addEventListener('click', () => {
+    btns.forEach(x => x.classList.toggle('on', x === b)); place(b);
+    document.querySelectorAll(`[${viewAttr}]`).forEach(v => v.hidden = v.getAttribute(viewAttr) !== b.getAttribute(attr));
+  }));
+  new ResizeObserver(() => place(el.querySelector('button.on'))).observe(el);
+}
+seg($('seg'), 'data-tab', 'data-view');
+seg($('seg2'), 'data-tab2', 'data-view2');
+
+/* 选择 */
+function pickJob(name, n) {
+  state.job = name; state.n = n; $('next0').disabled = false;
+  $('fJobN').textContent = name; $('fJob').classList.add('show');
+  $('fReqN').textContent = n + ' 条'; $('fReq').classList.add('show');
+}
+function pickRes(name) { state.resume = name; $('next1').disabled = false; $('fResN').textContent = name; $('fRes').classList.add('show'); }
+document.querySelectorAll('[data-pick]').forEach(list => list.addEventListener('click', e => {
+  const it = e.target.closest('.item'); if (!it) return;
+  document.querySelectorAll(`[data-pick="${list.dataset.pick}"] .item`).forEach(x => x.classList.toggle('sel', x === it));
+  list.dataset.pick === 'job' ? pickJob(it.dataset.name, +it.dataset.n) : pickRes(it.dataset.name);
+}));
+
+/* 粘贴 JD → 解析 */
+const SAMPLE = `任职要求：
+1. 本科及以上学历，计算机相关专业；
+2. 熟悉 Java，熟悉 Spring Boot、MyBatis 等常用框架；
+3. 熟悉 MySQL，有 SQL 调优经验者优先；
+4. 有 Redis 使用经验，了解常见缓存问题；
+5. 了解消息队列（Kafka / RocketMQ）；
+6. 有高并发场景经验者优先；熟悉 Linux 常用命令；
+7. 良好的沟通能力与团队协作意识。`;
+const REQS = [['hard', ['本科及以上', '熟悉 Java', 'Spring Boot', 'MyBatis', 'MySQL', 'Redis', '消息队列']], ['', ['SQL 调优', '高并发经验', 'Linux 命令']], ['soft', ['沟通能力', '团队协作']]];
+const canParse = () => $('parse').disabled = $('jd').value.trim().length < 20 || !$('title').value.trim();
+['jd', 'title'].forEach(id => $(id).addEventListener('input', canParse));
+$('sample').addEventListener('click', () => { $('title').value = '后端开发实习生'; $('company').value = '示例科技'; $('jd').value = SAMPLE; canParse(); });
+$('parse').addEventListener('click', async () => {
+  $('parse').disabled = true; $('parse').textContent = '解析中…';
+  $('reqs').innerHTML = '<div class="reqs">' + [80, 60, 70].map(w => `<div class="skeleton" style="width:${w}%"></div>`).join('') + '</div>';
+  await sleep(1500);
+  let d = 0, total = 0;
+  const chips = REQS.map(([cls, xs]) => { total += xs.length; return xs.map(t => `<span class="chip ${cls}" style="animation-delay:${d += 45}ms">${t}</span>`).join(''); }).join('');
+  $('reqs').innerHTML = `<div class="reqs"><div class="reqs-head">拆出 <b>${total}</b> 条要求 · 黑色为必须项，每条都能在原文找到出处</div><div class="chips">${chips}</div></div>`;
+  $('parse').textContent = '重新解析'; $('parse').disabled = false;
+  pickJob($('title').value.trim(), total);
+});
+
+/* 上传 */
+const card = $('dropCard');
+['dragenter', 'dragover'].forEach(ev => card.addEventListener(ev, e => { e.preventDefault(); card.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => card.addEventListener(ev, e => { e.preventDefault(); card.classList.remove('over'); }));
+card.addEventListener('drop', e => upload(e.dataTransfer.files[0]?.name));
+$('file').addEventListener('change', e => upload(e.target.files[0]?.name));
+async function upload(name = '我的简历.pdf') {
+  $('up').classList.add('show'); $('upName').textContent = name; $('upState').textContent = '上传中…';
+  for (let p = 0; p <= 100; p += 10) { $('upBar').style.width = p + '%'; await sleep(60); }
+  $('upState').textContent = '解析中…'; await sleep(800);
+  $('up').classList.remove('show');
+  const it = document.createElement('button'); it.className = 'item'; it.dataset.name = name;
+  it.innerHTML = `<span class="ic">${/\.docx$/i.test(name) ? 'DOC' : 'PDF'}</span><div><div class="t">${name}</div><div class="s">刚刚上传 · 已解析</div></div><span class="radio"></span>`;
+  $('resList').prepend(it); it.click();
+}
+
+/* 投递：模拟图 A 的进度事件 */
+$('apply').addEventListener('click', async () => {
+  $('applyCta').style.visibility = 'hidden';
+  document.querySelectorAll('.pick-sum .link').forEach(b => b.hidden = true);
+  const set = (p, t) => { $('bar').style.width = p + '%'; $('pct').textContent = p + '%'; $('stageText').textContent = t; };
+  const node = (id, s) => { $(id).classList.remove('run', 'ok'); $(id).classList.add(s); };
+  $('pipeState').textContent = '分析中…';
+  set(5, '正在解析简历'); node('nP', 'run'); await sleep(700); node('nP', 'ok'); $('tP').textContent = '已解析过，复用';
+  set(20, '诊断简历、对照岗位同时进行'); node('nD', 'run'); node('nM', 'run');
+  await sleep(2000); node('nM', 'ok'); set(60, '岗位匹配完成');
+  await sleep(1100); node('nD', 'ok'); set(85, '简历诊断完成');
+  node('nG', 'run'); await sleep(700); node('nG', 'ok'); set(100, '完成'); $('pipeState').textContent = '分析完成';
+  $('fDone').classList.add('show');
+  await sleep(900);
+  show(3);
+  setTimeout(() => {
+    $('ring').style.strokeDashoffset = 314.2 * (1 - .72);
+    document.querySelectorAll('.dim .tk i').forEach(i => i.style.width = i.dataset.w + '%');
+    const t0 = performance.now();
+    (function tick(t) { const k = Math.min(1, (t - t0) / 1400); $('score').textContent = Math.round(72 * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(tick); })(t0);
+  }, 500);
+});
+$('again').addEventListener('click', () => location.reload());
+</script>
+</body>
+</html>

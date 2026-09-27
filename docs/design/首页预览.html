@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>求职辅助</title>
+<style>
+  :root {
+    --cream: #f6f0e6;
+    --cream-2: #efe6d7;
+    --paper: #fffaf2;
+    --ink: #221d17;
+    --ink-2: #6b6157;
+    --ink-3: #9a8f83;
+    --line: rgba(34,29,23,.1);
+    --accent: #d9542b;
+    --accent-ink: #b8431f;
+    --good: #2f7d4f;
+    --warn: #b7791f;
+    --bad: #c2362b;
+    --radius: 22px;
+    --ease: cubic-bezier(.22,1,.36,1);
+    --spring: cubic-bezier(.34,1.56,.64,1);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--cream); color: var(--ink); overflow-x: hidden;
+    font-family: "PingFang SC", "HarmonyOS Sans SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  ::selection { background: rgba(217,84,43,.2); }
+
+  /* ── 鼠标跟随光晕 ── */
+  .glow {
+    position: fixed; left: 0; top: 0; width: 520px; height: 520px; margin: -260px 0 0 -260px;
+    border-radius: 50%; pointer-events: none; z-index: 0;
+    background: radial-gradient(circle, rgba(242,140,90,.28) 0%, rgba(242,140,90,0) 65%);
+    transition: opacity .4s;
+  }
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .35;
+    background-image: radial-gradient(rgba(34,29,23,.08) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+
+  .wrap { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+
+  /* ── 导航 ── */
+  nav { position: sticky; top: 0; z-index: 20; padding: 18px 0; transition: background .3s, box-shadow .3s; }
+  nav.scrolled { background: rgba(246,240,230,.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 1px 0 var(--line); }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: .5px; }
+  .logo-mark { width: 30px; height: 30px; border-radius: 10px; background: var(--ink); color: var(--cream); display: grid; place-items: center; font-size: 15px; transition: transform .5s var(--spring); }
+  .logo:hover .logo-mark { transform: rotate(-12deg) scale(1.08); }
+  .links { display: flex; gap: 4px; }
+  .links a { padding: 8px 14px; border-radius: 999px; color: var(--ink-2); text-decoration: none; font-size: 15px; transition: background .2s, color .2s; }
+  .links a:hover { background: rgba(34,29,23,.06); color: var(--ink); }
+  .actions { display: flex; gap: 8px; }
+
+  .btn {
+    position: relative; height: 44px; padding: 0 22px; border-radius: 999px; border: none;
+    font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;
+    transition: transform .35s var(--spring), background .2s, box-shadow .3s;
+    will-change: transform;
+  }
+  .btn.dark { background: var(--ink); color: var(--cream); }
+  .btn.dark:hover { background: #000; box-shadow: 0 10px 24px rgba(34,29,23,.22); }
+  .btn.ghost { background: transparent; color: var(--ink); }
+  .btn.ghost:hover { background: rgba(34,29,23,.06); }
+  .btn.accent { background: var(--accent); color: #fff; }
+  .btn.accent:hover { background: var(--accent-ink); box-shadow: 0 12px 28px rgba(217,84,43,.3); }
+  .btn.lg { height: 56px; padding: 0 30px; font-size: 17px; }
+  .btn.outline { background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .btn .arrow { transition: transform .35s var(--spring); }
+  .btn:hover .arrow { transform: translateX(4px); }
+  .btn:active { transform: scale(.96) !important; }
+
+  /* ── 首屏 ── */
+  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; min-height: calc(100vh - 80px); padding: 40px 0 80px; }
+  .tag { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 999px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); font-size: 13px; color: var(--ink-2); }
+  .tag b { padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--cream); font-weight: 600; font-size: 12px; }
+  h1 { margin: 22px 0 20px; font-size: clamp(40px, 5.2vw, 68px); line-height: 1.12; letter-spacing: -1px; font-weight: 800; }
+  h1 .line { display: block; overflow: hidden; }
+  h1 .line > span { display: inline-block; transform: translateY(110%); animation: rise .9s var(--ease) forwards; }
+  h1 .line:nth-child(2) > span { animation-delay: .12s; }
+  .mark { position: relative; white-space: nowrap; }
+  .mark svg { position: absolute; left: -4%; bottom: -10px; width: 108%; height: 22px; overflow: visible; }
+  .mark path { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 400; stroke-dashoffset: 400; animation: draw 1s .9s var(--ease) forwards; }
+  .sub { margin: 0 0 32px; max-width: 470px; font-size: 18px; line-height: 1.7; color: var(--ink-2); }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+  .fade { opacity: 0; transform: translateY(18px); animation: fadeUp .8s var(--ease) forwards; }
+  .d1 { animation-delay: .35s; } .d2 { animation-delay: .5s; } .d3 { animation-delay: .65s; } .d4 { animation-delay: .8s; }
+
+  @keyframes rise { to { transform: none; } }
+  @keyframes fadeUp { to { opacity: 1; transform: none; } }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+
+  /* ── 演示卡 ── */
+  .demo { position: relative; perspective: 1200px; }
+  .demo-card {
+    position: relative; background: var(--paper); border-radius: 28px; padding: 22px;
+    box-shadow: 0 1px 0 rgba(255,255,255,.8) inset, 0 30px 60px -20px rgba(80,50,20,.25), 0 0 0 1px var(--line);
+    transition: transform .6s var(--ease), box-shadow .3s; transform-style: preserve-3d;
+  }
+  .demo-card.drag { box-shadow: 0 0 0 3px var(--accent), 0 30px 60px -20px rgba(80,50,20,.3); }
+  .demo-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .dots { display: flex; gap: 6px; }
+  .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--cream-2); }
+  .demo-title { font-size: 13px; color: var(--ink-3); }
+  .run { height: 34px; padding: 0 14px; font-size: 13px; }
+
+  .resume { position: relative; overflow: hidden; border-radius: 16px; background: #fff; padding: 20px 22px; box-shadow: 0 0 0 1px var(--line); font-size: 14px; line-height: 1.75; }
+  .resume h4 { margin: 0 0 2px; font-size: 13px; color: var(--ink-3); font-weight: 600; letter-spacing: 1px; }
+  .resume .proj { font-weight: 700; margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .resume .proj small { font-weight: 400; color: var(--ink-3); }
+  .resume ul { margin: 0 0 12px; padding-left: 18px; }
+  .resume li { position: relative; }
+  .hl { border-radius: 4px; transition: background .5s, box-shadow .5s; }
+  .hl.bad { background: rgba(194,54,43,.13); box-shadow: 0 2px 0 var(--bad); }
+  .hl.good { background: rgba(47,125,79,.12); box-shadow: 0 2px 0 var(--good); }
+  .note {
+    position: absolute; right: 0; top: -30px; z-index: 2; white-space: nowrap;
+    padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; color: #fff; background: var(--bad);
+    opacity: 0; transform: translateY(6px) scale(.9); transition: opacity .35s, transform .45s var(--spring); pointer-events: none;
+  }
+  .note.show { opacity: 1; transform: none; }
+  .scan { position: absolute; left: 0; right: 0; top: 0; height: 60px; pointer-events: none; opacity: 0;
+    background: linear-gradient(to bottom, rgba(217,84,43,0), rgba(217,84,43,.14) 85%, var(--accent) 100%); }
+  .scan.go { animation: scan 1.4s var(--ease) forwards; }
+  @keyframes scan { 0% { opacity: 1; transform: translateY(-60px); } 90% { opacity: 1; } 100% { opacity: 0; transform: translateY(290px); } }
+  .drop-hint { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(255,250,242,.9); border-radius: 16px; font-weight: 600; color: var(--accent); opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .demo-card.drag .drop-hint { opacity: 1; }
+
+  .match { display: grid; grid-template-columns: 1fr 128px; gap: 16px; margin-top: 14px; }
+  .reqs { display: flex; flex-direction: column; gap: 8px; }
+  .req { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--cream); font-size: 13px; transition: background .4s, transform .45s var(--spring); }
+  .req .st { width: 20px; height: 20px; border-radius: 50%; flex: none; display: grid; place-items: center; background: #fff; box-shadow: 0 0 0 1.5px var(--line); transition: background .3s, box-shadow .3s, transform .45s var(--spring); }
+  .req .st svg { width: 12px; height: 12px; opacity: 0; transition: opacity .2s; }
+  .req.hit .st { background: var(--good); box-shadow: none; transform: scale(1.1); }
+  .req.miss .st { background: var(--bad); box-shadow: none; transform: scale(1.1); }
+  .req.hit .st svg, .req.miss .st svg { opacity: 1; }
+  .req.pop { transform: translateX(4px); }
+  .req .why { margin-left: auto; color: var(--ink-3); font-size: 12px; opacity: 0; transition: opacity .3s; }
+  .req.hit .why, .req.miss .why { opacity: 1; }
+
+  .score { position: relative; display: grid; place-items: center; border-radius: 18px; background: var(--ink); color: var(--cream); padding: 10px; }
+  .score svg { width: 96px; height: 96px; transform: rotate(-90deg); }
+  .score circle { fill: none; stroke-width: 8; }
+  .score .track { stroke: rgba(246,240,230,.15); }
+  .score .bar { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 251.3; stroke-dashoffset: 251.3; transition: stroke-dashoffset 1.3s var(--ease); }
+  .score .num { position: absolute; top: 34px; font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .score .lbl { font-size: 12px; color: rgba(246,240,230,.6); margin-top: 2px; }
+  .score .verdict { font-size: 12px; font-weight: 700; margin-top: 4px; height: 16px; color: #8fd6a8; opacity: 0; transform: translateY(4px); transition: opacity .3s, transform .4s var(--spring); }
+  .score .verdict.show { opacity: 1; transform: none; }
+
+  .floaty { position: absolute; z-index: 3; padding: 10px 14px; border-radius: 14px; background: var(--paper); box-shadow: 0 16px 36px -12px rgba(80,50,20,.3), 0 0 0 1px var(--line); font-size: 13px; animation: bob 5s ease-in-out infinite; }
+  .floaty.a { left: -38px; top: 70px; }
+  .floaty.b { right: -26px; bottom: 120px; animation-delay: -2.5s; }
+  .floaty b { display: block; font-size: 18px; }
+  .floaty span { color: var(--ink-3); }
+  @keyframes bob { 50% { transform: translateY(-10px); } }
+
+  /* ── 分区 ── */
+  section { padding: 110px 0; }
+  .eyebrow { font-size: 13px; font-weight: 700; letter-spacing: 2px; color: var(--accent); }
+  h2 { margin: 12px 0 48px; font-size: clamp(30px, 3.6vw, 46px); line-height: 1.2; letter-spacing: -.5px; font-weight: 800; max-width: 720px; }
+
+  .reveal { opacity: 0; transform: translateY(40px); transition: opacity .9s var(--ease), transform .9s var(--ease); }
+  .reveal.in { opacity: 1; transform: none; }
+
+  /* 流程：悬停展开 */
+  .steps { display: flex; gap: 14px; height: 360px; }
+  .step {
+    position: relative; flex: 1; min-width: 0; overflow: hidden; border-radius: var(--radius); padding: 28px;
+    background: var(--paper); box-shadow: 0 0 0 1px var(--line); cursor: default;
+    display: flex; flex-direction: column; justify-content: space-between;
+    transition: flex .7s var(--ease), background .4s, color .4s;
+  }
+  .step.active { flex: 2.4; background: var(--ink); color: var(--cream); }
+  .step .no { font-size: 60px; font-weight: 800; line-height: 1; color: var(--cream-2); transition: color .4s; font-variant-numeric: tabular-nums; }
+  .step.active .no { color: var(--accent); }
+  .step h3 { margin: 0 0 10px; font-size: 24px; font-weight: 700; white-space: nowrap; }
+  .step p { margin: 0; max-width: 380px; font-size: 15px; line-height: 1.7; color: inherit; opacity: 0; transform: translateY(10px); transition: opacity .4s, transform .5s var(--ease); }
+  .step.active p { opacity: .75; transform: none; transition-delay: .2s; }
+
+  /* 面试预览 */
+  .chat-wrap { display: grid; grid-template-columns: 1fr 1.1fr; gap: 56px; align-items: center; }
+  .chat-wrap h2 { margin-bottom: 20px; }
+  .chat-wrap .sub { margin-bottom: 0; }
+  .chat { background: var(--paper); border-radius: 28px; padding: 24px; box-shadow: 0 0 0 1px var(--line), 0 30px 60px -24px rgba(80,50,20,.22); display: flex; flex-direction: column; gap: 12px; min-height: 380px; }
+  .chat-top { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--ink-3); }
+  .pill { padding: 3px 10px; border-radius: 999px; background: var(--ink); color: var(--cream); font-weight: 600; font-size: 12px; }
+  .msg { max-width: 82%; padding: 12px 16px; border-radius: 18px; font-size: 15px; line-height: 1.6; opacity: 0; transform: translateY(10px) scale(.97); transition: opacity .4s, transform .5s var(--spring); }
+  .msg.show { opacity: 1; transform: none; }
+  .msg.ai { background: var(--cream); border-bottom-left-radius: 6px; }
+  .msg.me { align-self: flex-end; background: var(--ink); color: var(--cream); border-bottom-right-radius: 6px; }
+  .msg.eval { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); font-size: 13px; color: var(--ink-2); }
+  .msg.eval b { color: var(--good); }
+  .typing { display: inline-flex; gap: 4px; }
+  .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); animation: blink 1s infinite; }
+  .typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+  @keyframes blink { 50% { opacity: .25; } }
+
+  .end { text-align: center; padding: 120px 0 140px; }
+  .end h2 { margin: 0 auto 28px; }
+  footer { position: relative; z-index: 1; padding: 28px 0 40px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-3); }
+
+  /* ── 登录：从按钮位置圆形展开 ── */
+  .auth { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; pointer-events: none; }
+  .auth-bg { position: absolute; inset: 0; background: var(--ink); clip-path: circle(0px at var(--x, 50%) var(--y, 50%)); transition: clip-path .7s var(--ease); }
+  .auth.open { pointer-events: auto; }
+  .auth.open .auth-bg { clip-path: circle(150vmax at var(--x, 50%) var(--y, 50%)); }
+  .panel {
+    position: relative; width: 420px; max-width: 100%; padding: 30px; border-radius: 28px; background: var(--cream);
+    opacity: 0; transform: translateY(30px) scale(.96); transition: opacity .3s, transform .5s var(--ease);
+  }
+  .auth.open .panel { opacity: 1; transform: none; transition-delay: .25s; }
+  .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
+  .panel h3 { margin: 0; font-size: 26px; font-weight: 800; }
+  .x { width: 38px; height: 38px; border-radius: 50%; border: none; background: rgba(34,29,23,.07); display: grid; place-items: center; transition: transform .4s var(--spring), background .2s; }
+  .x:hover { transform: rotate(90deg); background: rgba(34,29,23,.12); }
+
+  .seg { position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: 4px; border-radius: 999px; background: var(--cream-2); margin-bottom: 22px; }
+  .seg .knob { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 999px; background: var(--paper); box-shadow: 0 2px 8px rgba(80,50,20,.12); transition: transform .45s var(--spring); }
+  .seg.reg .knob { transform: translateX(100%); }
+  .seg button { position: relative; z-index: 1; height: 38px; border: none; background: none; font-weight: 600; font-size: 15px; color: var(--ink-2); transition: color .3s; }
+  .seg button.on { color: var(--ink); }
+
+  .field { position: relative; margin-bottom: 12px; }
+  .field input {
+    width: 100%; height: 58px; padding: 22px 16px 6px; border-radius: 16px; border: none; outline: none;
+    background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line); font-size: 16px; transition: box-shadow .25s;
+  }
+  .field input:focus { box-shadow: inset 0 0 0 2px var(--ink); }
+  .field label { position: absolute; left: 17px; top: 19px; font-size: 16px; color: var(--ink-3); pointer-events: none; transition: transform .25s var(--ease), font-size .25s, color .25s; transform-origin: left top; }
+  .field input:focus + label, .field input:not(:placeholder-shown) + label { transform: translateY(-11px); font-size: 12px; color: var(--ink-2); }
+  .collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .45s var(--ease), opacity .3s; opacity: 0; }
+  .collapse > div { overflow: hidden; }
+  .collapse.open { grid-template-rows: 1fr; opacity: 1; }
+  .field.shake { animation: shake .4s; }
+  .field.shake input { box-shadow: inset 0 0 0 2px var(--bad); }
+  @keyframes shake { 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }
+  .rule { margin: 2px 4px 18px; font-size: 12px; color: var(--ink-3); min-height: 16px; }
+  .rule.err { color: var(--bad); }
+  .submit { width: 100%; height: 54px; justify-content: center; font-size: 16px; }
+  .submit .spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(255,255,255,.35); border-top-color: #fff; animation: spin .7s linear infinite; display: none; }
+  .submit.loading .spin { display: block; }
+  .submit.loading .txt { opacity: .7; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 960px) {
+    .hero, .chat-wrap { grid-template-columns: 1fr; }
+    .links { display: none; }
+    .steps { flex-direction: column; height: auto; }
+    .step { min-height: 120px; }
+    .step p { opacity: .75; transform: none; }
+    .floaty { display: none; }
+    .wrap { padding: 0 16px; }
+  }
+  @media (max-width: 520px) {
+    .match { grid-template-columns: 1fr; }
+    .actions .ghost { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; }
+    .glow { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="glow" id="glow"></div>
+
+<nav id="nav">
+  <div class="wrap">
+    <div class="logo"><span class="logo-mark">求</span>求职辅助</div>
+    <div class="links">
+      <a href="#demo">试一试</a>
+      <a href="#steps">怎么用</a>
+      <a href="#interview">模拟面试</a>
+    </div>
+    <div class="actions">
+      <button class="btn ghost magnetic" data-auth="login">登录</button>
+      <button class="btn dark magnetic" data-auth="register">注册</button>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <div class="wrap">
+    <div class="hero" id="demo">
+      <div>
+        <span class="tag fade"><b>毕设作品</b>简历诊断 · 岗位初筛 · 模拟面试</span>
+        <h1>
+          <span class="line"><span>投之前，先让简历</span></span>
+          <span class="line"><span><span class="mark">过一遍初筛<svg viewBox="0 0 300 22" preserveAspectRatio="none" aria-hidden="true"><path d="M4 16 C 80 4, 200 4, 296 12"/></svg></span>。</span></span>
+        </h1>
+        <p class="sub fade d2">贴上想投的岗位，看看简历哪里不符合要求、哪句话写得太虚，再按这个岗位练一场技术面和 HR 面。</p>
+        <div class="cta fade d3">
+          <button class="btn accent lg magnetic" data-auth="register">开始使用 <span class="arrow">→</span></button>
+          <button class="btn outline lg magnetic" id="play2">先看演示</button>
+        </div>
+      </div>
+
+      <div class="demo fade d4">
+        <div class="floaty a"><b>7 条</b><span>写作规则检查</span></div>
+        <div class="floaty b"><b>≥ 60 分</b><span>即通过初筛</span></div>
+        <div class="demo-card" id="card">
+          <div class="demo-head">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="demo-title">把任意文件拖进来，或点右边按钮</span>
+            <button class="btn dark run" id="play">▶ 开始演示</button>
+          </div>
+
+          <div class="resume" id="resume">
+            <div class="scan" id="scan"></div>
+            <h4>项目经历</h4>
+            <div class="proj">校园二手交易平台 · 后端开发 <small>2023.09 – 2024.01</small></div>
+            <ul>
+              <li><span class="note" id="n1">缺少结果：做到了什么程度？</span><span class="hl" id="h1">负责订单模块的开发</span>，完成下单、支付回调与退款流程</li>
+              <li>使用 <span class="hl" id="h2">Redis 缓存热门商品</span>，接口响应从 800ms 降到 120ms</li>
+              <li><span class="note" id="n3">「参与」太弱，写清你具体做了什么</span><span class="hl" id="h3">参与了数据库设计</span></li>
+            </ul>
+            <h4>专业技能</h4>
+            <div><span class="hl" id="h4">Java、Spring Boot</span>、MySQL、Redis、Git</div>
+            <div class="drop-hint">松手开始分析</div>
+          </div>
+
+          <div class="match">
+            <div class="reqs" id="reqs">
+              <div class="req" data-s="hit" data-why="项目经历"><span class="st"><svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5l2.2 2.2L9.5 3.8"/></svg></span>熟悉 Java / Spring Boot<span class="why">项目经历</span></div>
+              <div class="req" data-s="hit"><span class="st"><svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5l2.2 2.2L9.5 3.8"/></svg></span>有 Redis 使用经验<span class="why">800ms → 120ms</span></div>
+              <div class="req" data-s="miss"><span class="st"><svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l5 5M8.5 3.5l-5 5"/></svg></span>了解消息队列<span class="why">简历未提及</span></div>
+              <div class="req" data-s="hit"><span class="st"><svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5l2.2 2.2L9.5 3.8"/></svg></span>本科及以上学历<span class="why">教育经历</span></div>
+            </div>
+            <div class="score">
+              <svg viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="40"/><circle class="bar" id="bar" cx="48" cy="48" r="40"/></svg>
+              <span class="num" id="num">0</span>
+              <span class="lbl">匹配度</span>
+              <span class="verdict" id="verdict">通过初筛</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section id="steps">
+    <div class="wrap">
+      <div class="reveal">
+        <div class="eyebrow">怎么用</div>
+        <h2>三步，从一份简历走到一场面试。</h2>
+      </div>
+      <div class="steps reveal" id="stepList">
+        <div class="step active">
+          <span class="no">01</span>
+          <div><h3>上传简历</h3><p>PDF 或 Word 都行。两栏排版也能按正确顺序读出来，之后所有的问题和依据都能在原文里高亮定位。</p></div>
+        </div>
+        <div class="step">
+          <span class="no">02</span>
+          <div><h3>贴 JD，看初筛</h3><p>把岗位要求拆成一条条，逐条对照简历：满足、部分满足还是缺失，每条都附简历里的原话作依据。</p></div>
+        </div>
+        <div class="step">
+          <span class="no">03</span>
+          <div><h3>模拟面试</h3><p>先技术面再 HR 面，题目围绕你的简历和这个岗位出；答完一题会追问，结束后给一份完整的面试报告。</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="interview">
+    <div class="wrap chat-wrap">
+      <div class="reveal">
+        <div class="eyebrow">模拟面试</div>
+        <h2>面试官会顺着你的简历追问。</h2>
+        <p class="sub">问题从你的项目和岗位要求里来，不是题库随机抽。每题的评分都会引用你回答里的原话，说清楚好在哪、差在哪。</p>
+      </div>
+      <div class="chat reveal" id="chat">
+        <div class="chat-top"><span class="pill">技术面</span>第 2 题 · 后端开发</div>
+        <div class="msg ai">你提到用 Redis 把接口从 800ms 降到 120ms。缓存和数据库的数据不一致时，你是怎么处理的？</div>
+        <div class="msg me">先更新数据库，再删除缓存；删除失败的话放进重试队列……</div>
+        <div class="msg eval">评分 <b>4 / 5</b> · 依据：「先更新数据库，再删除缓存」—— 思路正确，可以补充延迟双删的取舍。</div>
+        <div class="msg ai" id="typing"><span class="typing"><i></i><i></i><i></i></span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap end reveal">
+    <h2>下一次投递之前，先来这里过一遍。</h2>
+    <button class="btn accent lg magnetic" data-auth="register">免费注册 <span class="arrow">→</span></button>
+  </div>
+</main>
+
+<footer><div class="wrap">求职辅助 · 本科毕业设计</div></footer>
+
+<!-- 登录 / 注册 -->
+<div class="auth" id="auth" aria-hidden="true">
+  <div class="auth-bg" id="authBg"></div>
+  <form class="panel" id="form" role="dialog" aria-modal="true" aria-labelledby="authTitle" novalidate>
+    <div class="panel-head">
+      <h3 id="authTitle">欢迎回来</h3>
+      <button type="button" class="x" id="close" aria-label="关闭">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg>
+      </button>
+    </div>
+    <div class="seg" id="seg">
+      <span class="knob"></span>
+      <button type="button" data-tab="login">登录</button>
+      <button type="button" data-tab="register">注册</button>
+    </div>
+    <div class="field" id="fu"><input id="u" placeholder=" " autocomplete="username"><label for="u">用户名</label></div>
+    <div class="collapse" id="emailBox"><div><div class="field"><input id="e" type="email" placeholder=" " autocomplete="email"><label for="e">邮箱（选填）</label></div></div></div>
+    <div class="field" id="fp"><input id="p" type="password" placeholder=" " autocomplete="current-password"><label for="p">密码</label></div>
+    <p class="rule" id="rule">用户名 3–50 位，可用中英文、数字、下划线；密码至少 6 位</p>
+    <button type="submit" class="btn dark submit" id="submit"><span class="spin"></span><span class="txt" id="submitTxt">登录</span></button>
+  </form>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* 鼠标跟随光晕（带缓动） */
+const glow = $('glow');
+let mx = innerWidth / 2, my = innerHeight / 3, gx = mx, gy = my;
+addEventListener('mousemove', (e) => { mx = e.clientX; my = e.clientY; });
+(function loop() {
+  gx += (mx - gx) * 0.08; gy += (my - gy) * 0.08;
+  glow.style.transform = `translate(${gx}px, ${gy}px)`;
+  requestAnimationFrame(loop);
+})();
+
+/* 磁吸按钮 */
+document.querySelectorAll('.magnetic').forEach(b => {
+  b.addEventListener('mousemove', (e) => {
+    const r = b.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    b.style.transform = `translate(${dx * 0.22}px, ${dy * 0.3}px)`;
+  });
+  b.addEventListener('mouseleave', () => { b.style.transform = ''; });
+});
+
+/* 演示卡随鼠标轻微倾斜 */
+const card = $('card');
+card.addEventListener('mousemove', (e) => {
+  const r = card.getBoundingClientRect();
+  const px = (e.clientX - r.left) / r.width - .5, py = (e.clientY - r.top) / r.height - .5;
+  card.style.transform = `rotateY(${px * 6}deg) rotateX(${-py * 6}deg)`;
+});
+card.addEventListener('mouseleave', () => { card.style.transform = ''; });
+
+/* 导航滚动后加底色 */
+addEventListener('scroll', () => $('nav').classList.toggle('scrolled', scrollY > 10), { passive: true });
+
+/* 滚动出现 */
+const io = new IntersectionObserver((es) => es.forEach(en => {
+  if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); if (en.target.id === 'chat') playChat(); }
+}), { threshold: .2 });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+/* 流程：悬停展开 */
+document.querySelectorAll('.step').forEach(s => s.addEventListener('mouseenter', () => {
+  document.querySelectorAll('.step').forEach(x => x.classList.toggle('active', x === s));
+}));
+
+/* 面试对话逐条出现 */
+async function playChat() {
+  const msgs = [...document.querySelectorAll('#chat .msg')];
+  for (const m of msgs) { await sleep(reduce ? 0 : 650); m.classList.add('show'); }
+}
+
+/* 演示：扫描 → 高亮 → 逐条对照 → 出分 */
+let running = false;
+function resetDemo() {
+  ['h1','h2','h3','h4'].forEach(id => $(id).className = 'hl');
+  ['n1','n3'].forEach(id => $(id).classList.remove('show'));
+  document.querySelectorAll('.req').forEach(r => r.className = 'req');
+  $('bar').style.strokeDashoffset = 251.3;
+  $('num').textContent = '0';
+  $('verdict').classList.remove('show');
+  $('scan').classList.remove('go'); void $('scan').offsetWidth;
+}
+async function runDemo() {
+  if (running) return;
+  running = true;
+  $('play').textContent = '分析中…';
+  resetDemo();
+  $('scan').classList.add('go');
+  await sleep(700);
+  $('h1').classList.add('bad'); await sleep(250); $('n1').classList.add('show');
+  await sleep(500);
+  $('h2').classList.add('good'); $('h4').classList.add('good');
+  await sleep(450);
+  $('h3').classList.add('bad'); await sleep(250); $('n3').classList.add('show');
+  await sleep(600);
+  for (const r of document.querySelectorAll('.req')) {
+    r.classList.add(r.dataset.s, 'pop');
+    setTimeout(() => r.classList.remove('pop'), 350);
+    await sleep(380);
+  }
+  const target = 72, circ = 251.3;
+  $('bar').style.strokeDashoffset = circ * (1 - target / 100);
+  const t0 = performance.now();
+  await new Promise(done => (function tick(t) {
+    const k = Math.min(1, (t - t0) / 1300), e = 1 - Math.pow(1 - k, 3);
+    $('num').textContent = Math.round(target * e);
+    k < 1 ? requestAnimationFrame(tick) : done();
+  })(t0));
+  $('verdict').classList.add('show');
+  $('play').textContent = '↻ 再来一次';
+  running = false;
+}
+$('play').addEventListener('click', runDemo);
+$('play2').addEventListener('click', () => { $('demo').scrollIntoView({ behavior: 'smooth' }); setTimeout(runDemo, 300); });
+
+/* 拖文件进演示卡（只触发演示，不读文件） */
+['dragenter','dragover'].forEach(ev => card.addEventListener(ev, (e) => { e.preventDefault(); card.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => card.addEventListener(ev, (e) => { e.preventDefault(); card.classList.remove('drag'); }));
+card.addEventListener('drop', runDemo);
+
+/* 登录 / 注册：从点击位置圆形展开 */
+const auth = $('auth');
+let mode = 'login';
+function setMode(m) {
+  mode = m;
+  const login = m === 'login';
+  $('seg').classList.toggle('reg', !login);
+  document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === m));
+  $('emailBox').classList.toggle('open', !login);
+  $('authTitle').textContent = login ? '欢迎回来' : '创建账号';
+  $('submitTxt').textContent = login ? '登录' : '注册并进入';
+  $('p').autocomplete = login ? 'current-password' : 'new-password';
+  setRule();
+}
+function setRule(text, err) {
+  $('rule').textContent = text || '用户名 3–50 位，可用中英文、数字、下划线；密码至少 6 位';
+  $('rule').classList.toggle('err', !!err);
+}
+function openAuth(m, e) {
+  const x = e ? e.clientX : innerWidth / 2, y = e ? e.clientY : innerHeight / 2;
+  auth.style.setProperty('--x', x + 'px'); auth.style.setProperty('--y', y + 'px');
+  setMode(m);
+  auth.classList.add('open'); auth.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => $('u').focus(), 450);
+}
+function closeAuth() {
+  auth.classList.remove('open'); auth.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+}
+document.querySelectorAll('[data-auth]').forEach(b => b.addEventListener('click', (e) => openAuth(b.dataset.auth, e)));
+document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.tab)));
+$('close').addEventListener('click', closeAuth);
+$('authBg').addEventListener('click', closeAuth);
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && auth.classList.contains('open')) closeAuth(); });
+
+function shake(id) { const f = $(id); f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake'); }
+$('form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const u = $('u').value.trim(), p = $('p').value;
+  if (!/^[A-Za-z0-9_一-鿿]{3,50}$/.test(u)) { shake('fu'); return setRule('用户名需 3–50 位，只能用中英文、数字或下划线', true); }
+  if (p.length < 6) { shake('fp'); return setRule('密码至少 6 位', true); }
+  setRule();
+  $('submit').classList.add('loading');
+  await sleep(900);
+  $('submit').classList.remove('loading');
+  setRule('（预览）校验通过，正式版会在这里调用' + (mode === 'login' ? '登录' : '注册') + '接口');
+});
+</script>
+</body>
+</html>
