@@ -63,6 +63,6 @@ backend/scripts/ dump_schema · dump_seed（评测脚本 gen_eval_set / run_eval
 backend/tests/
 data/            skills_seed.csv · resumes/ · uploads/ · chroma/ · eval_runs/
 docs/            设计文档
-frontend/        React 前端（首页 + 登录 / 注册 + 登录后占位页）
+frontend/        React 前端（首页 + 登录 / 注册 + 工作台（新的投递三步）+ 初筛结果页）
 nginx/           反向代理配置
 ```

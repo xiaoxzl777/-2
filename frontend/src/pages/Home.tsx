@@ -8,7 +8,7 @@ import { ResumeDemo } from '../components/ResumeDemo'
 import { useAuth } from '../store/auth'
 
 const STEPS = [
-  { title: '上传简历', desc: 'PDF 或 Word 都行。两栏排版也能按正确顺序读出来，之后所有的问题和依据都能在原文里高亮定位。' },
+  { title: '上传简历', desc: '上传 PDF 简历。两栏排版也能按正确顺序读出来，之后所有的问题和依据都能在原文里找到出处。' },
   { title: '贴 JD，看初筛', desc: '把岗位要求拆成一条条，逐条对照简历：满足、部分满足还是缺失，每条都附简历里的原话作依据。' },
   { title: '模拟面试', desc: '先技术面再 HR 面，题目围绕你的简历和这个岗位出；答完一题会追问，结束后给一份完整的面试报告。' },
 ]

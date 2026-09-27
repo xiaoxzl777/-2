@@ -1,7 +1,8 @@
 import { useEffect, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import AppHome from './pages/AppHome'
+import ApplyResult from './pages/ApplyResult'
 import Home from './pages/Home'
+import Workbench from './pages/Workbench'
 import { useAuth } from './store/auth'
 
 /** 需要登录的页面：未登录带回首页并弹出登录框 */
@@ -20,7 +21,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/app" element={<RequireAuth><AppHome /></RequireAuth>} />
+        <Route path="/app" element={<RequireAuth><Workbench /></RequireAuth>} />
+        <Route path="/app/apply/:id" element={<RequireAuth><ApplyResult /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

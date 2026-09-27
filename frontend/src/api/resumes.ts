@@ -1,0 +1,58 @@
+// 对应后端 app/api/resume.py 与 app/schemas.py 的 ResumeOut / UploadOut
+import { request } from './client'
+
+export type ParseStatus = 'pending' | 'parsing' | 'success' | 'failed'
+
+export type Resume = {
+  id: number
+  title: string
+  file_type: string
+  file_size: number
+  page_count: number | null
+  parse_status: ParseStatus
+  parse_error: string | null
+  layout_type: string
+  layout_confidence: number | null
+  used_llm_fallback: boolean
+  overall_score: number | null
+  created_at: string
+  updated_at: string
+}
+
+type Page<T> = { items: T[]; total: number; page: number; page_size: number }
+
+export type UploadOut = {
+  id: number
+  task_id: string
+  parse_status: ParseStatus
+  deduplicated: boolean // 同一文件之前传过，直接复用那条记录
+}
+
+// 与后端上传校验保持一致：目前只收 PDF
+export const MAX_UPLOAD_MB = 20
+
+/** 解析失败的原因（后端 parse_error）→ 给用户看的短说明 */
+export function parseErrorText(code: string | null): string {
+  switch (code) {
+    case 'scanned_pdf': return '扫描件，读不出文字'
+    case 'encrypted_pdf': return '文件已加密'
+    case 'interrupted': return '解析被中断，重新上传即可'
+    case 'llm_failed': return '调用大模型失败，重新上传即可'
+    default: return '解析失败'
+  }
+}
+
+export const isParsing = (r: Resume) => r.parse_status === 'pending' || r.parse_status === 'parsing'
+
+export const resumesApi = {
+  list: () => request<Page<Resume>>('/resumes?page_size=50'),
+
+  get: (id: number) => request<Resume>(`/resumes/${id}`),
+
+  /** 立即返回，解析在后台进行 */
+  upload: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return request<UploadOut>('/resumes', { method: 'POST', body: form })
+  },
+}

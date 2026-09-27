@@ -46,9 +46,11 @@ export function setUnauthorizedHandler(handler: () => void) {
 
 type Envelope<T> = { code: number; message: string; data: T }
 
+/** body 是 FormData（上传文件）时原样发送，由浏览器自己带 multipart 边界；其余按 JSON 发 */
 export async function request<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
   const headers: Record<string, string> = {}
-  if (options.body !== undefined) headers['Content-Type'] = 'application/json'
+  const isForm = options.body instanceof FormData
+  if (options.body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
   const token = tokenStore.get()
   if (token) headers.Authorization = `Bearer ${token}`
 
@@ -57,7 +59,7 @@ export async function request<T>(path: string, options: { method?: string; body?
     res = await fetch(`/api/v1${path}`, {
       method: options.method ?? 'GET',
       headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      body: options.body === undefined ? undefined : isForm ? (options.body as FormData) : JSON.stringify(options.body),
     })
   } catch {
     throw new ApiError(0, '网络连接失败，请稍后重试')
@@ -76,4 +78,13 @@ export async function request<T>(path: string, options: { method?: string; body?
     throw new ApiError(payload.code, payload.message || '请求失败')
   }
   return payload.data
+}
+
+/** 带令牌打开一个流式响应（SSE 进度）。EventSource 带不了请求头，所以用 fetch 读流；401 同样触发退出 */
+export async function openStream(path: string, signal: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+  const token = tokenStore.get()
+  const res = await fetch(`/api/v1${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {}, signal })
+  if (res.status === 401 && token) onUnauthorized?.()
+  if (!res.ok || !res.body) throw new ApiError(res.status * 100, '进度连接失败')
+  return res.body
 }

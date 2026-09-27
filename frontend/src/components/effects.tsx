@@ -1,5 +1,5 @@
-// 页面的几种交互效果：鼠标跟随光晕、磁吸按钮、滚动出现
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
+// 页面的几种交互效果：鼠标跟随光晕、磁吸按钮、倾斜卡片、滚动出现、数字滚动
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react'
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -44,7 +44,7 @@ export function MagneticButton({ className = '', children, ...rest }: ButtonHTML
       className={`btn ${className}`}
       onMouseMove={(e) => {
         const b = ref.current
-        if (!b || reducedMotion()) return
+        if (!b || b.disabled || reducedMotion()) return
         const r = b.getBoundingClientRect()
         const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2)
         b.style.transform = `translate(${dx * 0.22}px, ${dy * 0.3}px)`
@@ -54,6 +54,46 @@ export function MagneticButton({ className = '', children, ...rest }: ButtonHTML
       {children}
     </button>
   )
+}
+
+/** 随鼠标轻微倾斜的卡片（外层要有 perspective，见 .stage） */
+export function TiltCard({ className = '', children, ...rest }: HTMLAttributes<HTMLDivElement>) {
+  const ref = useRef<HTMLDivElement>(null)
+  return (
+    <div
+      {...rest}
+      ref={ref}
+      className={`card ${className}`}
+      onMouseMove={(e) => {
+        const c = ref.current
+        if (!c || reducedMotion()) return
+        const r = c.getBoundingClientRect()
+        const px = (e.clientX - r.left) / r.width - 0.5, py = (e.clientY - r.top) / r.height - 0.5
+        c.style.transform = `rotateY(${px * 5}deg) rotateX(${-py * 5}deg)`
+      }}
+      onMouseLeave={() => { if (ref.current) ref.current.style.transform = '' }}
+    >
+      {children}
+    </div>
+  )
+}
+
+/** 数字从 0 缓动到 target，用于分数 */
+export function useCountUp(target: number, ms = 1400) {
+  const [value, setValue] = useState(0)
+  useEffect(() => {
+    if (reducedMotion()) { setValue(target); return }
+    const t0 = performance.now()
+    let frame = 0
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - t0) / ms)
+      setValue(Math.round(target * (1 - Math.pow(1 - k, 3))))
+      if (k < 1) frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [target, ms])
+  return value
 }
 
 /** 第一次滚动进视口时浮现；onReveal 用来触发里面的动画 */

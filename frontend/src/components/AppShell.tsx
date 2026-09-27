@@ -1,0 +1,34 @@
+// 登录后页面的外壳：背景、导航（新的投递 + 用户 + 退出）、导航下方的细进度线
+import type { ReactNode } from 'react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import { useAuth } from '../store/auth'
+import { Backdrop, MagneticButton } from './effects'
+import { Nav } from './Nav'
+
+export function AppShell({ progress = 0, children }: { progress?: number; children: ReactNode }) {
+  const user = useAuth((s) => s.user)!
+  const logout = useAuth((s) => s.logout)
+  const navigate = useNavigate()
+
+  const signOut = () => {
+    logout()
+    navigate('/')
+  }
+
+  return (
+    <>
+      <Backdrop />
+      <Nav
+        links={<NavLink to="/app" end className={({ isActive }) => (isActive ? 'on' : '')}>新的投递</NavLink>}
+        actions={
+          <>
+            <span className="user-chip"><span className="avatar">{user.username.slice(0, 1).toUpperCase()}</span>{user.username}</span>
+            <MagneticButton className="ghost sm" onClick={signOut}>退出</MagneticButton>
+          </>
+        }
+      />
+      <div className="top-progress" aria-hidden="true"><i style={{ width: `${progress}%` }} /></div>
+      <main className="wrap">{children}</main>
+    </>
+  )
+}

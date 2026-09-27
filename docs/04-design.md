@@ -321,8 +321,10 @@ data/      skills_seed.csv resumes/ uploads/ chroma/ eval_runs/
 tests/     每个模块一个 test_*.py（272 个用例，模型 / 向量库 / Redis 全部打桩，不联网）   〔待建〕test_interview_policy.py
 
 frontend/src/
-├── pages/       Upload  Analysis★  JobMatch（含初筛结果与"进入面试/练习模式"）  Rewrite  Interview★（流式聊天）  InterviewReport
-├── components/  ResumeViewer★（文本视图，char 区间高亮） FindingPanel DiffView ChatStream ScoreCard charts
+├── pages/       Home（首页 + 登录）  Workbench（新的投递：选岗位 → 选简历 → 投递）  ApplyResult（初筛结果，含"进入面试 / 练习模式"入口）
+│                〔待建〕Rewrite  Interview★（流式聊天）  InterviewReport
+├── components/  JobPicker  ResumePicker  Pipeline（投递进度）  IssueItem  Tabs  Headline  AppShell  effects
+│                〔待建〕ResumeViewer★（文本视图，char 区间高亮） DiffView ChatStream
 └── store/ api/ types/
 ```
 
