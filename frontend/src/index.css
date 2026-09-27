@@ -550,7 +550,7 @@ button { cursor: pointer; }
   .step p { opacity: 0.75; transform: none; }
   .floaty { display: none; }
   .wrap { padding: 0 16px; }
-  .screen { grid-template-columns: 1fr; gap: 40px; }
+  .screen { grid-template-columns: minmax(0, 1fr); gap: 40px; } /* 不写 minmax，最长的一行不换行文字（模板名）会把整列撑出屏幕 */
   .par, .row2 { grid-template-columns: 1fr; }
   .score-hero { flex-wrap: wrap; }
   .legend .keys { display: none; }

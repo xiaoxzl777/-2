@@ -357,7 +357,7 @@ interview_ctx  面试材料切块      未实现（M7）：JD 原文 + 公司介
 cases          优秀描述案例      暂缓：改写本期不检索（06-workflows 6.5），有范例库后再建
 ```
 
-skills 表由 `backend/sql/seed.sql` 手动导入（岗位模板待补）；`uploads/`、`chroma/`、`.env` 进 `.gitignore`。
+skills 表和岗位模板（`jobs.is_template = 1`，7 份）由 `backend/sql/seed.sql` 手动导入；`uploads/`、`chroma/`、`.env` 进 `.gitignore`。
 
 ## 2.4 设计说明（v3 变更点）
 

@@ -1,0 +1,64 @@
+"""把手写的岗位模板解析成要求项：python scripts/build_job_templates.py
+
+模板原文在 data/job_templates/*.txt（第一行是岗位名称，其余是 JD），解析复用线上的 parse_jd，
+结果连同原文写进 data/job_templates.json 一起提交；seed.sql 再由 dump_seed.py 从 json 生成。
+这样导入数据库时不调模型，每次导入的要求项都一样。只在改了模板原文之后跑一次，
+改完记得接着跑 dump_seed.py（tests/test_seed_sync.py 会检查三者是否一致）。
+
+需要 .env 里的 DeepSeek key，以及本机 MySQL / Redis：调用照常走缓存、限流和审计，没改过的模板直接命中缓存。
+"""
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+BACKEND = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(BACKEND))
+
+from app.config import settings  # noqa: E402
+from app.llm import prompts  # noqa: E402
+from app.matching.skill_dict import SkillDict, SkillEntry  # noqa: E402
+from app.services.job_service import normalize_jd  # noqa: E402
+from scripts.dump_seed import TEMPLATES_PATH, load_skills  # noqa: E402
+
+SOURCE_DIR = BACKEND.parent / "data" / "job_templates"
+
+
+def load_sources(directory: Path = SOURCE_DIR) -> list[dict]:
+    """[{title, raw_text}]，按文件名排序。raw_text 与用户粘贴 JD 时一样先经过 normalize_jd。"""
+    sources = []
+    for path in sorted(directory.glob("*.txt")):
+        title, _, body = path.read_text(encoding="utf-8").partition("\n")
+        sources.append({"title": title.strip(), "raw_text": normalize_jd(body)})
+    return sources
+
+
+def skill_dict() -> SkillDict:
+    """技能词典直接从 CSV 建：和 seed.sql 同一个来源，不依赖库里导入的是不是最新的。"""
+    return SkillDict(SkillEntry(s["id"], s["canonical_name"], tuple(s["aliases"])) for s in load_skills())
+
+
+def main() -> None:
+    from app.llm.client import get_llm_client
+    from app.matching.jd_parser import parse_jd
+
+    llm, skills = get_llm_client(), skill_dict()
+    templates = []
+    for src in load_sources():
+        result = parse_jd(src["title"], src["raw_text"], llm, skills)
+        if result.error or not result.requirements:
+            sys.exit(f"「{src['title']}」解析失败：{result.error or '没有识别出要求项'}")
+        print(f"\n{src['title']}：{len(result.requirements)} 条" + (f"，丢弃 {result.rejected} 条" if result.rejected else ""))
+        for r in result.requirements:
+            skill = f"  [{r['skill']} → {r['skill_id']}]" if r["skill"] else ""
+            print(f"  {r['id']:>2}. {r['req_type']:<4} {r['category']:<10} {r['content']}{skill}")
+        templates.append({**src, "requirements": result.requirements})
+
+    data = {"prompt_version": prompts.JD_VERSION, "model": settings.CHAT_MODEL, "templates": templates}
+    TEMPLATES_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
+    print(f"\n已生成 {TEMPLATES_PATH}：{len(templates)} 个模板。接着运行 python scripts/dump_seed.py")
+
+
+if __name__ == "__main__":
+    main()

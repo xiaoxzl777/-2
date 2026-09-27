@@ -110,7 +110,7 @@ DOCX         →〔未实现：本期只收 PDF，上传 .docx 直接 41501〕�
 | FR-H2 | Prompt 版本化常量，落库 `prompt_version` | P0 |
 | FR-H3 | 调用审计：`llm/client.py` 唯一出口落库，缓存命中也记一行 | P1 |
 | FR-H4 | 评测 CLI：`gen_eval_set.py` / `run_eval.py`（绕过缓存、`--repeat 3`） | P1 |
-| FR-H5 | 数据种子：`scripts/dump_seed.py` 由 `data/skills_seed.csv` 生成 `backend/sql/seed.sql`（可重复执行）；目前只含 skills 表，岗位模板待补 | P1 |
+| FR-H5 | 数据种子：`scripts/dump_seed.py` 由 `data/skills_seed.csv`（技能词典）和 `data/job_templates.json`（岗位模板，由 `scripts/build_job_templates.py` 解析 `data/job_templates/*.txt` 生成）生成 `backend/sql/seed.sql`（可重复执行；模板按标题更新） | P1 |
 
 ## 1.4 非功能需求
 

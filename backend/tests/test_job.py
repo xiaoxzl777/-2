@@ -101,17 +101,20 @@ def test_create_list_get_delete(client, auth_headers, db_session_factory, fake_l
 
 
 def test_templates_are_visible_to_everyone_but_not_deletable(client, auth_headers, db_session_factory, fake_llm):
-    fake_llm.replies["_JdOut"] = [GOOD_REPLY]
+    fake_llm.replies["_JdOut"] = [GOOD_REPLY, GOOD_REPLY]
     mine = client.post(API, headers=auth_headers, json={"title": "我的岗位", "raw_text": JD}).json()["data"]["id"]
     with db_session_factory() as db:
         template = Job(user_id=None, is_template=True, title="通用后端", raw_text=JD, requirements=[], parse_status="success")
-        db.add(template)
+        second = Job(user_id=None, is_template=True, title="通用前端", raw_text=JD, requirements=[], parse_status="success")
+        db.add_all([template, second])
         db.commit()
-        tid = template.id
+        tid, tid2 = template.id, second.id
+    newer = client.post(API, headers=auth_headers, json={"title": "我的新岗位", "raw_text": JD}).json()["data"]["id"]
 
-    assert [j["id"] for j in client.get(API, headers=auth_headers).json()["data"]] == [mine]
+    assert [j["id"] for j in client.get(API, headers=auth_headers).json()["data"]] == [newer, mine]
     both = client.get(API, headers=auth_headers, params={"include_templates": 1}).json()["data"]
-    assert [(j["id"], j["is_template"]) for j in both] == [(mine, False), (tid, True)]   # 自己的在前
+    # 自己的在前、新的在前；模板在后、按内置顺序
+    assert [(j["id"], j["is_template"]) for j in both] == [(newer, False), (mine, False), (tid, True), (tid2, True)]
     assert client.get(f"{API}/{tid}", headers=auth_headers).json()["data"]["title"] == "通用后端"
     assert client.delete(f"{API}/{tid}", headers=auth_headers).json()["code"] == 40401
 

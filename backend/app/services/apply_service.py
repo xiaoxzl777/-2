@@ -61,6 +61,9 @@ def run_apply(report_id: int, session_factory: SessionFactory, llm: LLMClient, p
 
             publish(task_id, "progress", {"stage": "analyzing", "percent": 20, "message": "正在诊断简历并对照岗位要求"})
             result = _run_graph(task_id, report, diagnosis, resume, job, llm, publish)
+            # 落库也要在 try 里：这里抛异常而不接住，两条记录会一直停在 running，直到服务重启才被清理
+            diagnose_service.save_result(db, diagnosis, resume, result["diagnosis"])
+            match_service.save_result(db, report, job, result["match"])
         except Exception as e:  # noqa: BLE001 —— 后台任务必须落成失败状态，不能把异常抛丢
             logger.exception("投递失败 match_report_id=%s", report_id)
             db.rollback()
@@ -71,8 +74,6 @@ def run_apply(report_id: int, session_factory: SessionFactory, llm: LLMClient, p
             publish(task_id, "error", {"message": "分析失败，请稍后重试"})
             return
 
-        diagnose_service.save_result(db, diagnosis, resume, result["diagnosis"])
-        match_service.save_result(db, report, job, result["match"])
         publish(task_id, "done", {"id": report.id, "status": report.status, "passed": result["passed"]})
 
 

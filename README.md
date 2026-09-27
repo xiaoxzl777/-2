@@ -31,7 +31,7 @@ docker compose up -d redis
 
 # 3. 建库建表 + 种子数据：在 MySQL 客户端中依次执行
 #      backend\sql\schema.sql   （全新库执行一次）
-#      backend\sql\seed.sql     （技能词典，可重复执行）
+#      backend\sql\seed.sql     （技能词典 + 岗位模板，可重复执行）
 #    或命令行：cmd /c "mysql -uroot -p < backend\sql\schema.sql"
 
 # 4. 后端
@@ -59,10 +59,10 @@ docker compose up -d --build       # mysql + redis + backend + nginx，http://lo
 
 ```
 backend/app/     api · services · parser · diagnose · matching · interview · retrieval · graphs · llm · cache
-backend/sql/     schema.sql（建库建表）· seed.sql（技能词典等种子数据）—— 均由脚本生成，在 MySQL 中手动执行
-backend/scripts/ dump_schema · dump_seed（评测脚本 gen_eval_set / run_eval 在 M8 加）
+backend/sql/     schema.sql（建库建表）· seed.sql（技能词典 + 岗位模板）—— 均由脚本生成，在 MySQL 中手动执行
+backend/scripts/ dump_schema · dump_seed · build_job_templates（评测脚本 gen_eval_set / run_eval 在 M8 加）
 backend/tests/
-data/            skills_seed.csv · resumes/ · uploads/ · chroma/ · eval_runs/
+data/            skills_seed.csv · job_templates/（模板原文）· job_templates.json · resumes/ · uploads/ · chroma/ · eval_runs/
 docs/            设计文档
 frontend/        React 前端（首页 + 登录 / 注册 + 工作台（新的投递三步）+ 初筛结果页）
 nginx/           反向代理配置

@@ -71,6 +71,23 @@ def test_a_failure_in_either_branch_fails_both_records(client, auth_headers, res
     assert _apply(client, auth_headers, rid, jid, match_mode="dict_only", diagnose_mode="rule_only")["code"] == 0
 
 
+def test_a_failure_while_saving_does_not_leave_records_running(client, auth_headers, resume_and_job, events,
+                                                                db_session_factory, monkeypatch):
+    from app.services import match_service
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("写库失败")
+
+    monkeypatch.setattr(match_service, "save_result", broken)
+    rid, jid = resume_and_job
+    started = _apply(client, auth_headers, rid, jid, match_mode="dict_only", diagnose_mode="rule_only")["data"]
+
+    result = client.get(f"{API}/{started['id']}", headers=auth_headers).json()["data"]
+    assert result["status"] == "failed" and "写库失败" in result["error_msg"] and events[-1][1] == "error"
+    with db_session_factory() as db:
+        assert db.get(Diagnosis, started["diagnosis_id"]).status == "failed"
+
+
 def test_rejections(client, auth_headers, resume_and_job, db_session_factory, events):
     rid, jid = resume_and_job
     assert _apply(client, auth_headers, rid, jid, match_mode="fast")["code"] == 40001

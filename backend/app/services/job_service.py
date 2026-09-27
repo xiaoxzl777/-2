@@ -50,12 +50,12 @@ def create_job(db: Session, user: User, title: str, company: str | None, raw_tex
 
 
 def list_jobs(db: Session, user: User, include_templates: bool) -> list[Job]:
-    """我的岗位（新的在前）；include_templates 时内置模板排在后面。"""
+    """我的岗位（新的在前）；include_templates 时内置模板排在后面，按 seed.sql 里的先后（id 从小到大）。"""
     owner = Job.user_id == user.id
     if include_templates:
         owner = or_(owner, Job.is_template.is_(True))
-    return list(db.scalars(select(Job).where(owner, Job.is_deleted.is_(False))
-                           .order_by(Job.is_template, Job.id.desc())))
+    jobs = list(db.scalars(select(Job).where(owner, Job.is_deleted.is_(False)).order_by(Job.id.desc())))
+    return [j for j in jobs if not j.is_template] + [j for j in reversed(jobs) if j.is_template]
 
 
 def get_visible_job(db: Session, user: User, job_id: int) -> Job:
