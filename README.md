@@ -17,7 +17,7 @@
 
 ## 技术栈
 
-后端 Python 3.11+ / FastAPI / SQLAlchemy 2.0 / LangGraph + LangChain · 前端 React 18 + TS + Vite + Tailwind + shadcn/ui · 存储 MySQL 8.0 + Chroma + Redis · 模型 DeepSeek（对话）+ 硅基流动 bge-m3（向量）· 部署 Nginx + Docker Compose
+后端 Python 3.11+ / FastAPI / SQLAlchemy 2.0 / LangGraph + LangChain · 前端 React 18 + TS + Vite + Tailwind v4 + Zustand · 存储 MySQL 8.0 + Chroma + Redis · 模型 DeepSeek（对话）+ 硅基流动 bge-m3（向量）· 部署 Nginx + Docker Compose
 
 ## 开发环境（本地跑 API 与前端，MySQL/Redis 用本机或容器）
 

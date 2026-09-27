@@ -1,4 +1,4 @@
-> Exported from design plan v3 (2026-09-18). Source of truth: this docs/ folder; update docs before changing code.
+> 最后更新：2026-09-27。改设计先改这里的文档再改代码；发现文档与代码不一致时以代码为准，回头改文档。
 
 # 一、需求分析
 
@@ -12,9 +12,9 @@
 ## 1.2 解析路径分流
 
 ```
-文本版 PDF   → 完整版面流程：页眉页脚剔除 → 表格区域 → region-first 分栏 → 阅读顺序 → 章节 → 置信度 → LLM 兜底
+文本版 PDF   → 完整版面流程：页眉页脚剔除 → 表格区域〔未实现〕→ region-first 分栏 → 阅读顺序 → 章节 → 置信度 → LLM 兜底〔未实现〕
 扫描件 PDF   → len(full_text.strip()) < 100 → parse_status='failed', parse_error='scanned_pdf' → 50003
-DOCX         → 线性读取（段落与表格按文档流；表格逐单元格出块）；layout_type='single'、confidence=1.0、
+DOCX         →〔未实现：本期只收 PDF，上传 .docx 直接 41501〕线性读取（段落与表格按文档流；表格逐单元格出块）；layout_type='single'、confidence=1.0、
                page_no=1、bbox=NULL、page_count=NULL；跳过分栏与 LLM 兜底
 ```
 
@@ -31,7 +31,7 @@ DOCX         → 线性读取（段落与表格按文档流；表格逐单元格
 
 | 编号 | 需求 | 说明 | 优先级 |
 |---|---|---|---|
-| FR-B1 | 上传校验清单 | 固定顺序，任一失败即拒收不落库：① 扩展名+魔数 → 41501 ② ≤20MB → 41301 ③ DOCX zip 解压总量 ≤100MB → 41501 ④ PDF `needs_pass` → 41501 ⑤ PDF `page_count>10` 或 DOCX 抽取后 >30,000 字 → 42201 | P0 |
+| FR-B1 | 上传校验清单 | 固定顺序，任一失败即拒收不落库：① 扩展名+魔数 → 41501 ② ≤20MB → 41301 ③ DOCX zip 解压总量 ≤100MB → 41501 ④ PDF `needs_pass` → 41501 ⑤ PDF `page_count>10` 或 DOCX 抽取后 >30,000 字 → 42201。〔DOCX 的两步未实现：本期只收 PDF〕 | P0 |
 | FR-B2 | 列表与详情 | 分页，按 `updated_at` 排序 | P0 |
 | FR-B3 | 版本链 | `parent_id` 字段保留，本期恒为 NULL；新版本走"重新上传 → 完整解析" | P2 |
 | FR-B4 | 软删除 | 30 天后由启动清理物理删除 | P1 |
@@ -41,11 +41,11 @@ DOCX         → 线性读取（段落与表格按文档流；表格逐单元格
 
 | 编号 | 需求 | 说明 | 优先级 |
 |---|---|---|---|
-| FR-C1 | 文本与坐标提取 | PDF：PyMuPDF 每块 bbox/字号/加粗；DOCX：python-docx 段落顺序，`is_bold`=任一 run 加粗或样式名以 Heading 开头 | P0 |
-| FR-C2 | **表格与分栏**（仅 PDF） | 先 `page.find_tables()` 取有边框表（≥2行≥2列、≥半数单元格有字）按行出块；剩余文字走 region-first 分栏（5.1） | P0 |
+| FR-C1 | 文本与坐标提取 | PDF：PyMuPDF 每块 bbox/字号/加粗；DOCX〔未实现〕：python-docx 段落顺序，`is_bold`=任一 run 加粗或样式名以 Heading 开头 | P0 |
+| FR-C2 | **表格与分栏**（仅 PDF） | 分栏已实现；表格〔未实现，M8 前补，解析补强的第一项〕：先 `page.find_tables()` 取有边框表（≥2行≥2列、≥半数单元格有字）按行出块；剩余文字走 region-first 分栏（5.1） | P0 |
 | FR-C3 | 阅读顺序重建（仅 PDF） | 跨栏行与 region 按 y 排；region 内左栏→右栏，栏内按 y；遇项目符号另起一块 | P0 |
 | FR-C4 | 章节识别 | 标题词典（中英/双语三步匹配）+ 特征加权（5.4），输出 8 类 + 置信度 | P0 |
-| FR-C5 | LLM 兜底（仅 PDF） | `layout_detail` 任一页 `unknown`（等价 `layout_confidence < 0.7`）→ 掩码文本+坐标交 LLM，**只回块序号**；在解析流水线内执行 | P1 |
+| FR-C5 | LLM 兜底（仅 PDF） | 〔未实现，M8 前补，排在表格与章节兜底之后〕`layout_detail` 任一页 `unknown`（等价 `layout_confidence < 0.7`）→ 掩码文本+坐标交 LLM，**只回块序号**；在解析流水线内执行 | P1 |
 | FR-C6 | 结构化抽取 | 按章节送 LLM，输入带编号的块；字段值输出文本，条目输出 `block_ids`，highlights **只输出 block_ids**，text 由服务端切片 | P0 |
 | FR-C7 | 时间归一化 | 规则见 5.5；失败整字段为 null，规则遇 null 跳过 | P0 |
 | FR-C8 | 人工纠正 | **只允许**改非文本字段值（degree/日期/kind/skill_id/level/条目归属章节/删除误抽条目）；不接收 text / char 区间 / full_text（400）。成功后 `is_corrected=TRUE`、`overall_score=NULL`、重算 `skill_mentions` | P1 |

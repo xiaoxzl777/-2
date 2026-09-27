@@ -106,7 +106,6 @@ npm run build                                      # tsc 类型检查 + 构建
 - `models.py` 里 `InterviewSession` 的注释还是旧说法（「DB 就是检查点」），与 `06-workflows` 的 `SqliteSaver` 方案不一致，做 M7 时顺手改。
 - 文档里写了但没实现、也没进计划的：软删除 30 天后物理删除（`04-design` 6.3 已标〔未实现〕）。
 - 模拟面试怎么检索材料：`06-workflows` 里同时写了 `retrieve_context` 节点和 `search_materials` 工具两种说法，做 M7 之前要和用户定下来。
-- 文档里的 shadcn/ui、TanStack Query 还没引入，需要时再加。
 - 部署：`docker compose` 的 nginx 挂载 `frontend/dist`，部署前要先 `npm run build`。
 
 ## 8. 下一步

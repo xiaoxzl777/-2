@@ -1,4 +1,4 @@
-> Exported from design plan v3 (2026-09-18). Source of truth: this docs/ folder; update docs before changing code.
+> 最后更新：2026-09-27。改设计先改这里的文档再改代码；发现文档与代码不一致时以代码为准，回头改文档。
 
 # 七、里程碑（约 12 周，每周 15–20 小时；总周期 8 个月，余量充足）
 
@@ -6,11 +6,11 @@
 |---|---|---|---|
 | M0 | 骨架 + 文档 + 建表 + 数据 | 3 天 | `git init` + `.gitignore` + 首次提交；docs/ 四份文档；手动执行 `backend/sql/schema.sql` 建出 11 张表；compose 骨架；`data/resumes/` ≥20 份 PDF（≥8 两栏/侧边栏、≥4 表格型、DOCX ≥2）；`skills_seed.csv` 100–200 条；JD 来源跑通 ≥30 条 |
 | M1 | 解析内核 | 1.5 周 | 三路分流；region-first + 表格；full_text 契约单测全过；版面合成集脚本可跑 |
-| M2 | 结构化 + 后端骨架 | 1 周 | 上传 → structure（block_ids、summary、skill_mentions）；**Upload 页** |
+| M2 | 结构化 + 后端骨架 | 1 周 | 上传 → structure（block_ids、summary、skill_mentions）；上传放在**工作台第 ② 步** |
 | M3 | 诊断引擎 | 1.5 周 | 三种 mode 跑通；findings 带 verify_result；成本预检；SSE |
-| M4 | 分析主界面 | 1 周 | **Analysis 页**：文本高亮 + FindingPanel 联动 |
-| M5 | 匹配 + 初筛 + 图 A | 1.5 周 | match 子图三种 mode（dict_only / llm_fulltext / hybrid）跑通；图 A（诊断 ∥ 匹配 → 初筛）+ `POST /apply` + SSE 进度；未通过说明；岗位模板；**首页（JD → 简历 → 投递）与初筛结果页** |
-| M6 | 改写 | 1 周 | rewrite 接口 + 占位符复检（本期不检索，案例库暂缓）；**Rewrite 页** |
+| M4 | 原文高亮 | 1 周 | **结果页的原文纸面**：按 char 区间高亮，与问题列表联动（不单独做分析页，见 06-workflows 6.1） |
+| M5 | 匹配 + 初筛 + 图 A | 1.5 周 | match 子图三种 mode（dict_only / llm_fulltext / hybrid）跑通；图 A（诊断 ∥ 匹配 → 初筛）+ `POST /apply` + SSE 进度；未通过说明；岗位模板；**工作台（JD → 简历 → 投递）与初筛结果页** |
+| M6 | 改写 | 1 周 | 具体建议接口（点开时流式生成）+ 占位符复检（本期不检索，案例库暂缓）；**在结果页里点开一条就显示**，不单独做改写页 |
 | M7 | 模拟面试（图 B） | 2 周 | interrupt + SqliteSaver；两库检索出题；评估 evidence 校验；三种 verdict 报告；续答 / 检查点重建 / 24h 清理；**Interview、InterviewReport 页** |
 | M8 | 评测 + 消融 | 1.5 周 | 必做四组 + 面试模块评测（8.4） |
 | M9 | 部署 + 打磨 | 0.5 周 | compose 一键起；Nginx SSE 验证 |

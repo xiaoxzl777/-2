@@ -1,4 +1,4 @@
-> Exported from design plan v3 (2026-09-18). Source of truth: this docs/ folder; update docs before changing code.
+> 最后更新：2026-09-27。改设计先改这里的文档再改代码；发现文档与代码不一致时以代码为准，回头改文档。
 
 # 四、AI 模块设计
 
@@ -31,8 +31,8 @@ basics 抽取 / 规则诊断 / 证据校验 / 综合评分 / 时间归一化 / �
 ## 4.3 解析流水线（图 A 的 parse 子图，见 [06-workflows](06-workflows.md) 6.2）
 
 ```
-extract → (扫描件判定) → layout（PDF：页眉页脚/表格/region-first/阅读顺序/项目符号分块；DOCX：线性）
-→ full_text 与偏移固定 → fallback（PDF unknown 页 → llm_relayout 只回序号 → 重排重算）
+extract → (扫描件判定) → layout（PDF：页眉页脚/表格〔未实现〕/region-first/阅读顺序/项目符号分块；DOCX〔未实现〕：线性）
+→ full_text 与偏移固定 → fallback〔未实现〕（PDF unknown 页 → llm_relayout 只回序号 → 重排重算）
 → section → basics（本地）→ structure（LLM 回 block_ids → 服务端切片）→ normalize → mentions → persist（同一事务）
 ```
 
@@ -183,20 +183,23 @@ client.embed / client.rerank 同样五步；降级：失败记 WARNING，不阻�
 
 # 五、核心算法
 
-## 5.1 region-first 分栏（PDF）
+## 5.1 region-first 分栏（PDF，实现见 `parser/layout.py`）
 
 ```
-1  页眉页脚剔除：y 在页顶/页底 6% 内 且（跨页同位置同文本 或 匹配页码正则）→ 删
-2  表格区域：find_tables()；接受 行≥2 列≥2 且 ≥半数单元格有字；表内按行出块（" | " 连接），column_index=0，不参与投影
-3  X 轴投影：候选空白带 = 宽度 ≥ 3%·W 且左右都有文字；c = 带内无文字高度 / 页面文字总高度，取 c 最大者
-4  max c < 0.3 → single，confidence=1-c，按 y 排序，结束
-5  跨栏行 = 压住 gap 的行，column_index=-1；用跨栏行把页面横切为 region
-6  每个 region 重算投影：c ≥ 0.8 → double（c）；c ≤ 0.3 → single（1-c）；否则 unknown（0.5）
-   sidebar = double 且 gap 中心 <40%·W 或 >60%·W（仅标签）；table = 表格字符占比 ≥ 70%
-7  页级结果 = 最高 region 的 (type, confidence, gap)；无 region → single/1.0
-8  阅读顺序：跨栏行与 region 按 y；region 内左→右；栏内按 y；遇项目符号（• - · ① 1.）另起块
-简历级：layout_type 取第 1 页；confidence 取各页最小；layout_detail 逐页
-常数：6% / 3% / 0.3 / 0.8 / 70%，写进 config
+1  页眉页脚剔除：y 在页顶 / 页底 6% 内，且（匹配页码正则 或 多页同位置同文本）→ 删
+2  表格区域〔未实现，M8 前补〕：find_tables()，表内按行出块、不参与分栏。
+   现状：表格按普通文字走下面的分栏，列间空白会被当成栏间空白，整张表按列读乱，而且页面被判成 sidebar、置信度 1.0（2026-09-27 实测）
+3  找栏间空白带：宽 3%·W 的竖直窗口滑过区域，取"压住它的行最少"的位置；c = 1 − 压住的行数 / 区域行数。
+   空白带两侧都要像一栏（每侧 ≥ 3 行、字数 ≥ 12%），否则不算——挡掉右对齐的日期这类假右栏
+4  c ≥ 0.8 → 分栏：压住空白带的行是跨栏行（通栏标题、页顶姓名，column_index=-1），用它们把区域横切成几段、各段再处理；
+   没有跨栏行就左右切开，先读左栏再读右栏（递归，深度 ≤ 6）
+5  切不动 → 在 ≥ 1.5 倍行高的水平留白处横切，每段再试一次第 3 步
+6  仍切不动 → 叶子：同一水平线的片段合并成一行，按 y、x 排序；0.3 < c < 0.8 的叶子记为 unknown
+7  页级结果：unknown 行占全页 ≥ 30% → unknown（0.5）；分栏行占 ≥ 30% → 空白带中心在 40%–60% 页宽内为 double、否则 sidebar，
+   置信度取切分时最小的 c；其余为 single（1 − 最像有空白带的那个叶子的 c）
+8  分块：叶子内把折行并回同一块；遇项目符号、标题样式、明显留白、"标签：内容"列表的下一项另起一块
+简历级：layout_type 取第 1 页；confidence 取各页最小；layout_detail 逐页。table 类型要等第 2 步实现后才会出现
+常数：6% / 3% / 0.3 / 0.8，写进 config
 ```
 
 ## 5.2 full_text 契约与 locate_span
@@ -213,7 +216,7 @@ locate_span(quote, text, hint=(lo,hi)) -> (start, end, score) | None
 用途：诊断 evidence（hint=条目区间）、structure 中 skills 细化（hint=块区间）、面试评分 evidence（text=回答）
 ```
 
-## 5.3 DOCX 线性读取
+## 5.3 DOCX 线性读取〔未实现：本期只收 PDF〕
 
 按 body 子元素顺序：段落一块；表格逐单元格、单元格内逐段落（合并单元格去重，嵌套表不处理）；文本框 `.//w:txbxContent` 只计数进 ats_signals。
 
@@ -230,7 +233,7 @@ locate_span(quote, text, hint=(lo,hi)) -> (start, end, score) | None
 | 上方留白 ≥ 0.6 倍行高（正常行间留白约 0.1–0.3 倍；页 / 栏的第一块视为有留白） | +1 |
 
 分 ≥ 3 判标题；`confidence = min(1, 分/5)`。双语标题要求「中文部分 + 英文部分」恰好拼出整行且各自都是别名（「技术栈：SpringBoot」「项目经历 2024」不算）。
-词典未命中的候选须同时满足：出现在第一个词典标题之后（页顶大号姓名属于 basics）、字号更大、≤12 字、不以冒号结尾（「核心业务开发：」是项目内小标题）→ 记为 other 并标 `needs_llm`，留给 LLM 归类兜底。
+词典未命中的候选须同时满足：出现在第一个词典标题之后（页顶大号姓名属于 basics）、字号更大、≤12 字、不以冒号结尾（「核心业务开发：」是项目内小标题）→ 记为 other 并标 `needs_llm`，留给 LLM 归类兜底〔兜底未实现，M8 前补：先补标题词典，再上模型〕。
 
 ## 5.5 时间归一化
 
@@ -284,7 +287,8 @@ check_placeholders(original, rewritten)：正则提取 rewritten 中的 \d+(\.\d
 每题分 = mean(rubric 三维) × 20（0–100）；low_evidence 的题权重 0.5
 话题分 = 该 topic 各题分均值（追问题计入）
 轮次分 = 话题分均值；technical 通过线 60
-综合   = 0.6 × tech + 0.4 × hr；verdict = pass 若 tech ≥ 60 且综合 ≥ 60，否则 improve
+综合   = 0.6 × tech + 0.4 × hr
+verdict：练习模式 → practice；否则 tech ≥ 60 且综合 ≥ 60 → pass，不然 fail（与 06-workflows 6.3 一致）
 weaknesses 候选 = 分数最低的 3 个话题 + 其 linked_finding；strengths = 最高 2 个
 ```
 

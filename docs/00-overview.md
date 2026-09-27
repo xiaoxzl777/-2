@@ -1,4 +1,4 @@
-> Exported from design plan v3 (2026-09-18). Source of truth: this docs/ folder; update docs before changing code.
+> 最后更新：2026-09-27。改设计先改这里的文档再改代码；发现文档与代码不一致时以代码为准，回头改文档。
 
 # 智能求职辅助系统：简历诊断与模拟面试 — 需求分析与技术设计（v3）
 
@@ -49,7 +49,7 @@
 | 层 | 选型 |
 |---|---|
 | 后端 | Python 3.11+（开发机 3.13）+ FastAPI + SQLAlchemy 2.0 + Pydantic v2 + pydantic-settings |
-| 前端 | React 18 + TS + Vite + Tailwind + shadcn/ui + Zustand + TanStack Query + @microsoft/fetch-event-source |
+| 前端 | React 18 + TS + Vite + Tailwind v4（样式以手写 CSS 为主，集中在 `index.css`）+ Zustand + react-router；SSE 用 fetch 读流 |
 | 对话模型 | DeepSeek `deepseek-chat`（LangChain `ChatDeepSeek`）；结构化输出 = JSON 模式作答 + Pydantic 校验，解析失败不抛异常而是带原因重试；直连不走系统代理；面试问题用流式 |
 | Embedding | 硅基流动 `BAAI/bge-m3`：RAG 第一阶段召回，只用在模拟面试的材料检索（匹配、改写都不检索，见 06-workflows 6.5） |
 | Reranker | 硅基流动 `BAAI/bge-reranker-v2-m3`：RAG 第二阶段精排（召回 → 精排 top-3） |

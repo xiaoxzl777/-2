@@ -1,8 +1,8 @@
-> Exported from design plan v3 (2026-09-18). Source of truth: this docs/ folder; update docs before changing code.
+> 最后更新：2026-09-27。改设计先改这里的文档再改代码；发现文档与代码不一致时以代码为准，回头改文档。
 
 # 三、接口设计
 
-统一前缀 `/api/v1`；所有接口（含 SSE）用 `Authorization: Bearer <token>`，SSE 前端用 fetch-event-source（支持 POST）。
+统一前缀 `/api/v1`；所有接口（含 SSE）用 `Authorization: Bearer <token>`，SSE 前端用 fetch 读流（EventSource 带不了请求头，也发不了 POST），见 `frontend/src/api/client.ts`。
 统一响应 `{ "code": 0, "message": "success", "data": {} }`。
 
 ## 3.1 错误码
