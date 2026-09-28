@@ -22,9 +22,9 @@
 | 50002 | LLM 调用失败 | 500 |
 | 50003 | 简历解析失败（含扫描件） | 500 |
 
-## 3.2 接口清单（27 个；已实现 20 个，标〔未实现〕的留给后续里程碑）
+## 3.2 接口清单（28 个；已实现 26 个，标〔未实现〕的留给后续里程碑）
 
-另有 `GET /api/v1/health`（启动自检：MySQL / Redis 是否可用），不计入 27 个。
+另有 `GET /api/v1/health`（启动自检：MySQL / Redis 是否可用），不计入 28 个。
 
 ```
 认证 3    POST /auth/register   POST /auth/login   GET /auth/me
@@ -57,13 +57,15 @@
                        分别存进 findings.rewrite 与 match_reports.items[k].advice，GET /apply/{id} 与 GET /match/{id} 会带回来
                        本期不做检索：模型针对原句写建议 + 数字占位符复检（06-workflows 6.5；提示词见 docs/design/具体建议-提示词草稿.md）
 
-面试 5    〔未实现，M7〕
-          POST /interviews                 {resume_id, job_id, company_name?, extra_context?, practice?}
-                                           → {id, gate:{passed, overall_match, threshold}, mode, plan_summary}
-          POST /interviews/{id}/start      → SSE：question 流
-          POST /interviews/{id}/answer     {text} → SSE：evaluation → question 流 | round_end | finished
-          GET  /interviews/{id}            会话 + turns
-          GET  /interviews/{id}/report
+面试 6    只有技术面：5 个话题，每个最多追问 1 次（docs/06-workflows 6.3）
+          POST /interviews                 {apply_id, company_name?, extra_context?, practice?}
+                                           → {id, mode, gate:{passed, overall_match, threshold}, topic_count, context_mode}
+                                           初筛没过的一律是练习模式（practice）；过了的也可以主动选练习模式
+          POST /interviews/{id}/start      → SSE：开始 / 继续（中途失败了也用它从原处继续；正在等回答就把那道题再发一次）
+          POST /interviews/{id}/answer     {text, skip?} → SSE：evaluation（仅练习模式）→ 下一题 | finished
+          POST /interviews/{id}/finish     提前结束：按已评完分的题出报告 → 同 GET /report
+          GET  /interviews/{id}            会话 + 已问到的话题 + turns（正常模式在结束前不给评分）
+          GET  /interviews/{id}/report     报告 + 逐题回顾（结束前 40901）
 
 系统 1    GET /system/info〔未实现〕       模型列表 + 规则清单 + 用量（用量需 admin）
 ```
@@ -81,56 +83,73 @@
            event: done  {"text","violation_count","prompt_version","model","created_at"}   ← 数字复检后的全文，以它为准整段替换
            event: error {"code","message"}                                 ← 什么都不存，前端可以重试
 面试逐轮   同步流式响应（POST + text/event-stream），不经 pub/sub：
-           event: evaluation {"turn_id","scores","feedback","decision"}      ← 上一题的评估（answer 接口才有）
-           event: question   {"turn_id","delta":"..."}  ×N                   ← 下一问逐 token
-           event: round_end  {"round":"tech","score":72}
-           event: finished   {"report_ready":true}
+           event: evaluation {"turn_id","score","scores","evidence","good","bad","better_answer","decision",…}  ← 上一题的点评，只有练习模式发；跳过的题不发
+           event: topic      {"idx","label","source","count"}                ← 问到一个新话题（前端这时才显示它）
+           event: asking     {"topic_idx","depth"}                           ← 开始出题，depth > 0 是追问
+           event: question   {"delta":"..."}  ×N                              ← 题目逐段
+           event: asked      {"turn_id","text","topic_idx","depth"}          ← 题目出完，等回答
+           event: finished   {"report_ready","verdict","overall"}
+           event: error      {"code","message"}                              ← 之后调 POST /start 从原处继续
 Nginx      proxy_buffering off; proxy_cache off; proxy_http_version 1.1; proxy_set_header Connection '';
            proxy_read_timeout 900s; gzip 不含 text/event-stream；FastAPI 响应带 X-Accel-Buffering: no
 ```
 
 ## 3.4 关键接口示例
 
-**POST /interviews**
+**POST /interviews**（要几秒：面经太长时先切段向量化，然后一次模型调用定下话题）
 
 ```json
 { "code": 0, "data": {
     "id": 17, "mode": "normal",
-    "gate": { "passed": true, "overall_match": 76.0, "threshold": 60 },
-    "plan_summary": {
-      "tech": [ { "idx": 0, "intent": "深挖订单服务 P99 优化的瓶颈定位方法", "linked_type": "finding", "linked_id": 501 },
-                { "idx": 1, "intent": "考察微服务经验（JD 加分项，简历未体现）", "linked_type": "requirement", "linked_id": 2 } ],
-      "hr":   [ { "idx": 5, "intent": "实习经历中的职责边界与协作", "linked_type": "finding", "linked_id": 512 } ] }
+    "gate": { "passed": true, "overall_match": 76.7, "threshold": 60 },
+    "topic_count": 5,
+    "context_mode": "full"
 } }
 ```
 
-**POST /interviews/{id}/answer** → SSE
+只给话题个数，不给话题内容：问到哪个话题才显示哪个（GET /interviews/{id} 的 topics 也只列问到了的）。
+`context_mode`：none = 没贴面经；full = 面经不超过 3000 字，整段给面试官；retrieval = 更长，切段后按话题检索。
+
+**POST /interviews/{id}/answer** → SSE（练习模式）
 
 ```
 event: evaluation
-data: {"turn_id":203,"scores":{"correctness":4,"depth":3,"clarity":4},
-       "evidence":[{"quote":"先用 arthas 看了线程栈，发现锁在库存扣减","verify_result":"exact"}],
-       "feedback":"定位方法具体可信；但未说明优化后如何验证","decision":"followup"}
+data: {"turn_id":203,"skipped":false,"score":67,"scores":{"correctness":4,"depth":2,"clarity":4},
+       "evidence":[{"quote":"先更新数据库再删缓存"}],"good":"说出了先更新库再删缓存的常见做法",
+       "bad":"没说为什么这么选，也没提并发下的问题","better_answer":"……【接口耗时从多少降到多少】……",
+       "decision":"followup","low_evidence":false}
+
+event: asking
+data: {"topic_idx":0,"depth":1}
 
 event: question
-data: {"turn_id":204,"delta":"优化"}
+data: {"delta":"你刚说先更新数据库再删缓存，"}
 event: question
-data: {"turn_id":204,"delta":"之后你是怎么验证 P99 确实降下来的？"}
+data: {"delta":"删失败了怎么办？"}
 
-event: round_end
-data: {"round":"tech","score":72}
+event: asked
+data: {"turn_id":204,"text":"你刚说先更新数据库再删缓存，删失败了怎么办？","topic_idx":0,"depth":1}
 ```
+
+正常模式没有 evaluation 事件；换到新话题时在 asking 之前多一个 `topic`。话题用完：`evaluation`（练习模式）→ `finished`。
 
 **GET /interviews/{id}/report**
 
 ```json
 { "code": 0, "data": {
-    "round_scores": { "tech": 72, "hr": 81 }, "overall": 75.6, "verdict": "pass",
-    "strengths": ["性能问题定位思路清晰"],
-    "weaknesses": ["微服务相关经验薄弱", "回答缺少量化验证"],
-    "linked_findings": [501, 512],
-    "turns_review": [ { "turn_id": 203, "question": "...", "answer": "...", "scores": {}, "evidence": [], "better_answer": "..." } ]
+    "id": 17, "apply_id": 8, "mode": "normal", "status": "completed", "topic_count": 5,
+    "topics": [ … ], "turns": [ { "id": 203, "topic_idx": 0, "depth": 0, "question": "…", "answer": "…", "evaluation": { … } } ],
+    "report": {
+      "overall": 71, "verdict": "pass", "threshold": 60, "early": false, "answered": 8, "summary_ok": true,
+      "topics": [ { "idx": 0, "label": "二手交易平台 · 缓存", "source": "project", "score": 73 },
+                  { "idx": 2, "label": "消息队列", "source": "requirement", "score": 47 } ],
+      "strengths":  [ { "title": "定位问题有方法", "detail": "慢查询那题：用 EXPLAIN 找到全表扫描……" } ],
+      "weaknesses": [ { "title": "说不出成果数据", "detail": "订单模块两次被问到效果……" } ],
+      "links": [ { "kind": "requirement", "ref_id": 9, "topic_idx": 2, "label": "了解消息队列", "text": "先补……" } ]
+    }
 } }
 ```
+
+`verdict`：pass / fail / practice（练习模式不下结论）/ incomplete（没聊完所有话题就结束，不下结论）。`links` 只挑得分低于 60、来源是简历问题或岗位要求的话题，前端点过去是结果页上对应的那一条。
 
 **GET /resumes/{id}/diagnosis** 示例同 v2（略）。

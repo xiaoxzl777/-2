@@ -302,3 +302,60 @@ class ApplyOut(BaseModel):
     resume_score: float | None  # 简历诊断总分
     gaps: list[MatchItemOut]            # 哪里不符合岗位要求：未满足 / 部分满足的要求，重要的在前
     resume_issues: list[FindingOut]     # 简历自身最该先改的问题
+
+
+# ───────────── 模拟面试 ─────────────
+
+
+class InterviewIn(BaseModel):
+    apply_id: int                           # 从哪次投递的初筛结果进来：岗位、简历、简历问题都从它取
+    company_name: str | None = Field(default=None, max_length=200)
+    extra_context: str | None = Field(default=None, max_length=20_000)   # 面经 / 公司介绍，选填
+    practice: bool = False                  # 初筛过了也可以主动选练习模式；没过的一律是练习模式
+
+
+class InterviewCreated(BaseModel):
+    id: int
+    mode: str                               # normal / practice
+    gate: GateOut
+    topic_count: int                        # 只给个数，话题内容问到了才显示
+    context_mode: str                       # none / full（面经整段给面试官）/ retrieval（面经太长，按话题检索）
+
+
+class AnswerIn(BaseModel):
+    text: str = Field(default="", max_length=20_000)   # 实际上限见 INTERVIEW_ANSWER_MAX，超了给中文提示
+    skip: bool = False
+
+
+class InterviewTopicOut(BaseModel):
+    idx: int
+    label: str
+    source: str                             # project / requirement / finding
+
+
+class InterviewTurnOut(BaseModel):
+    id: int
+    topic_idx: int
+    depth: int                              # 0 = 主问题，1 = 追问
+    question: str
+    answer: str | None                      # 还没答为 None；跳过为 ""
+    skipped: bool
+    evaluation: dict | None                 # 正常模式在面试结束前不给
+
+
+class InterviewOut(BaseModel):
+    id: int
+    apply_id: int | None
+    job_title: str | None
+    company_name: str | None
+    mode: str
+    status: str                             # planned / in_progress / completed / abandoned
+    topic_count: int
+    topics: list[InterviewTopicOut]         # 已经问到的话题；结束后是全部
+    turns: list[InterviewTurnOut]
+    waiting: bool                           # 最后一题出了、还没答
+    report_ready: bool
+
+
+class InterviewReportOut(InterviewOut):
+    report: dict                            # {overall, verdict, topics[{idx,label,source,score}], strengths, weaknesses, links, ...}

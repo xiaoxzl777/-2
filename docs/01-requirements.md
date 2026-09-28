@@ -92,14 +92,14 @@ DOCX         →〔未实现：本期只收 PDF，上传 .docx 直接 41501〕�
 
 | 编号 | 需求 | 说明 | 优先级 |
 |---|---|---|---|
-| FR-I1 | 创建会话 | 输入 `resume_id`、`job_id`（必）、`company_name`（选）、`extra_context`（选：面经/公司介绍，≤20,000 字）；须已有该 简历-JD 的匹配报告 | P0 |
-| FR-I2 | 初筛结果 | 返回 `gate:{passed, overall_match, threshold}`；未通过时 `mode='practice'` | P0 |
-| FR-I3 | 面试计划 | 一次 LLM 调用生成 `plan.topics[]`：每个话题带 `round`、`intent`、`linked_type/linked_id`（来源：finding / requirement / project）、`budget`（题数）；`extra_context` 超 3,000 字时切块向量化，按话题检索 top-3 片段注入 | P0 |
-| FR-I4 | 逐题对话 | 图 B：出题前到 `resume_units` 与 `interview_ctx` 各检索 top-3 → 流式出题 → `interrupt()` 等回答 → 评估（rubric + 逐字引用回答）→ 纯函数决策（追问 ≤2 层 / 下一话题 / 结束本轮） | P0 |
-| FR-I5 | 两轮 persona | `tech → hr` 顺序；各自 system prompt 与 rubric；每轮题数上限可配（默认 8 / 6） | P0 |
-| FR-I6 | 面试报告 | `verdict ∈ {pass, fail, practice}` 决定开头话术（恭喜通过 / 很遗憾 / 练习模式不下结论），三种情况的总结**同样完整**：每轮分数、逐题回顾（问题 / 回答 / 评分 / 依据 / 更好的答法）、与简历薄弱点的关联 | P0 |
+| FR-I1 | 创建会话 | 输入 `apply_id`（必：从哪次投递的初筛结果进来）、`company_name`（选）、`extra_context`（选：面经/公司介绍，≤20,000 字）；投递须已分析完成 | P0 |
+| FR-I2 | 初筛结果 | 返回 `gate:{passed, overall_match, threshold}`；未通过时 `mode='practice'`，通过的也可主动选练习模式 | P0 |
+| FR-I3 | 面试计划 | 一次 LLM 调用定 5 个话题 `plan.topics[]`：每个带 `source`（project / requirement / finding）、`ref`（材料编号，代码核对）、`label`、`intent`；话题问到了才显示给用户 | P0 |
+| FR-I4 | 逐题对话 | 图 B：出题前只检索面经（`extra_context` 超 3,000 字才切段检索 top-3，不长就整段给，没贴就跳过；简历和 JD 不检索）→ 流式出题 → `interrupt()` 等回答 → 评估（rubric + 逐字引用回答）→ 纯函数决策（每个话题最多追问 1 次 / 下一话题 / 出报告）；练习模式每题答完马上给点评，正常模式结束后看报告 | P0 |
+| FR-I5 | 只做技术面 | 不做 HR 面（2026-09-27 定：太主观）；话题数、追问次数可配（默认 5 / 1） | P0 |
+| FR-I6 | 面试报告 | `verdict ∈ {pass, fail, practice, incomplete}` 决定开头话术（通过 / 没过 / 练习模式不下结论 / 没聊完不下结论），几种情况的总结**同样完整**：每个话题的分、逐题回顾（问题 / 回答 / 评分 / 依据 / 参考答法）、与简历问题 / 岗位差距的关联（可跳回结果页对应的一条） | P0 |
 | FR-I7 | 中断续答 | LangGraph 检查点（`SqliteSaver`，thread_id=`interview:{id}`）续跑；MySQL 为权威记录，检查点丢失时由 turns 重建；24h 无活动 → `abandoned` 并按已答题出报告 | P1 |
-| FR-I8 | 异常处理 | 空答 / 跑题 / "跳过" → 面试官按策略处理（提示一次后换题）；单场成本上限 | P1 |
+| FR-I8 | 异常处理 | 空答不能提交；"跳过" → 记 0 分、换下一个话题；跑题由评分反映；单场成本上限，到了就出报告；用户可提前结束 | P1 |
 | FR-I9 | 语音 | 本期不做 | 未来工作 |
 
 ### H. 系统支撑

@@ -151,11 +151,13 @@ class LLMClient:
         model: str | None = None,
         temperature: float = 0.0,
         use_cache: bool = True,
+        stats: dict | None = None,
     ) -> Iterator[str]:
         """流式调用：模型每吐一段文字就产出一段，给要"边生成边显示"的场景用（纯文本，不做结构化解析）。
 
         同样的五步：缓存命中时一次产出全文；限流；调用；写缓存；记账（token 用量来自最后一个分块）。
         中途失败抛 LLMError，已经产出的部分由调用方决定怎么处理；调用方提前关闭生成器也记一行失败，费用照记不漏。
+        生成器没有返回值，要知道这次花了多少钱（面试按单场成本封顶）就传一个 stats 字典，结束时填进 cost / token。
         """
         model = model or settings.CHAT_MODEL
         _, key, base_record = self._prepare(scene, messages, prompt_version, None, ref, model, temperature)
@@ -163,6 +165,8 @@ class LLMClient:
         if cacheable and (hit := self._cache.get(key)) is not None:
             self._write_audit({**base_record, "model_version": hit.get("model_version"), "cache_hit": True,
                                "latency_ms": 0})
+            if stats is not None:
+                stats.update(cost=0.0, token_input=0, token_output=0, cache_hit=True)
             yield hit["text"]
             return
 
@@ -190,11 +194,14 @@ class LLMClient:
             raise LLMError(f"{scene} 调用 {model} 失败：{type(e).__name__}") from e
 
         token_in, token_out = usage.get("input_tokens", 0), usage.get("output_tokens", 0)
+        cost = registry.estimate_cost(model, token_in, token_out)
         if cacheable and text.strip():
             self._cache.put(key, {"text": text, "model_version": model_version})
         self._write_audit({**base_record, "model_version": model_version, "token_input": token_in,
-                           "token_output": token_out, "cost": registry.estimate_cost(model, token_in, token_out),
+                           "token_output": token_out, "cost": cost,
                            "latency_ms": int((time.perf_counter() - started) * 1000)})
+        if stats is not None:
+            stats.update(cost=cost, token_input=token_in, token_output=token_out, cache_hit=False)
 
     @staticmethod
     def _prepare(scene: str, messages: Sequence[Message], prompt_version: str, schema: type[BaseModel] | None,

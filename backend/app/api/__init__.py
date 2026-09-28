@@ -1,7 +1,7 @@
 """汇总全部路由。新增一个模块的接口：在这里 include 一行。"""
 from fastapi import APIRouter
 
-from app.api import advice, apply, auth, diagnose, job, match, resume, system, task
+from app.api import advice, apply, auth, diagnose, interview, job, match, resume, system, task
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(system.router)
@@ -13,3 +13,4 @@ api_router.include_router(match.router)
 api_router.include_router(apply.router)
 api_router.include_router(task.router)
 api_router.include_router(advice.router)
+api_router.include_router(interview.router)

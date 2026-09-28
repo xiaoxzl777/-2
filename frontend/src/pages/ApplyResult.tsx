@@ -1,7 +1,7 @@
 // 初筛结果：/app/apply/:id。通过 / 未通过两种；还在分析就显示流程卡，跑完自动换成结果；分析失败给出重投入口。
 // 每条问题点开看依据和针对这一句的具体建议（现场生成），也可以在简历原文纸面上定位。
 import { useCallback, useMemo, useRef, useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { applyApi, isAbort, isRunning, type ApplyResult as Result, type Dimension, type MatchItem } from '../api/apply'
 import { adviceApi } from '../api/advice'
 import { ApiError } from '../api/client'
@@ -61,7 +61,11 @@ export default function ApplyResult() {
 
 function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Result['gate']>; jobTitle: string }) {
   const navigate = useNavigate()
-  const [tab, setTab] = useState<'gap' | 'self'>('gap')
+  // ?open=finding:12 / requirement:4：从面试报告点过来，切到对应的页签并展开那一条
+  const [search] = useSearchParams()
+  const [openKind, openId] = (search.get('open') ?? '').split(':')
+  const openKey = openKind === 'finding' ? `finding:${openId}` : openKind === 'requirement' ? `gap:${data.id}:${openId}` : null
+  const [tab, setTab] = useState<'gap' | 'self'>(openKind === 'finding' ? 'self' : 'gap')
   const [shown, setShown] = useState(false) // 进场后再让圆环、分数条动起来
   useEffect(() => {
     const t = window.setTimeout(() => setShown(true), 500)
@@ -140,13 +144,13 @@ function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Res
         <div className="cta fade d3">
           {passed ? (
             <>
-              <button type="button" className="btn soon lg" disabled>进入模拟面试 <small>即将开放</small></button>
+              <MagneticButton className="accent lg" onClick={() => navigate(`/app/apply/${data.id}/interview`)}>进入模拟面试 <span className="arrow">→</span></MagneticButton>
               <MagneticButton className="outline lg" onClick={() => navigate('/app')}>再投一个</MagneticButton>
             </>
           ) : (
             <>
               <MagneticButton className="accent lg" onClick={() => navigate(`/app?job=${data.job_id}`)}>改完简历，再投这个岗位 <span className="arrow">→</span></MagneticButton>
-              <button type="button" className="btn soon lg" disabled>以练习模式面试 <small>即将开放</small></button>
+              <MagneticButton className="outline lg" onClick={() => navigate(`/app/apply/${data.id}/interview`)}>以练习模式面试</MagneticButton>
             </>
           )}
         </div>
@@ -162,7 +166,7 @@ function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Res
             <button type="button" className="link" onClick={() => openSheet(null)}>查看简历原文 →</button>
           </div>
           <div className="issues">
-            <ItemList key={tab} items={items.filter((x) => x.list === tab)} onLocate={openSheet}
+            <ItemList key={tab} items={items.filter((x) => x.list === tab)} onLocate={openSheet} openKey={openKey}
               empty={tab === 'gap' ? '岗位要求都满足了。' : '简历本身没发现明显问题。'} />
           </div>
         </TiltCard>
@@ -223,12 +227,12 @@ function sheetItems(data: Result, hits: MatchItem[]): ListItem[] {
   return [...gap, ...self, ...hit]
 }
 
-function ItemList({ items, empty, onLocate }: { items: ListItem[]; empty: string; onLocate: (key: string) => void }) {
+function ItemList({ items, empty, onLocate, openKey }: { items: ListItem[]; empty: string; onLocate: (key: string) => void; openKey: string | null }) {
   if (items.length === 0) return <p className="empty">{empty}</p>
   return (
     <>
       {items.map((x, i) => (
-        <IssueItem key={x.key} index={i} tag={x.tag[1]} tagClass={x.tag[0]} text={x.text} why={x.why} rows={x.rows}
+        <IssueItem key={x.key} index={i} tag={x.tag[1]} tagClass={x.tag[0]} text={x.text} why={x.why} rows={x.rows} defaultOpen={x.key === openKey}
           locate={{
             label: x.color ? '在原文中查看 →' : x.list === 'gap' ? '打开原文，看看缺在哪 →' : '打开简历原文 →',
             onClick: () => onLocate(x.key),

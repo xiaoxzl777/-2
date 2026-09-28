@@ -11,7 +11,7 @@
 | M4 | 原文高亮 | 1 周 | **结果页的原文纸面**：按 char 区间高亮，与问题列表联动（不单独做分析页，见 06-workflows 6.1） |
 | M5 | 匹配 + 初筛 + 图 A | 1.5 周 | match 子图三种 mode（dict_only / llm_fulltext / hybrid）跑通；图 A（诊断 ∥ 匹配 → 初筛）+ `POST /apply` + SSE 进度；未通过说明；岗位模板；**工作台（JD → 简历 → 投递）与初筛结果页** |
 | M6 | 改写 | 1 周 | 具体建议接口（点开时流式生成）+ 占位符复检（本期不检索，案例库暂缓）；**在结果页里点开一条就显示**，不单独做改写页 |
-| M7 | 模拟面试（图 B） | 2 周 | interrupt + SqliteSaver；两库检索出题；评估 evidence 校验；三种 verdict 报告；续答 / 检查点重建 / 24h 清理；**Interview、InterviewReport 页** |
+| M7 | 模拟面试（图 B） | 2 周 | interrupt + SqliteSaver；只技术面；只检索长面经出题；评估 evidence 校验；practice / pass / fail / incomplete 报告；续答 / 检查点重建 / 24h 清理；**面试准备、面试、报告三个页面**（已完成） |
 | M8 | 评测 + 消融 | 1.5 周 | 必做四组 + 面试模块评测（8.4） |
 | M9 | 部署 + 打磨 | 0.5 周 | compose 一键起；Nginx SSE 验证 |
 
@@ -72,7 +72,7 @@ evidence 有效率  面试评分 evidence 经 locate_span 通过的比例（与�
 4. **诊断**：降质样本跑批比对
 5. **匹配**：8.3 (2) 标注集一致率
 6. **面试策略**：`test_interview_policy.py` 覆盖 追问上限 / 预算耗尽 / 轮次切换 / 成本熔断 / 空答
-7. **端到端**：`docker compose up -d` 后：上传 → 诊断 → 贴 JD → 初筛 → 面试两轮 → 报告 → 改写
+7. **端到端**：`docker compose up -d` 后：上传 → 诊断 → 贴 JD → 初筛 → 技术面 → 报告 → 改写
 8. **中断**：面试中 kill 进程后重启，会话可续答；24h 清理生效
 
 ---

@@ -370,7 +370,7 @@ class InterviewSession(Base):
         Enum("normal", "practice", name="interview_mode"), nullable=False, server_default="normal"
     )
 
-    # 状态机游标：面试跨 HTTP 请求，DB 就是检查点
+    # 面试进行到哪了。图 B 自己的检查点在 SQLite 里（graphs/checkpoint.py）；这里是给页面看的，也是检查点丢了时重建的依据
     status: Mapped[str] = mapped_column(
         Enum("planned", "in_progress", "completed", "abandoned", name="interview_status"),
         nullable=False,

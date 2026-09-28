@@ -90,22 +90,30 @@ def gap_prompt(item: dict, requirement: dict | None, full_text: str, masked_text
 
 
 def fix_numbers(text: str, section: str, original: str) -> tuple[str, int]:
-    """把【section】一段里原文没有的数字换成【数值】，返回 (新全文, 换掉的个数)。
-    【】里的内容本来就是留给用户填的，不动；段标题之外的文字原样保留。"""
-    allowed = set(_NUMBER.findall(original))
+    """把【section】一段里原文没有的数字换成【数值】，返回 (新全文, 换掉的个数)。段标题之外的文字原样保留。"""
     parts = _SECTION.split(text)              # [开头, 段名, 内容, 段名, 内容, ...]
+    replaced = 0
+    for i in range(1, len(parts), 2):
+        if parts[i] == section:
+            parts[i + 1], n = mask_new_numbers(parts[i + 1], original)
+            replaced += n
+    rebuilt = parts[0] + "".join(f"【{parts[i]}】{parts[i + 1]}" for i in range(1, len(parts), 2))
+    return rebuilt, replaced
+
+
+def mask_new_numbers(text: str, original: str, *, keep_digits: bool = False) -> tuple[str, int]:
+    """text 里 original 没有出现过的数字换成【数值】，返回 (新文本, 换掉的个数)。
+    【】里的内容本来就是留给用户填的，不动。模拟面试的"参考答法"也用它，那里讲的是技术细节，
+    keep_digits=True 放过单个数字（"影响行数为 0"、"重试 3 次"），编造的成果数据很少只有一位。"""
+    allowed = set(_NUMBER.findall(original))
     replaced = 0
 
     def fix(m: re.Match) -> str:
         nonlocal replaced
-        if m.group(0) in allowed:
+        if m.group(0) in allowed or (keep_digits and len(m.group(0)) == 1):
             return m.group(0)
         replaced += 1
         return PLACEHOLDER
 
-    for i in range(1, len(parts), 2):
-        if parts[i] == section:
-            pieces = _BRACKETED.split(parts[i + 1])
-            parts[i + 1] = "".join(p if p.startswith("【") else _NUMBER.sub(fix, p) for p in pieces)
-    rebuilt = parts[0] + "".join(f"【{parts[i]}】{parts[i + 1]}" for i in range(1, len(parts), 2))
-    return rebuilt, replaced
+    pieces = _BRACKETED.split(text)
+    return "".join(p if p.startswith("【") else _NUMBER.sub(fix, p) for p in pieces), replaced

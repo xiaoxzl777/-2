@@ -16,7 +16,7 @@ from app import __version__
 from app.api import api_router
 from app.cache import redis_client
 from app.config import settings
-from app.database import engine
+from app.database import SessionLocal, engine
 from app.errors import register_error_handlers
 from app.models import Base
 
@@ -56,7 +56,13 @@ def check_redis() -> None:
 
 def cleanup_interrupted_tasks() -> dict[str, int]:
     with engine.begin() as conn:
-        return {table: conn.execute(text(sql)).rowcount for table, sql in _CLEANUP_SQL.items()}
+        cleaned = {table: conn.execute(text(sql)).rowcount for table, sql in _CLEANUP_SQL.items()}
+    # 面试不一样：停在"等回答"是正常状态，不算中断。只有很久没动静的才按已答的题出报告、标成放弃
+    from app.graphs.checkpoint import get_checkpointer
+    from app.retrieval.context_store import get_context_store
+    from app.services import interview_service
+    cleaned["interview_sessions"] = interview_service.cleanup_idle(SessionLocal, get_checkpointer(), get_context_store)
+    return cleaned
 
 
 @asynccontextmanager

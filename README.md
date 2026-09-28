@@ -9,7 +9,7 @@
 | [00-overview](docs/00-overview.md) | 产品主线、系统不变量、技术栈 |
 | [01-requirements](docs/01-requirements.md) | 功能 / 非功能需求、诊断规则清单 |
 | [02-database](docs/02-database.md) | 11 张表建表 SQL、JSON 字段结构、Chroma collection |
-| [03-api](docs/03-api.md) | 27 个接口（已实现 20 个）、错误码、SSE 契约、示例 |
+| [03-api](docs/03-api.md) | 28 个接口（已实现 26 个）、错误码、SSE 契约、示例 |
 | [04-design](docs/04-design.md) | AI 模块、核心算法、后端设计 |
 | [05-evaluation-and-plan](docs/05-evaluation-and-plan.md) | 里程碑、评估方案、验证方式 |
 | [06-workflows](docs/06-workflows.md) | 产品流程（JD 优先）、两张 LangGraph 图；与 04 冲突时以此为准 |
@@ -64,6 +64,6 @@ backend/scripts/ dump_schema · dump_seed · build_job_templates（评测脚本 
 backend/tests/
 data/            skills_seed.csv · job_templates/（模板原文）· job_templates.json · resumes/ · uploads/ · chroma/ · eval_runs/
 docs/            设计文档
-frontend/        React 前端（首页 + 登录 / 注册 + 工作台（新的投递三步）+ 初筛结果页）
+frontend/        React 前端（首页 + 登录 / 注册 + 工作台（新的投递三步）+ 初筛结果页 + 模拟面试（准备 / 面试 / 报告））
 nginx/           反向代理配置
 ```

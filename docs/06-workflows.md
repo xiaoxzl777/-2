@@ -16,7 +16,7 @@
    └ 未通过 → 哪里不符合 = 对照 JD 的差距（匹配）+ 简历自身的问题（诊断）
               点某一条 → 原文高亮 + 改写建议
               → "去改简历重新投"  或  "以练习模式继续面试"
-④ 模拟面试（图 B）   技术面 → HR 面
+④ 模拟面试（图 B）   技术面（5 个话题，每个最多追问 1 次；HR 面不做）
 ⑤ 面试结果
    ├ 通过   → "恭喜通过" + 完整总结 + 改进建议
    ├ 未通过 → "很遗憾" + 同样完整的总结 + 改进建议 + 回到改简历
@@ -149,79 +149,61 @@ class ApplyState(TypedDict, total=False):
 
 ## 6.3 图 B：模拟面试（走一步、等人、再走）
 
-用 LangGraph `interrupt()` + `SqliteSaver`：图跑到 `wait_answer` 停住，状态存入检查点；用户提交回答后用 `Command(resume=answer)` 从原地继续。`thread_id = "interview:{session_id}"`。
+**只做技术面**（2026-09-27 定：HR 面太主观，不做）。一场 5 个话题，每个最多追问 1 次，约 5–10 问；题数是配置项（`INTERVIEW_TOPICS` / `INTERVIEW_MAX_FOLLOWUP`）。
+
+用 LangGraph `interrupt()` + `SqliteSaver`：图跑到 `wait_answer` 停住，状态存入检查点；用户提交回答后用 `Command(resume={text, skip})` 从原地继续。`thread_id = "interview:{session_id}"`。
 
 ```
-                       START
-                         │
-                 ┌───────▼────────┐
-                 │ plan_interview │  LLM 一次：话题列表，每个话题带来源
-                 └───────┬────────┘  （诊断薄弱点 / JD 要求 / 简历项目）
-             ┌───────────▼───────────┐
-   ┌────────►│      pick_topic       │  纯函数：取本轮下一个话题
-   │         └───────────┬───────────┘
-   │                     ▼
-   │         ┌───────────────────────┐  两个库各检索一次，各自 召回 → 精排 top-3
-   │         │   retrieve_context    │  · resume_units   相关经历（该追问哪个项目）
-   │         └───────────┬───────────┘  · interview_ctx  JD / 公司介绍 / 面经（这家怎么问）
-   │                     ▼
-   │         ┌───────────────────────┐
-   │  ┌─────►│     ask_question      │  LLM 流式出题（temp 0.7）
-   │  │      └───────────┬───────────┘
-   │  │                  ▼
-   │  │      ┌───────────────────────┐
-   │  │      │     wait_answer       │  ★ interrupt()
-   │  │      └───────────┬───────────┘
-   │  │                  ▼
-   │  │      ┌───────────────────────┐  LLM 按 rubric 打分（temp 0）
-   │  │      │    evaluate_answer    │  必须逐字引用用户回答 → locate_span 校验
-   │  │      └───────────┬───────────┘
-   │  │                  ▼
-   │  │      ┌───────────────────────┐
-   │  │      │        decide         │  纯函数
-   │  │      └───┬───────┬───────┬───┘
-   │  │   追问   │       │ 换话题 │ 本轮结束 / 成本超限
-   │  └──────────┘       │       ▼
-   │  (depth+1，≤2)       │   ┌───────────────┐
-   └─────────────────────┘   │ round_summary │  纯函数：算本轮分
-                             └───────┬───────┘
-                     还有 HR 面 ┌─────┴─────┐ 两轮都完
-                               ▼           ▼
-                        回 pick_topic   ┌──────────────┐
-                        （换 HR persona）│ final_report │  分数纯函数聚合；LLM 只写文字总结
-                                        └──────┬───────┘  verdict ∈ {pass, fail, practice}
-                                              END
+   创建会话（POST /interviews）只跑到这里 ─┐
+                                          ▼
+ START ─► plan_interview ─► pick_topic ─┬─► retrieve_context ─► ask_question ─► wait_answer ─► evaluate_answer ─► decide
+          LLM 一次：5 个话题，    纯函数  │   方案 C：只查面经      LLM 流式     ★ interrupt()   LLM 按 rubric 打分，   纯函数
+          每个指向一条材料                │  （不长就整段给）      temp 0.7                     依据逐字引用回答
+                          ▲              │                            ▲                                            │
+                          │              └─(话题用完)─► final_report ─► END                                         │
+                          │                                  ▲    分数纯函数聚合；LLM 只写文字总结                     │
+                          └──────────── next ────────────────┼─────────── finish（成本到顶）────────────────────────────┤
+                                                ask_question ◄────────── followup（depth + 1，最多 1 次）──────────────┘
 ```
+
+- **创建时只定话题**：`graph.invoke(state, config, interrupt_before=["pick_topic"])` 跑完 plan_interview 就停；之后 `POST /start` 用 `graph.stream(None, config)` 接着跑。整个流程都在一张图里。
+- **话题来源**：简历项目 / 工作经历（P1、P2…）、岗位要求（R + 要求 id，学历和软素质不进面试）、初筛发现的简历问题（F + 问题 id）。模型照抄编号，代码核对，指向不存在的丢掉。
+- **问到哪个话题才显示哪个**：接口和页面都不提前列出话题（用户看 demo 时提的）。
+- **评价按模式区分**：练习模式（初筛没过，或主动选）每题答完马上给点评；正常模式答题时不给，结束后看报告。两种模式后台都逐题评分（追问要用）。跳过的题两种模式都不给任何反馈，直接出下一题。
+- **结论**：练习模式不下结论；没聊完所有话题就结束（用户提前结束、成本到顶）也不下结论（incomplete）；其余综合分 ≥ 60 通过。
+- 提前结束（`POST /finish`）不经过图：按 MySQL 里已评完分的题直接出报告。
 
 ```python
 class InterviewState(TypedDict):
     session_id: int
     mode: Literal["normal", "practice"]
-    plan: list[dict]
-    round: Literal["tech", "hr"]
-    topic_idx: int
-    depth: int                           # 0 主问，1/2 追问
-    context: dict                        # 本话题检索到的片段
-    turns: Annotated[list, add]          # {question, answer, evaluation}
-    round_scores: dict
+    materials: dict                      # 岗位要求 + 初筛判定、经历（掩码文本）、简历问题、面经
+    topic_count: int; max_followup: int; cost_limit: float; threshold: float
+    plan: list[dict]                     # [{idx, source, ref, label, intent}]
+    topic_idx: int                       # -1 = 还没开始
+    depth: int                           # 0 主问题，1 追问
+    context: list[str]                   # 当前话题的面经片段
+    question: str; answer: str; skipped: bool; evaluation: dict; next_step: str
+    history: Annotated[list, add]        # {topic_idx, depth, question, answer, skipped, evaluation}
     cost: Annotated[float, add]
-    cost_limit: float
+    report: dict
 ```
 
 **为什么这里用 LangGraph（此前的结论已更正）**：早先决定用 DB 状态机，是因为 LangGraph 的 Redis 检查点依赖 Redis Stack。但 `SqliteSaver` 是本地文件、零部署，该理由不成立；而 `interrupt()` 正是为"跑到一半停下来等人输入"设计的，比手写状态机更规范。已验证：全新进程用同一 thread_id 可从中断处恢复。
 
 **两份状态的处理**：
-- MySQL（`interview_sessions` / `interview_turns`）是面试记录的**权威来源**：报告、页面、评测全部读它。
-- SQLite 检查点只负责让图能续跑。检查点损坏或丢失 → 从 MySQL 的 turns 重建 State，开新 thread。
-- 检查点文件 `data/checkpoints.sqlite`，不进 git；会话结束后删除该 thread。
+- MySQL（`interview_sessions` / `interview_turns`）是面试记录的**权威来源**：报告、页面、评测全部读它。话题计划和材料也存在 `sessions.plan` 里。
+- SQLite 检查点只负责让图能续跑。检查点丢失 → 用 MySQL 里的材料、话题、问答拼回 State，`update_state(as_node=…)` 停回该停的那一步。
+- 任何一步失败，检查点都停在失败的那个节点之前，`POST /start` 从那里重跑。回答先落库再恢复图，评分失败也不丢回答。
+- 检查点文件 `data/checkpoints.sqlite`，不进 git；会话结束后删除该 thread 和面经切段。24 小时没动静的会话在启动清理时按已答的题出报告、标成 abandoned。
 
 ## 6.4 节点与技术对照
 
 | 类型 | 节点 | 技术 |
 |---|---|---|
-| 纯函数（不调 API） | load_inputs · layout · section · mentions · rule_scan · rule_match · gate · pick_topic · decide · round_summary · score · score_match | Python |
+| 纯函数（不调 API） | load_inputs · layout · section · mentions · rule_scan · rule_match · gate · pick_topic · decide · score · score_match | Python |
 | LLM | llm_relayout · structure · review_unit · judge_fulltext · plan_interview · ask_question · evaluate_answer · final_report | DeepSeek，经 `llm/client.py`（缓存 · 限流 · 记账） |
-| 检索 | 面试里的检索工具 search_materials | bge-m3 → Chroma → bge-reranker（`retrieval/`） |
+| 检索 | 面试的 retrieve_context：只在用户贴的面经超过 3000 字时检索 | bge-m3 → Chroma → bge-reranker（`retrieval/context_store.py`） |
 | 证据校验 | review_unit / judge_fulltext / evaluate_answer 内部，以及 JD 解析 | `diagnose/evidence.locate_span`，三处同一个函数 |
 | 等人 | wait_answer | `interrupt()` + `SqliteSaver` |
 
@@ -234,11 +216,14 @@ RAG 解决的是"资料太多、塞不进 prompt"。按这个标准逐处检查�
 ```
 匹配   简历 + JD 一共两三千字            → 不需要检索，全文直接给模型（见 6.2）
 改写   暂无范例库                        → 先不做检索：模型改写 + 数字占位符复检；以后有了范例库再接
-面试   用户贴的面经 / 公司介绍可上万字，   → 需要检索：作为面试官的工具 search_materials(query)，
-       一场面试约 30 次模型调用              聊到哪个话题就只取相关的几段，不必每轮都带着全部材料
+面试   简历、JD 同样很短，每个话题又本来就指向    → 简历、JD 不检索，整段给
+       具体的某段经历 / 某条要求
+       用户贴的面经 / 公司介绍可能上万字           → 只有这部分检索（方案 C，2026-09-27 定）：不超过 3000 字整段给面试官，
+                                                    更长才切段，每个话题取最相关的 3 段；没贴就跳过
 ```
 
-链路不变：切块 → 向量化入库（bge-m3）→ 召回 → 精排（bge-reranker）→ 注入 prompt。语料来自用户自己贴的材料与 JD，不需要另外收集数据。
+链路不变：切块 → 向量化入库（bge-m3）→ 召回 → 精排（bge-reranker）→ 注入 prompt。语料来自用户自己贴的材料，不需要另外收集数据。
+检索是图 B 里固定的一个节点（retrieve_context），不做"让模型自己决定查不查"的工具调用：流程固定、好测，也方便做有检索 / 没检索的对比。
 
 ## 6.6 必做线（任何时间点停下来都是一个完整的毕设）
 
@@ -249,4 +234,4 @@ RAG 解决的是"资料太多、塞不进 prompt"。按这个标准逐处检查�
 第 4 层           改写 RAG、各组对比实验               锦上添花
 ```
 
-进度落后时的砍法（按顺序，每项互不影响）：RAG 检索消融实验 → 练习模式 → HR 面（只留技术面）→ DOCX 支持 → 改写模块。
+进度落后时的砍法（按顺序，每项互不影响）：RAG 检索消融实验 → 练习模式 → DOCX 支持 → 改写模块。（HR 面已经决定不做。）

@@ -79,3 +79,31 @@ class MatchState(TypedDict, total=False):
     items: list[MatchItem]               # 最终结果，按要求项顺序
     overall_match: float | None
     dimension_scores: dict
+
+
+# ───────────────────────── 模拟面试（图 B） ─────────────────────────
+
+class InterviewState(TypedDict, total=False):
+    # ── 输入（创建会话时定下，之后不变）──
+    session_id: int
+    mode: Literal["normal", "practice"]
+    model: str | None
+    materials: dict             # interview/materials.py：岗位要求、经历、简历问题、面经
+    topic_count: int
+    max_followup: int
+    cost_limit: float
+    threshold: float
+
+    # ── 过程 ──
+    plan: list[dict]            # [{idx, source, ref, label, intent}]
+    topic_idx: int              # 当前话题；-1 = 还没开始
+    depth: int                  # 0 = 主问题，1.. = 第几次追问
+    context: list[str]          # 当前话题的参考材料（面经整段或检索到的几段）
+    question: str
+    answer: str
+    skipped: bool
+    evaluation: dict
+    next_step: str              # decide 的结论：followup / next / finish
+    history: Annotated[list[dict], add]   # 每答完一题追加一条 {topic_idx, depth, question, answer, skipped, evaluation}
+    cost: Annotated[float, add]
+    report: dict

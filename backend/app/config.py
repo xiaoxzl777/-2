@@ -68,11 +68,12 @@ class Settings(BaseSettings):
     SCREEN_THRESHOLD: float = 60.0             # 初筛通过分
     RAG_RECALL_K: int = 20                     # 第一阶段 embedding 召回条数
     RAG_TOP_K: int = 3                         # 第二阶段 rerank 后注入 prompt 的条数
-    INTERVIEW_COST_LIMIT: float = 0.3          # 元
-    INTERVIEW_TECH_MAX_Q: int = 8
-    INTERVIEW_HR_MAX_Q: int = 6
-    INTERVIEW_MAX_FOLLOWUP: int = 2
-    INTERVIEW_IDLE_HOURS: int = 24
+    INTERVIEW_COST_LIMIT: float = 0.3          # 元；超了就提前结束并出报告
+    INTERVIEW_TOPICS: int = 5                  # 一场几个话题（只有技术面）
+    INTERVIEW_MAX_FOLLOWUP: int = 1            # 每个话题最多追问几次
+    INTERVIEW_CONTEXT_FULL_MAX: int = 3000     # 面经不超过这么多字就整段给面试官，更长才切段检索
+    INTERVIEW_ANSWER_MAX: int = 3000           # 一次回答最多多少字
+    INTERVIEW_IDLE_HOURS: int = 24             # 多久没动静算放弃
 
     # ---- 缓存 / 限流 ----
     LLM_CACHE_TTL_SECONDS: int = 7 * 24 * 3600
@@ -92,6 +93,11 @@ class Settings(BaseSettings):
     @property
     def chroma_dir(self) -> Path:
         return self.DATA_DIR / "chroma"
+
+    @property
+    def checkpoint_path(self) -> Path:
+        """图 B（模拟面试）的检查点：本地 SQLite 文件，不进 git。"""
+        return self.DATA_DIR / "checkpoints.sqlite"
 
 
 @lru_cache

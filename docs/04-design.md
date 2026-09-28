@@ -15,17 +15,17 @@
 | 7 | ~~技能语义召回~~ | — | — | — | 不做：词典未命中的要求直接交给 #6 全文判定 |
 | 8 | 具体建议 | 点开时 | LLM | 0.3 | 简历问题：【问题】【改成】【为什么】；岗位差距：【考察什么】【怎么补】【面试怎么答】。流式输出纯文本；占位符 + 确定性复检；本期不检索（06-workflows 6.5） |
 | 9 | ~~差距分析~~ | — | — | — | 不单独调模型：差距 = 匹配明细里 miss / partial 的要求，由 `GET /apply/{id}` 读取时排序组装 |
-| 10 | **面试计划** ★ | 面试创建 | LLM | 0.3 | 输入：structure、top-8 findings、requirements、gap、extra_context 片段 → topics[]，每个带来源 |
-| 11 | **回答评估** ★ | 每轮 | LLM | 0 | rubric 结构化输出，evidence 逐字引用回答并经 locate_span 校验 |
-| 12 | **下一问生成** ★ | 每轮 | LLM | 0.7 | 输入：persona、当前话题、历史摘要、上题评估 → decision + question（流式） |
-| 13 | 面试报告 | 面试结束 | LLM | 0.3 | 分数由确定性聚合，LLM 只写 strengths/weaknesses/better_answer |
+| 10 | **面试计划** ★ | 面试创建 | LLM | 0.7 | 输入：岗位要求 + 初筛判定、经历（掩码）、最多 6 条简历问题、不长的面经 → 5 个 topics，每个带来源编号（P / R / F），代码核对 |
+| 11 | **回答评估** ★ | 每题 | LLM | 0 | rubric 结构化输出，evidence 逐字引用回答并经 locate_span 校验；参考答法里的新数字换成【数值】 |
+| 12 | **下一问生成** ★ | 每题 | LLM | 0.7 | 输入：persona、当前话题 + 材料、面经片段、本话题的问答与上一答的不足 → question（流式）；追问与否由评估的 decision + 代码规则决定 |
+| 13 | 面试报告 | 面试结束 | LLM | 0.3 | 分数由确定性聚合，LLM 只写 strengths / weaknesses / 和简历问题的关联 |
 
 ## 4.2 明确不用 AI 的地方
 
 ```
 basics 抽取 / 规则诊断 / 证据校验 / 综合评分 / 时间归一化 / 分栏与表格 / 占位符复检
 匹配：词典命中、学历、年限的判定与匹配度评分（模型只判规则判不了的要求，见 #6）
-面试：轮次推进（tech→hr）、追问层数上限、题数预算、每轮与综合分数的聚合、通过判定 —— 全部确定性逻辑
+面试：话题推进、追问次数上限（1 次）、成本上限、分数聚合、通过判定 —— 全部确定性逻辑（只有技术面）
 ```
 
 ## 4.3 解析流水线（图 A 的 parse 子图，见 [06-workflows](06-workflows.md) 6.2）
@@ -92,10 +92,10 @@ class DiagnoseState(TypedDict):
 |---|---|---|---|
 | ~~改写 few-shot~~ | 暂缓：本期没有范例库，改写不检索（06-workflows 6.5）；以后有 `cases` 再接 | — | — |
 | ~~匹配判定~~ | 已移除（2026-09-19）：简历与 JD 很短，全文直接给模型更准、更快、更便宜，见 06-workflows 6.2 | — | — |
-| 面试出题（M7） | `resume_units` + `interview_ctx`（JD 原文 / 公司介绍 / 面经切块）：召回 → reranker 精排 top-3 | 面试计划 / 下一问 LLM | ✅ |
+| 面试出题（M7） | 只检索 `interview_ctx`：用户贴的面经超过 3000 字时切段，每个话题召回 → reranker 精排 top-3；简历、JD 不检索（整段给） | 下一问 LLM | ✅ |
 
 链路：**切块 → 向量化入库 → 召回（embedding）→ 精排（reranker，cross-encoder）→ 注入 prompt**。
-已实现部分在 `retrieval/unit_store.py`（入库、召回、精排，`recall_k` / `top_k` 由调用方传入）与 `llm/embedding.py`；目前只有单测在用，等面试接入。
+实现在 `retrieval/context_store.py`（面经：切段、入库、召回、精排、会话结束删除）与 `llm/embedding.py`；`retrieval/unit_store.py`（简历单元）只有单测在用。
 为什么要两阶段：embedding 是双塔模型，query 与文档各自编码，快但粗；reranker 把 query 与每个候选拼在一起过模型，准但慢——所以先用前者把上千条缩到 20 条，再用后者挑 3 条。
 reranker 失败或关闭时退化为直接取召回 top-3，功能不中断。
 
@@ -128,55 +128,53 @@ client.embed / client.rerank 同样五步；降级：失败记 WARNING，不阻�
 
 ## 4.9 模拟面试（图 B：LangGraph interrupt + SqliteSaver，见 06-workflows 6.3）
 
-下面的推进规则仍然有效，只是由图 B 的 `decide` / `round_summary` 纯函数节点实现，状态游标在检查点里、问答记录在 MySQL。
+只有技术面：5 个话题，每个最多追问 1 次。推进规则由图 B 的 `decide`（纯函数）实现，游标在检查点里、问答记录在 MySQL。
 
 ```
-创建  POST /interviews
-  ① 校验：match_report 存在且 success；gate = passed 或 practice=true
-  ② extra_context > 3000 字 → 切块 embed 进 interview_ctx
-  ③ iv_plan：一次 LLM 调用 → topics[]（tech 默认 ≤8 题预算，hr ≤6）；每个 topic 检索 top-3 上下文片段存 plan
-  ④ status=planned
+创建  POST /interviews {apply_id, company_name?, extra_context?, practice?}
+  ① 校验：投递存在且 success；初筛没过或 practice=true → mode=practice，否则 normal
+  ② 面经 > 3000 字 → 切段 embed 进 interview_ctx；不长就整段放进材料；没贴就没有
+  ③ 整理材料（岗位要求 + 初筛判定、经历的掩码文本、简历问题），图 B 跑到 pick_topic 之前：
+     plan_interview 一次 LLM 调用 → 5 个话题，每个指向一条材料（P / R / F 编号，代码核对）
+  ④ status=planned；plan = {topics, materials} 存库
 
-开始  POST /interviews/{id}/start
-  current_round=tech, topic=0, depth=0 → iv_ask（流式）→ 写 interview_turns（question）→ status=in_progress
+开始  POST /interviews/{id}/start（也是"出错后继续"）
+  planned → in_progress；pick_topic → retrieve_context → ask_question（流式）→ 写 interview_turns → wait_answer 停住
 
-作答  POST /interviews/{id}/answer {text}
-  ① 状态校验（in_progress 且最后一题未答）；空答/"跳过" → 记 decision=next，不评估
-  ② iv_eval：rubric 结构化输出（scores + evidence[] + feedback + better_answer + decision）
-     evidence 每条经 locate_span(quote, answer_text) 校验，失败丢弃；全丢 → scores 置中性 3 分并标 low_evidence
-  ③ 确定性推进：
-       decision=followup 且 depth<2 且 topic 预算未耗尽 → depth+1，同 topic
-       否则 → topic+1, depth=0；topic 超出本轮 → round_end（算本轮分）→ 切 hr；hr 也结束 → finished
-       cost ≥ cost_limit → 立即 finished
-  ④ 推送 evaluation 事件 → iv_ask 流式出下一问（或 round_end / finished）
-  ⑤ 写 turns、更新 session 游标与 cost，同一事务；last_active_at 刷新
-
-结束  finished → iv_report（LLM 只写 strengths/weaknesses/better_answer 汇总；分数由确定性聚合）
-      → report JSON → status=completed → 删 interview_ctx 切块
-放弃  启动清理：last_active_at < now-24h 且 in_progress → 按已答题聚合出报告 → abandoned
+作答  POST /interviews/{id}/answer {text, skip?}
+  ① 状态校验（in_progress）；条件更新 answered_at IS NULL，同一题只能答一次；回答先落库
+  ② 空答 / 跳过 → 不调模型，记 0 分；否则 evaluate_answer：rubric 结构化输出
+     （scores + evidence[] + good + bad + better_answer + decision）
+     evidence 每条经 locate_span(quote, answer) 校验；一条都对不上 → 带原因重试一次 → 仍不行：三项中性 3 分并标 low_evidence
+     better_answer 里回答没出现过的数字换成【数值】（一位数放过）
+  ③ decide：decision=followup 且没跳过 且 depth < 1 → 追问；否则下一个话题；话题用完 → 出报告；cost ≥ cost_limit → 立即出报告
+  ④ 练习模式先推 evaluation 事件；然后流式出下一问（或 finished）
+提前结束  POST /interviews/{id}/finish：不经过图，按已评完分的题出报告
+结束  final_report：分数纯函数聚合（5.9）；LLM 只写 strengths / weaknesses / links → status=completed → 删检查点线程、interview_ctx 切块
+放弃  启动清理：last_active_at < now-24h 且未结束 → 按已答题聚合出报告（不调模型写总结）→ abandoned
 ```
 
 **结论更正（v4）**：此前决定不用 LangGraph 做面试，理由是 Redis 检查点依赖 Redis Stack。`SqliteSaver` 为本地文件、零部署，该理由不成立；`interrupt()` 正是为「停下来等人输入」设计的。现改为图 B，详见 06-workflows 6.3。
 
-## 4.10 面试 Prompt 骨架
+## 4.10 面试 Prompt 骨架（全文见 `llm/prompts.py` 的 `INTERVIEW_*`，版本 interview-v1）
 
 ```
-[System · 技术面]
-你是 {company_name 或 "目标公司"} 的技术面试官，正在面试「{job_title}」岗位的候选人。
-岗位要求：{requirements 摘要}    参考材料：{context_snippets 或 "无"}
-候选人简历要点：{structure 摘要（无 basics）}    已发现的薄弱点：{findings 摘要}
-风格：追问具体做法与验证方式，不接受泛泛而谈；一次只问一个问题；不透露评分。
+[plan · temp 0.7，不走缓存]
+为「{job_title}」定 {n} 个话题。每个指向材料里的一条：project（P 开头）/ requirement（R 开头，优先必须项里没满足或部分满足的）/ finding（F 开头）。
+至少 1 个 project、2 个 requirement，finding 最多 2 个；先聊项目再到要求。label 14 字以内、中性；intent 40 字以内。
+输出 {"topics": [{"source","ref","label","intent"}]}
 
-[System · HR 面]
-你是 {company_name 或 "目标公司"} 的 HR 面试官……
-关注：经历真实性与职责边界（STAR）、求职动机与岗位匹配、沟通表达；不问技术细节。
+[ask · temp 0.7，流式，不走缓存]
+你是{company 或 "目标公司"}的技术面试官，面试「{job_title}」的实习生候选人。一次只问一个问题，60 字以内，口语化；
+具体到做了什么、为什么、怎么验证；追问必须接住上一句回答里的某个说法；不评价、不透露评分；材料里没有的事不当成候选人做过的来问。
+输入：话题 + 考察目标 + 相关材料（这条经历 / 要求 / 问题）+ 面经片段 + 本话题已问过的问答和评分员指出的不足
+开场白（第一题前那句"你好，我是……今天大概聊 N 个话题"）由代码拼，不花模型的钱
 
-[iv_eval · 技术面 rubric]  correctness / depth / clarity 各 0–5；evidence 必须逐字引用候选人回答
-[iv_eval · HR 面 rubric]   star_completeness / motivation_fit / communication 各 0–5
-输出 JSON：{"scores":{...},"evidence":[{"quote":"..."}],"feedback":"...","better_answer":"...","decision":"followup|next|end_round"}
+[eval · temp 0，不走缓存]  correctness / depth / clarity 各 0–5；evidence 每段 6–40 字、逐字引用回答
+输出 {"scores":{...},"evidence":["..."],"good":"...","bad":"...","better_answer":"...","decision":"followup|next"}
+better_answer：以候选人口吻、150 字以内；回答里没有的数字 / 规模 / 结果用【】占位，不得编造
 
-[iv_ask]  输入：persona、当前 topic（intent/来源/上下文片段）、本轮历史（问答摘要）、上题评估、depth
-          输出：一个问题（流式纯文本）；depth>0 时必须承接上一答中的具体点
+[report · temp 0.3]  strengths / weaknesses 各 1–3 条 {title, detail}；links 只写给列出的简历问题 / 岗位差距，ref 照抄编号
 ```
 
 ---
@@ -281,15 +279,14 @@ check_placeholders(original, rewritten)：正则提取 rewritten 中的 \d+(\.\d
 评测复检时占位符视作已量化
 ```
 
-## 5.9 面试评分聚合（确定性）
+## 5.9 面试评分聚合（确定性，`interview/rubric.py`）
 
 ```
-每题分 = mean(rubric 三维) × 20（0–100）；low_evidence 的题权重 0.5
-话题分 = 该 topic 各题分均值（追问题计入）
-轮次分 = 话题分均值；technical 通过线 60
-综合   = 0.6 × tech + 0.4 × hr
-verdict：练习模式 → practice；否则 tech ≥ 60 且综合 ≥ 60 → pass，不然 fail（与 06-workflows 6.3 一致）
-weaknesses 候选 = 分数最低的 3 个话题 + 其 linked_finding；strengths = 最高 2 个
+每题分 = mean(rubric 三维) × 20（0–100）；跳过的题记 0 分；low_evidence 的题权重 0.5
+话题分 = 该话题各题分的加权平均（追问题计入）；没问到的话题为空
+综合   = 问到了的话题的平均
+verdict：练习模式 → practice；没聊完所有话题就结束 → incomplete（不下结论）；否则综合 ≥ 60 → pass，不然 fail
+links（和简历问题的关联）= 得分 < 60、来源是简历问题或岗位要求的话题
 ```
 
 ---
@@ -308,16 +305,16 @@ parser/ diagnose/ matching/ interview/ graphs/   领域层 —— 纯逻辑
 backend/app/
 ├── main.py（lifespan：检查 MySQL / Redis、启动清理）  config.py  database.py  deps.py  errors.py  security.py
 ├── models.py（11 张表）  schemas.py
-├── api/        auth.py resume.py diagnose.py job.py match.py apply.py task.py system.py advice.py   〔待建〕interview.py
+├── api/        auth.py resume.py diagnose.py job.py match.py apply.py task.py system.py advice.py interview.py
 ├── services/   resume_service.py parse_service.py diagnose_service.py job_service.py match_service.py
-│               apply_service.py skill_service.py advice_service.py   〔待建〕interview_service.py
+│               apply_service.py skill_service.py advice_service.py interview_service.py
 ├── parser/     extract.py layout.py ★ section.py structure.py normalize.py pii.py
 ├── diagnose/   rules.py evidence.py ★ llm_review.py scorer.py types.py
 ├── rewrite/    advice.py（具体建议：拼 prompt、数字占位符复检）
 ├── matching/   skill_dict.py ★（extract_mentions） jd_parser.py matcher.py ★ llm_judge.py units.py（留给面试检索）
-├── interview/  〔待建〕planner.py（计划 prompt 组装与解析） rubric.py（评估 schema 与聚合） policy.py（推进规则）
-├── retrieval/  chroma_client.py unit_store.py（召回 + 精排）   〔待建〕ctx_store.py
-├── graphs/     state.py apply_graph.py（图 A） diagnose_graph.py match_graph.py   〔待建〕interview_graph.py（图 B）
+├── interview/  materials.py（面试材料与编号） planner.py（定话题） asker.py（出题 prompt） rubric.py（评分与聚合） policy.py（推进规则） report.py（报告）
+├── retrieval/  chroma_client.py unit_store.py（简历单元，召回 + 精排） context_store.py（面经切段检索）
+├── graphs/     state.py apply_graph.py（图 A） diagnose_graph.py match_graph.py interview_graph.py（图 B） checkpoint.py（SqliteSaver）
 ├── llm/        client.py ★ registry.py prompts.py audit.py embedding.py
 └── cache/      redis_client.py llm_cache.py ratelimit.py pubsub.py
 
@@ -325,13 +322,13 @@ backend/app/
 
 scripts/   dump_schema.py dump_seed.py   〔待建，M8〕gen_eval_set.py run_eval.py
 data/      skills_seed.csv resumes/ uploads/ chroma/ eval_runs/
-tests/     每个模块一个 test_*.py（286 个用例，模型 / 向量库 / Redis 全部打桩，不联网）   〔待建〕test_interview_policy.py
+tests/     每个模块一个 test_*.py（299 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
 
 frontend/src/
 ├── pages/       Home（首页 + 登录）  Workbench（新的投递：选岗位 → 选简历 → 投递）  ApplyResult（初筛结果，含"进入面试 / 练习模式"入口）
-│                〔待建〕Rewrite  Interview★（流式聊天）  InterviewReport
+│                InterviewSetup（面试准备）  Interview★（流式对话）  InterviewReport
 ├── components/  JobPicker  ResumePicker  Pipeline（投递进度）  IssueItem  AdviceBlock（具体建议，流式）
-│                ResumeSheet★（原文纸面，char 区间高亮）  Tabs  Headline  AppShell  effects   〔待建〕ChatStream
+│                ResumeSheet★（原文纸面，char 区间高亮）  Tabs  Headline  AppShell  effects  InterviewText（下划线、占位）
 └── store/ api/ types/
 ```
 
@@ -350,7 +347,8 @@ Redis 与 MySQL 同为必需依赖，启动 ping 失败即退出；运行期唯�
 UPDATE resumes            SET parse_status='failed', parse_error='interrupted' WHERE parse_status IN ('pending','parsing');
 UPDATE diagnoses          SET status='failed', error_msg='interrupted'          WHERE status='running';
 UPDATE match_reports      SET status='failed', error_msg='interrupted'          WHERE status='running';
--- 〔未实现〕面试：in_progress 且 last_active_at < now-24h → 按已答题聚合报告 → abandoned；删 interview_ctx 切块
+-- 面试（interview_service.cleanup_idle）：未结束且 last_active_at < now-24h → 按已答题聚合报告（不调模型）→ abandoned；删检查点线程和 interview_ctx 切块
+--   停在"等回答"是正常状态，不算中断，不在这里标失败
 -- 〔未实现〕软删除 30 天：删文件 + DELETE resumes（CASCADE）
 ```
 

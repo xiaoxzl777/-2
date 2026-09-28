@@ -266,12 +266,12 @@ CREATE TABLE interview_sessions (
   mode          ENUM('normal','practice') NOT NULL DEFAULT 'normal' COMMENT 'practice = 初筛未通过仍练习',
 
   status         ENUM('planned','in_progress','completed','abandoned') NOT NULL DEFAULT 'planned',
-  current_round  ENUM('tech','hr') NULL,
+  current_round  ENUM('tech','hr') NULL COMMENT '只做技术面，恒为 tech（hr 值保留未用）',
   current_topic  INT NOT NULL DEFAULT 0,
-  current_depth  TINYINT NOT NULL DEFAULT 0 COMMENT '0=主问 1/2=追问层',
+  current_depth  TINYINT NOT NULL DEFAULT 0 COMMENT '0=主问 1=追问',
 
-  plan   JSON COMMENT '{topics:[{idx, round, intent, linked_type:finding|requirement|project|general, linked_id, budget, context_snippets[]}]}',
-  report JSON COMMENT '{round_scores:{tech,hr}, overall, verdict, strengths[], weaknesses[], linked_findings[], turns_review[]}',
+  plan   JSON COMMENT '{topics:[{idx, source:project|requirement|finding, ref, label, intent}], materials:{...}}，材料也存这里，检查点丢了能重建',
+  report JSON COMMENT '{overall, verdict:pass|fail|practice|incomplete, topics[{idx,label,source,score}], strengths[], weaknesses[], links[], answered, early, summary_ok}',
 
   model_name     VARCHAR(50),
   prompt_version VARCHAR(20),
@@ -304,11 +304,11 @@ CREATE TABLE interview_turns (
   depth      TINYINT NOT NULL DEFAULT 0,
 
   question      TEXT NOT NULL,
-  question_meta JSON COMMENT '{intent, linked_type, linked_id, rubric_focus[]}',
+  question_meta JSON COMMENT '{label, source}',
   answer        TEXT NULL,
   answered_at   DATETIME NULL,
 
-  evaluation JSON NULL COMMENT '{scores:{...}, evidence:[{quote, char_start, char_end, verify_result}], feedback, better_answer, decision:followup|next|end_round}',
+  evaluation JSON NULL COMMENT '{skipped, score, scores:{correctness,depth,clarity}, evidence:[{quote, char_start, char_end, verify_result}], good, bad, better_answer, decision:followup|next, low_evidence}',
   cost       DECIMAL(10,6) NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

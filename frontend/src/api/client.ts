@@ -80,12 +80,15 @@ export async function request<T>(path: string, options: { method?: string; body?
   return payload.data
 }
 
-/** 带令牌打开一个流式响应（SSE）。EventSource 带不了请求头，也发不了 POST，所以用 fetch 读流；401 同样触发退出 */
-export async function openStream(path: string, signal: AbortSignal, method = 'GET'): Promise<ReadableStream<Uint8Array>> {
+/** 带令牌打开一个流式响应（SSE）。EventSource 带不了请求头，也发不了 POST，所以用 fetch 读流；401 同样触发退出。body 按 JSON 发 */
+export async function openStream(path: string, signal: AbortSignal, method = 'GET', body?: unknown): Promise<ReadableStream<Uint8Array>> {
+  const headers: Record<string, string> = {}
   const token = tokenStore.get()
+  if (token) headers.Authorization = `Bearer ${token}`
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
   let res: Response
   try {
-    res = await fetch(`/api/v1${path}`, { method, headers: token ? { Authorization: `Bearer ${token}` } : {}, signal })
+    res = await fetch(`/api/v1${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal })
   } catch (e) {
     if (signal.aborted) throw e
     throw new ApiError(0, '网络连接失败，请稍后重试')
