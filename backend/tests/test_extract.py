@@ -42,6 +42,17 @@ def test_encrypted_pdf_is_rejected(encrypted_pdf):
         extract_pdf(encrypted_pdf)
 
 
+def test_bordered_tables_are_found(single_column_pdf, table_resume_pdf):
+    assert extract_pdf(single_column_pdf).tables == []
+
+    tables = extract_pdf(table_resume_pdf).tables
+    assert [len(t.rows) for t in tables] == [2, 2, 3]
+    info = tables[0]
+    assert info.page_no == 1 and info.bbox == pytest.approx((40, 70, 555, 118), abs=1)
+    assert all(len(row) == 4 for row in info.rows)
+    assert [len(row) for row in tables[2].rows] == [2, 2, 2]
+
+
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [

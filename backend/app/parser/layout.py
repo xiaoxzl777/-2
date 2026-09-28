@@ -1,6 +1,10 @@
 """版面分析：把 extract.py 抽出的"行"重建成正确的阅读顺序，并切成块、拼出 full_text。
 
-算法（region-first，递归 XY 切分的一个变体）：对一个区域
+算法（region-first，递归 XY 切分的一个变体）：
+  0. 表格：extract 找到的带边框表格，把落在里面的行归到各个格子，整张表缩成一个"替身行"参与下面的分栏
+     （压住中缝就是通栏，落在某一栏里就留在那一栏）；排好位置后再按行展开，见 _place_table。
+     否则表格的列间空白会被当成栏间空白，整张表按列读乱。
+  对一个区域
   1. 找栏间空白带：用宽度 = 3% 页宽的竖直窗口滑过区域，取"挡住它的行最少"的位置。
        c = 1 − 挡住的行数 / 区域行数
      · c = 1            → 干净的空白带，直接左右切开（X 切），先读左栏再读右栏
@@ -24,7 +28,7 @@ import statistics
 from dataclasses import dataclass, field
 
 from app.config import settings
-from app.parser.extract import ExtractResult, Line, PageInfo
+from app.parser.extract import Box, ExtractResult, Line, PageInfo, TableBox
 
 # ── 分栏 ──
 MIN_SIDE_LINES = 3            # 空白带每一侧至少要有这么多行，才算"一栏"
@@ -34,6 +38,10 @@ EDGE_EPS = 0.5                # 判断"在空白带一侧"时的坐标容差（p
 Y_CUT_FACTOR = 1.5            # 水平留白 ≥ 1.5 倍行高才横切
 MAX_DEPTH = 6                 # 递归深度上限
 COLUMN_PAGE_RATIO = 0.3       # 分栏 / unknown 的行数占全页比例达到这个值，才据此给整页定性
+
+# ── 表格 ──
+TABLE_MIN_FILLED = 4          # 至少这么多格子有字才算表格：也挡掉"顶部色条 + 侧边栏底色块"拼成的假表格
+LABEL_MAX_LEN = 8             # 只有两格的行，左格不超过这么多字 → 当成标签单独成块（表格型简历常把章节名放在左列）
 
 # ── 分块 ──
 HEADING_EXTRA_SIZE = 1.0      # 字号比正文大这么多 → 像标题
@@ -121,10 +129,35 @@ class _Placed:
 
 
 @dataclass(slots=True)
+class _Cell:
+    bbox: Box
+    lines: list[Line] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class _Table:
+    bbox: Box
+    rows: list[list[_Cell]]   # 只留有字的格子；没有字的行整行去掉
+
+    @property
+    def lines(self) -> list[Line]:
+        return [l for row in self.rows for c in row for l in c.lines]
+
+
+@dataclass(slots=True)
+class _TableLine(Line):
+    """整张表在分栏时的替身：占住表格的位置，排好顺序后再展开。"""
+
+    table: _Table | None = None
+
+
+@dataclass(slots=True)
 class _PageStats:
     """递归过程中顺手记下的统计，用来给整页定性、算置信度。"""
 
     total: int = 0
+    chars: int = 0
+    table_chars: int = 0
     unknown_lines: int = 0
     cut_clearness: list[float] = field(default_factory=list)
     leaf_clearness: list[float] = field(default_factory=list)
@@ -200,10 +233,10 @@ def _header_rows_above_right_column(lines: list[Line], band: _Band, page_width: 
 
 
 def _rows(lines: list[Line]) -> list[list[Line]]:
-    """按垂直重叠把片段分到同一水平行。"""
+    """按垂直重叠把片段分到同一水平行。表格替身自成一行，不和旁边的文字合并。"""
     rows: list[list[Line]] = []
     for l in sorted(lines, key=lambda l: (l.y0, l.x0)):
-        if rows:
+        if rows and not isinstance(l, _TableLine) and not isinstance(rows[-1][0], _TableLine):
             ref = rows[-1][0]
             overlap = min(ref.y1, l.y1) - max(ref.y0, l.y0)
             if overlap >= 0.5 * min(ref.height, l.height):
@@ -213,22 +246,27 @@ def _rows(lines: list[Line]) -> list[list[Line]]:
     return rows
 
 
+def _union(lines: list[Line], text: str) -> Line:
+    """几段文字拼成一行：外框取并集，字号取最长那段的，加粗看字数过半。"""
+    longest = max(lines, key=lambda l: len(l.text))
+    chars = sum(len(l.text) for l in lines)
+    bold_chars = sum(len(l.text) for l in lines if l.is_bold)
+    return Line(
+        page_no=lines[0].page_no,
+        x0=min(l.x0 for l in lines), y0=min(l.y0 for l in lines),
+        x1=max(l.x1 for l in lines), y1=max(l.y1 for l in lines),
+        text=text,
+        font_size=longest.font_size,
+        is_bold=bold_chars * 2 > chars,
+    )
+
+
 def _merge_row(row: list[Line]) -> Line:
     """同一水平线上的片段（如「电话    邮箱」）合并成一行，片段之间补一个空格。"""
     row = sorted(row, key=lambda l: l.x0)
     if len(row) == 1:
         return row[0]
-    longest = max(row, key=lambda l: len(l.text))
-    chars = sum(len(l.text) for l in row)
-    bold_chars = sum(len(l.text) for l in row if l.is_bold)
-    return Line(
-        page_no=row[0].page_no,
-        x0=min(l.x0 for l in row), y0=min(l.y0 for l in row),
-        x1=max(l.x1 for l in row), y1=max(l.y1 for l in row),
-        text=" ".join(l.text for l in row),
-        font_size=longest.font_size,
-        is_bold=bold_chars * 2 > chars,
-    )
+    return _union(row, " ".join(l.text for l in row))
 
 
 def _is_tabular(row: list[Line]) -> bool:
@@ -236,13 +274,110 @@ def _is_tabular(row: list[Line]) -> bool:
     return any(b.x0 - a.x1 > TABULAR_GAP * a.font_size for a, b in zip(row, row[1:]))
 
 
-def _place_rows(lines: list[Line], col: int, stats: _PageStats) -> list[_Placed]:
-    """把一组行作为一个叶子区域落位：合并同行片段，按 y、x 排序。"""
+def _place_rows(lines: list[Line], col: int, stats: _PageStats,
+                bounds: tuple[float, float] | None = None) -> list[_Placed]:
+    """把一组行作为一个叶子区域落位：合并同行片段，按 y、x 排序；遇到表格替身就地展开。
+
+    bounds 是叶子的左右边界（判断"这一行写满了没有"用），默认取这些行自己的范围；表格的格子传格子的边框。
+    """
     stats.leaf_seq += 1
+    leaf = stats.leaf_seq
     rows = _rows(lines)
-    merged = [_merge_row(r) for r in rows]
-    x0, x1 = min(l.x0 for l in merged), max(l.x1 for l in merged)
-    return [_Placed(l, col, stats.leaf_seq, x0, x1, _is_tabular(r)) for l, r in zip(merged, rows)]
+    merged = [None if isinstance(r[0], _TableLine) else _merge_row(r) for r in rows]
+    text = [l for l in merged if l is not None]
+    x0, x1 = bounds or (min((l.x0 for l in text), default=0.0), max((l.x1 for l in text), default=0.0))
+    placed: list[_Placed] = []
+    for r, l in zip(rows, merged):
+        if l is None:
+            placed.extend(_place_table(r[0].table, col, stats))
+        else:
+            placed.append(_Placed(l, col, leaf, x0, x1, _is_tabular(r)))
+    return placed
+
+
+def _place_table(table: _Table, col: int, stats: _PageStats) -> list[_Placed]:
+    """按行展开一张表，一行里的格子从左到右：
+      · 每格都只有一行字 → 整行一块，格与格之间空一格（「时间 学校 专业」「姓名 张三 性别 男」）；
+        第一格是标签时先单独成块（「获奖情况 | 蓝桥杯省二等奖」：左列多半是章节名，拆开才认得出）；
+      · 有格子写了多行 → 每格各自是一个叶子，照常拼折行、按项目符号分块（「项目经历 | 多行描述」）。
+    每一块都在自己的叶子里，不会和表格外、别的格子里的行拼成一块。
+    """
+    placed: list[_Placed] = []
+
+    def add(parts: list[Line]) -> None:
+        line = parts[0] if len(parts) == 1 else _union(parts, " ".join(p.text for p in parts))
+        stats.leaf_seq += 1
+        placed.append(_Placed(line, col, stats.leaf_seq, line.x0, line.x1, len(parts) > 1))
+
+    for row in table.rows:
+        cells = sorted(row, key=lambda c: c.bbox[0])
+        visual = [_rows(c.lines) for c in cells]
+        if any(len(v) > 1 for v in visual):
+            for c in cells:
+                placed.extend(_place_rows(c.lines, col, stats, bounds=(c.bbox[0], c.bbox[2])))
+            continue
+        texts = [_merge_row(v[0]) for v in visual]
+        if _is_label(cells, texts, table.bbox[0]):
+            add(texts[:1])
+            texts = texts[1:]
+        add(texts)
+    return placed
+
+
+def _is_label(cells: list[_Cell], texts: list[Line], table_x0: float) -> bool:
+    """一行的第一格是不是标签：在表格最左一列、字数少，并且要么这一行只有两格、右格更长，
+    要么它竖着跨了好几行（合并格）。最左一列被上面的合并格占掉的行，剩下的第一格不算标签。"""
+    if len(texts) < 2 or len(texts[0].text) > LABEL_MAX_LEN or cells[0].bbox[0] - table_x0 > EDGE_EPS * 2:
+        return False
+    if len(texts) == 2 and len(texts[1].text) > len(texts[0].text):
+        return True
+    height = [c.bbox[3] - c.bbox[1] for c in cells]
+    return all(height[0] > 1.5 * h for h in height[1:])
+
+
+# ───────────────────────── 表格 ─────────────────────────
+
+
+def _overlap(box: Box, l: Line) -> float:
+    w = min(box[2], l.x1) - max(box[0], l.x0)
+    h = min(box[3], l.y1) - max(box[1], l.y0)
+    return w * h if w > 0 and h > 0 else 0.0
+
+
+def _take_tables(lines: list[Line], boxes: list[TableBox]) -> tuple[list[Line], list[_Table]]:
+    """中心落在表格里的行，归到和它重叠最多的格子（文字超出格子时，它的大半截仍在自己的格子里）。
+
+    有字的格子不到 TABLE_MIN_FILLED 个、或不到一半，就不算表格，行照常走分栏。
+    返回（表格之外的行，有效的表格）。
+    """
+    tables: list[_Table] = []
+    for box in boxes:
+        cells = [[_Cell(c) for c in row] for row in box.rows]
+        flat = [c for row in cells for c in row]
+        if not flat:
+            continue
+        x0, y0, x1, y1 = box.bbox
+        outside: list[Line] = []
+        for l in lines:
+            cx, cy = (l.x0 + l.x1) / 2, (l.y0 + l.y1) / 2
+            best = max(flat, key=lambda c: _overlap(c.bbox, l)) if x0 <= cx <= x1 and y0 <= cy <= y1 else None
+            if best is not None and _overlap(best.bbox, l) > 0:
+                best.lines.append(l)
+            else:
+                outside.append(l)
+        filled = sum(1 for c in flat if c.lines)
+        if filled < TABLE_MIN_FILLED or 2 * filled < len(flat):
+            continue
+        lines = outside
+        tables.append(_Table(box.bbox, [[c for c in row if c.lines] for row in cells if any(c.lines for c in row)]))
+    return lines, tables
+
+
+def _stand_in(table: _Table) -> _TableLine:
+    ls = table.lines
+    x0, y0, x1, y1 = table.bbox
+    return _TableLine(ls[0].page_no, x0, y0, x1, y1, "".join(l.text for l in ls), _body_font_size(ls), False,
+                      table=table)
 
 
 # ───────────────────────── 递归切分 ─────────────────────────
@@ -435,6 +570,8 @@ def _body_font_size(lines: list[Line]) -> float:
 def _summarize_page(page: PageInfo, s: _PageStats) -> PageLayout:
     if s.total == 0:
         return PageLayout(page.page_no, "single", 1.0, None)
+    if s.chars and s.table_chars / s.chars >= settings.LAYOUT_TABLE_CHAR_RATIO:
+        return PageLayout(page.page_no, "table", 1.0, None)
     if s.unknown_lines / s.total >= COLUMN_PAGE_RATIO:
         return PageLayout(page.page_no, "unknown", 0.5, None)
     if s.main_gap and s.main_gap_lines / s.total >= COLUMN_PAGE_RATIO:
@@ -454,8 +591,14 @@ def analyze_layout(extracted: ExtractResult) -> LayoutResult:
     leaf_seq = 0
     for page in extracted.pages:
         page_lines = [l for l in lines if l.page_no == page.page_no]
-        stats = _PageStats(total=len(page_lines), leaf_seq=leaf_seq)  # 叶子编号跨页连续，保证全局唯一
-        placed.extend(_order(page_lines, _Region(page.width, stats)))
+        rest, tables = _take_tables(page_lines, [t for t in extracted.tables if t.page_no == page.page_no])
+        stats = _PageStats(
+            total=len(page_lines),
+            chars=sum(len(l.text) for l in page_lines),
+            table_chars=sum(len(l.text) for t in tables for l in t.lines),
+            leaf_seq=leaf_seq,  # 叶子编号跨页连续，保证全局唯一
+        )
+        placed.extend(_order(rest + [_stand_in(t) for t in tables], _Region(page.width, stats)))
         leaf_seq = stats.leaf_seq
         pages.append(_summarize_page(page, stats))
 

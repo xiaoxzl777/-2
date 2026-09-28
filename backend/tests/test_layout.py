@@ -5,13 +5,13 @@ import pytest
 
 from app.parser.extract import extract_pdf
 from app.parser.layout import analyze_layout
-from tests.conftest import make_pdf
+from tests.conftest import make_pdf, table_grid
 
 REAL_SAMPLES = sorted((Path(__file__).resolve().parents[2] / "data" / "resumes").glob("*.pdf"))
 FILL = " lorem ipsum dolor sit amet consect"  # 把一行撑到接近栏宽
 
 
-def _tags(result, prefixes=("H", "L", "R", "S")) -> list[str]:
+def _tags(result, prefixes=("H", "L", "R", "S", "T")) -> list[str]:
     """按输出顺序取出每个块开头的编号。"""
     out = []
     for b in result.blocks:
@@ -152,6 +152,95 @@ def test_page_numbers_and_repeated_headers_are_dropped(tmp_path):
     assert "Zhang San Resume" not in r.full_text and "/ 2" not in r.full_text
     assert _tags(r) == [f"L{i:02d}" for i in range(1, 17)]
     assert [b.page_no for b in r.blocks] == [1] * 8 + [2] * 8
+
+
+# ───────────────────────── 表格 ─────────────────────────
+
+
+def test_bordered_table_reads_row_by_row(tmp_path):
+    """表格的列间空白不能当成栏间空白：按行读，一行一块；页面仍是单栏。"""
+    body = "负责订单服务的开发与性能优化，使用 Spring Boot 与 Redis 完成缓存改造并上线"
+    items, rects, bottom = table_grid(40, 130, [170, 180, 165], [
+        ["时间", "学校", "专业"],
+        ["2022.09-2026.06", "江城大学", "计算机科学与技术"],
+        ["2019.09-2022.06", "江城一中", "理科"],
+        ["2025.07-2025.09", "北岭暑期学校", "机器学习"],
+    ])
+    items += [(250, 60, "张三", 20, "china-s"), (40, 120, "教育背景", 12, "china-s"),
+              (40, bottom + 30, "项目经历", 12, "china-s")]
+    items += [(40, bottom + 50 + i * 16, f"{i + 1}. {body}", 10, "china-s") for i in range(5)]
+    r = analyze_layout(extract_pdf(make_pdf(tmp_path / "table.pdf", items, rects=rects)))
+
+    texts = [b.text for b in r.blocks]
+    i = texts.index("教育背景")
+    assert texts[i + 1:i + 6] == ["时间 学校 专业", "2022.09-2026.06 江城大学 计算机科学与技术",
+                                  "2019.09-2022.06 江城一中 理科", "2025.07-2025.09 北岭暑期学校 机器学习", "项目经历"]
+    assert r.pages[0].layout_type == "single" and not r.needs_llm_fallback
+    assert {b.column_index for b in r.blocks} == {0}
+    _assert_contract(r)
+
+
+def test_table_resume(table_resume_pdf):
+    """整页表格：页面判为 table；左列的章节名单独成块，多行的格子照常按行分块；超出格子的字仍归自己的格子。"""
+    r = analyze_layout(extract_pdf(table_resume_pdf))
+
+    assert [b.text for b in r.blocks] == [
+        "个人简历",
+        "姓名 张三 性别 男", "电话 13800000000 邮箱 zs@example.com",
+        "时间 学校 专业 学历", "2022.09-2026.06 江城大学 计算机科学与技术 本科",
+        "项目经历", "校园二手交易平台（2024.03-2024.06）", "1. 负责订单模块与支付回调", "2. 用 Redis 缓存热门商品",
+        "专业技能", "Java、Spring Boot、MySQL、Redis",
+        "获奖情况", "2024 年蓝桥杯省二等奖",
+    ]
+    assert r.pages[0].layout_type == "table" and r.layout_confidence == 1.0
+    _assert_contract(r)
+
+
+def test_vertically_merged_label_cell_becomes_its_own_block(tmp_path):
+    items, rects, _ = table_grid(40, 100, [90, 165, 260], [
+        ["教育背景", "2022.09-2026.06", "江城大学"],
+        [None, "2019.09-2022.06", "江城一中"],
+        ["获奖情况", "2024.05", "蓝桥杯省二等奖"],
+        [None, "2023.11", "校程序设计竞赛一等奖"],
+    ])
+    items.append((40, 300, "自我评价：热爱编程，做事认真负责，能快速学习新技术并用在项目中。", 10, "china-s"))  # 凑够字数，免得被当成扫描件
+    r = analyze_layout(extract_pdf(make_pdf(tmp_path / "merged.pdf", items, rects=rects)))
+
+    assert [b.text for b in r.blocks][:6] == [
+        "教育背景", "2022.09-2026.06 江城大学", "2019.09-2022.06 江城一中",
+        "获奖情况", "2024.05 蓝桥杯省二等奖", "2023.11 校程序设计竞赛一等奖",
+    ]
+
+
+def test_table_in_the_right_column_stays_in_that_column(tmp_path):
+    """表格先缩成一整块参与分栏：落在右栏里就排在右栏的上下文之间，不影响左栏。"""
+    items = [(40, 130 + i * 30, f"L{i + 1:02d}{FILL}", 10, "helv") for i in range(12)]
+    items += [(315, 130 + i * 30, f"R{i + 1:02d}{FILL}", 10, "helv") for i in range(4)]
+    table, rects, bottom = table_grid(315, 240, [60, 90, 90], [
+        ["T1", "Java", "Python"], ["T2", "MySQL", "Redis"], ["T3", "Git", "Docker"],
+    ], font="helv")
+    items += table + [(315, bottom + 30 + i * 30, f"R{i + 5:02d}{FILL}", 10, "helv") for i in range(4)]
+    r = analyze_layout(extract_pdf(make_pdf(tmp_path / "two_table.pdf", items, rects=rects)))
+
+    assert _tags(r) == ([f"L{i:02d}" for i in range(1, 13)] + ["R01", "R02", "R03", "R04"]
+                        + ["T1", "T2", "T3"] + ["R05", "R06", "R07", "R08"])
+    assert next(b for b in r.blocks if b.text.startswith("T1")).text == "T1 Java Python"
+    assert {b.column_index for b in r.blocks if b.text[0] == "T"} == {1}
+    assert r.pages[0].layout_type == "double"
+
+
+def test_background_color_blocks_are_not_a_table(tmp_path):
+    """顶部色条 + 侧边栏底色块会被 find_tables 拼成一张 2×2 的"表"，但有字的格子太少，不算表格。"""
+    items = [(30, 50, "S00 Zhang San", 16, "hebo")]
+    items += [(30, 120 + i * 30, f"S{i + 1:02d} skill item", 10, "helv") for i in range(10)]
+    items += [(200, 120 + i * 30, f"R{i + 1:02d}{FILL}{FILL}", 10, "helv") for i in range(14)]
+    path = make_pdf(tmp_path / "frame.pdf", items, fills=[(0, 0, 595, 90), (0, 90, 185, 842)])
+    extracted = extract_pdf(path)
+    assert extracted.tables, "这个用例要求 find_tables 确实把色块认成了表格"
+
+    r = analyze_layout(extracted)
+    assert _tags(r) == [f"S{i:02d}" for i in range(0, 11)] + [f"R{i:02d}" for i in range(1, 15)]
+    assert r.pages[0].layout_type == "sidebar"
 
 
 def _assert_contract(r):

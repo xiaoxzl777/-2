@@ -9,10 +9,18 @@ import pytest
 A4 = (595, 842)
 
 
-def make_pdf(path: Path, items: list[tuple], *, encrypt: bool = False) -> Path:
-    """items: [(x, y, text, fontsize, fontname)]；fontname: 'china-s' 中文, 'helv' 常规, 'hebo' 加粗。"""
+def make_pdf(path: Path, items: list[tuple], *, rects: list[tuple] = (), fills: list[tuple] = (),
+             encrypt: bool = False) -> Path:
+    """items: [(x, y, text, fontsize, fontname)]；fontname: 'china-s' 中文, 'helv' 常规, 'hebo' 加粗。
+
+    rects: 带黑色边框的格子 [(x0, y0, x1, y1)]；fills: 只有底色、没有边框的色块。
+    """
     doc = pymupdf.open()
     page = doc.new_page(width=A4[0], height=A4[1])
+    for box in fills:
+        page.draw_rect(pymupdf.Rect(*box), color=None, fill=(0.9, 0.92, 0.95))
+    for box in rects:
+        page.draw_rect(pymupdf.Rect(*box), color=(0, 0, 0), width=0.6)
     for x, y, text, size, font in items:
         page.insert_text((x, y), text, fontsize=size, fontname=font)
     if encrypt:
@@ -21,6 +29,48 @@ def make_pdf(path: Path, items: list[tuple], *, encrypt: bool = False) -> Path:
         doc.save(path)
     doc.close()
     return path
+
+
+def table_grid(x0: float, y0: float, widths: list[float], rows: list[list[str | None]], *,
+               line_h: float = 16, size: float = 10, font: str = "china-s") -> tuple[list[tuple], list[tuple], float]:
+    """画一张带边框的表，返回 (文字 items, 格子 rects, 表格底边 y)，交给 make_pdf。
+
+    格子里的 "\\n" 表示多行；None 表示被上一行同一列的格子竖着合并了（上一行那一格会自动加高）。
+    行高 = 这一行最多的行数 × line_h + 8。
+    """
+    heights = [max((c.count("\n") + 1 for c in r if c is not None), default=1) * line_h + 8 for r in rows]
+    tops = [y0 + sum(heights[:i]) for i in range(len(rows))]
+    items, rects = [], []
+    for i, row in enumerate(rows):
+        x = x0
+        for j, (cell, w) in enumerate(zip(row, widths)):
+            if cell is not None:
+                span = 1
+                while i + span < len(rows) and rows[i + span][j] is None:
+                    span += 1
+                bottom = tops[i] + sum(heights[i:i + span])
+                rects.append((x, tops[i], x + w, bottom))
+                for k, text in enumerate(cell.split("\n")):
+                    items.append((x + 4, tops[i] + 4 + size + k * line_h, text, size, font))
+            x += w
+    return items, rects, tops[-1] + heights[-1]
+
+
+@pytest.fixture
+def table_resume_pdf(tmp_path) -> Path:
+    """整页都是表格的"表格型简历"（内容虚构）：个人信息 4 列、教育 4 列、左列是章节名的两列表。"""
+    items, rects, y = [(250, 50, "个人简历", 18, "china-s")], [], 70
+    for widths, rows in [
+        ([90, 170, 90, 165], [["姓名", "张三", "性别", "男"], ["电话", "13800000000", "邮箱", "zs@example.com"]]),
+        # china-s 的英文数字按全角宽度画，日期比格子宽，伸进了右边一格
+        ([130, 130, 130, 125], [["时间", "学校", "专业", "学历"], ["2022.09-2026.06", "江城大学", "计算机科学与技术", "本科"]]),
+        ([90, 425], [["项目经历", "校园二手交易平台（2024.03-2024.06）\n1. 负责订单模块与支付回调\n2. 用 Redis 缓存热门商品"],
+                     ["专业技能", "Java、Spring Boot、MySQL、Redis"],
+                     ["获奖情况", "2024 年蓝桥杯省二等奖"]]),
+    ]:
+        its, rcs, y = table_grid(40, y, widths, rows)
+        items, rects, y = items + its, rects + rcs, y + 20
+    return make_pdf(tmp_path / "table_resume.pdf", items, rects=rects)
 
 
 @pytest.fixture

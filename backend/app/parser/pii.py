@@ -20,6 +20,9 @@ _ID_CARD = re.compile(r"(?<!\d)\d{17}[\dXx](?!\d)")
 _LOCATION = re.compile(r"(?:现居地?|所在地|居住地|现住址|住址|地址|籍贯)\s*[:：]\s*([一-鿿A-Za-z·]{2,15})")
 
 _CJK_NAME = re.compile(r"^[一-鿿]{2,4}(?:·[一-鿿]{1,6})?$")
+# 写在「姓名」后面的名字：表格型简历的「姓名 | 张三」按行展开后是「姓名 张三 性别 男」。
+# 名字后面必须是空白、分隔符或行尾；「姓名：张三性别：男」这种分不清边界的宁可不认
+_LABELED_NAME = re.compile(r"姓\s*名\s*[:：]?\s*([一-鿿]{2,4}(?:·[一-鿿]{1,6})?)(?=\s|[|｜/,，;；]|$)", re.M)
 _LATIN_NAME = re.compile(r"^[A-Za-z][A-Za-z.'-]*(?: [A-Za-z][A-Za-z.'-]*){1,3}$")
 # 会被误当成姓名的常见短词
 _NOT_A_NAME = {"个人简历", "简历", "个人信息", "基本信息", "求职简历", "我的简历", "resume", "curriculum vitae", "cv"}
@@ -65,8 +68,9 @@ def extract_basics(layout: LayoutResult, sections: list[Section]) -> Basics:
     email = _EMAIL.search(text)
     phone = _PHONE.search(text)
     location = _LOCATION.search(text)
+    labeled = _LABELED_NAME.search(text)
     return Basics(
-        name=_find_name(head),
+        name=labeled.group(1) if labeled else _find_name(head),
         email=email.group(0) if email else None,
         phone=re.sub(r"[- ]", "", phone.group(0)) if phone else None,
         location=location.group(1) if location else None,

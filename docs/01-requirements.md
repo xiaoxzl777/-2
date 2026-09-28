@@ -12,7 +12,7 @@
 ## 1.2 解析路径分流
 
 ```
-文本版 PDF   → 完整版面流程：页眉页脚剔除 → 表格区域〔未实现〕→ region-first 分栏 → 阅读顺序 → 章节 → 置信度 → LLM 兜底〔未实现〕
+文本版 PDF   → 完整版面流程：页眉页脚剔除 → 表格区域 → region-first 分栏 → 阅读顺序 → 章节 → 置信度 → LLM 兜底〔未实现〕
 扫描件 PDF   → len(full_text.strip()) < 100 → parse_status='failed', parse_error='scanned_pdf' → 50003
 DOCX         →〔未实现：本期只收 PDF，上传 .docx 直接 41501〕线性读取（段落与表格按文档流；表格逐单元格出块）；layout_type='single'、confidence=1.0、
                page_no=1、bbox=NULL、page_count=NULL；跳过分栏与 LLM 兜底
@@ -42,7 +42,7 @@ DOCX         →〔未实现：本期只收 PDF，上传 .docx 直接 41501〕�
 | 编号 | 需求 | 说明 | 优先级 |
 |---|---|---|---|
 | FR-C1 | 文本与坐标提取 | PDF：PyMuPDF 每块 bbox/字号/加粗；DOCX〔未实现〕：python-docx 段落顺序，`is_bold`=任一 run 加粗或样式名以 Heading 开头 | P0 |
-| FR-C2 | **表格与分栏**（仅 PDF） | 分栏已实现；表格〔未实现，M8 前补，解析补强的第一项〕：先 `page.find_tables()` 取有边框表（≥2行≥2列、≥半数单元格有字）按行出块；剩余文字走 region-first 分栏（5.1） | P0 |
+| FR-C2 | **表格与分栏**（仅 PDF） | `page.find_tables()` 取有边框表（≥2 行 ≥2 列、≥4 格且 ≥ 半数格子有字），只用格子位置、文字仍用抽出的行；整张表缩成一块参与 region-first 分栏，排好位置后按行出块（5.1）。表格字数 ≥ 70% 的页判为 table。无边框的对齐"表格"不识别 | P0 |
 | FR-C3 | 阅读顺序重建（仅 PDF） | 跨栏行与 region 按 y 排；region 内左栏→右栏，栏内按 y；遇项目符号另起一块 | P0 |
 | FR-C4 | 章节识别 | 标题词典（中英/双语三步匹配）+ 特征加权（5.4），输出 8 类 + 置信度 | P0 |
 | FR-C5 | LLM 兜底（仅 PDF） | 〔未实现，M8 前补，排在表格与章节兜底之后〕`layout_detail` 任一页 `unknown`（等价 `layout_confidence < 0.7`）→ 掩码文本+坐标交 LLM，**只回块序号**；在解析流水线内执行 | P1 |
@@ -117,7 +117,7 @@ DOCX         →〔未实现：本期只收 PDF，上传 .docx 直接 41501〕�
 | 编号 | 指标 |
 |---|---|
 | NFR-1 性能 | 单份解析 < 3s（不含 LLM）；完整诊断 < 30s；面试每轮首字 < 3s、整轮 < 15s |
-| NFR-2 准确性 | 版面合成集（N=60，3 种版面，仅 PDF）line 级相邻行对顺序准确率 ≥ 95%；残留幻觉率（人工复核）≤ 2% |
+| NFR-2 准确性 | 版面合成集（N=80，4 种版面，仅 PDF）line 级相邻行对顺序准确率 ≥ 95%；残留幻觉率（人工复核）≤ 2% |
 | NFR-3 可靠性 | LLM 调用指数退避重试 3 次；启动时清理中断任务；面试会话可续答 |
 | NFR-4 成本 | 单份诊断 `DIAGNOSE_COST_LIMIT`；单场面试 `INTERVIEW_COST_LIMIT`（默认 0.3 元），超限提前结束并出报告 |
 | NFR-5 安全与隐私 | JWT；上传校验清单；UUID 落盘；按用户隔离；**PII 不进 LLM prompt**；案例库与 JD 语料仅公开数据；软删除 30 天清理；面试回答只用于本会话 |

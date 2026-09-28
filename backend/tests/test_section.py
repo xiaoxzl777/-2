@@ -114,6 +114,14 @@ def test_unknown_large_heading_becomes_other_and_asks_for_llm():
     assert 0.6 <= other.confidence < 1.0
 
 
+def test_table_resume_sections_come_from_the_label_column(table_resume_pdf):
+    """表格型简历把章节名放在左列：表格按行展开时左格单独成块，章节才认得出来。"""
+    sections = detect_sections(analyze_layout(extract_pdf(table_resume_pdf)))
+    assert [(s.type, s.title) for s in sections] == [
+        ("basics", ""), ("projects", "项目经历"), ("skills", "专业技能"), ("awards", "获奖情况"),
+    ]
+
+
 def test_document_without_any_heading():
     sections = detect_sections(_layout(_body(4)))
     assert len(sections) == 1

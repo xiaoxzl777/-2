@@ -42,6 +42,20 @@ def test_latin_and_minority_names():
     assert _basics([("阿卜杜拉·买买提", 20, True), ("教育背景", 12, True), ("x", 10, False)]).name == "阿卜杜拉·买买提"
 
 
+def test_name_after_a_label():
+    """表格型简历：「姓名 | 张三」按行展开成一块，名字靠「姓名」这个标签认出来。"""
+    assert _basics([("个人简历", 18, False), ("姓名 高梓萱 求职意向 数据分析实习", 10, False),
+                    ("项目经历", 10, False), ("x", 10, False)]).name == "高梓萱"
+    assert _basics([("姓名：阿卜杜拉·买买提", 10, False), ("教育背景", 12, True), ("x", 10, False)]).name == "阿卜杜拉·买买提"
+    # 名字和下一个字段挨在一起、分不清边界时不认，退回按版面找
+    assert _basics([("王五", 20, True), ("姓名：王五性别：男", 10, False), ("教育背景", 12, True)]).name == "王五"
+
+
+def test_table_resume_name(table_resume_pdf):
+    layout = analyze_layout(extract_pdf(table_resume_pdf))
+    assert extract_basics(layout, detect_sections(layout)).name == "张三"
+
+
 def test_basics_never_looks_past_the_header_section():
     # 项目经历里出现的联系邮箱不属于本人基本信息
     b = _basics([("王五", 20, True), ("教育背景", 12, True), ("某某大学", 10.5, False),
