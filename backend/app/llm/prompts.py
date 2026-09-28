@@ -4,6 +4,9 @@
 """
 from __future__ import annotations
 
+# 要求 JSON 输出的调用不合格时发回去的话（llm.client.invoke_json 与自带校验的重试共用）
+JSON_RETRY = "你上一次的输出无法使用：{error}。请严格按示例的 JSON 结构重新输出，只输出 JSON。"
+
 # ───────────────────────── 结构化抽取 ─────────────────────────
 
 STRUCTURE_VERSION = "structure-v1"
@@ -53,7 +56,34 @@ STRUCTURE_AWARDS = _STRUCTURE_RULES + """
 JSON 示例：
 {{"entries": [{{"name": "全国大学生数学建模竞赛省一等奖", "block_ids": [30]}}]}}"""
 
-STRUCTURE_RETRY = "你上一次的输出无法使用：{error}。请严格按示例的 JSON 结构重新输出，只输出 JSON。"
+
+# ───────────────────────── 章节兜底 ─────────────────────────
+
+SECTION_VERSION = "section-v1"
+
+SECTION_SYSTEM = """\
+你在帮忙整理一份简历的章节。下面列出了几行"看起来像章节标题"、但标题词典没认出的文字，
+每行后面附了它下面内容的开头。请判断每一行属于哪类章节，以 JSON 输出。
+
+类别（只能选一个）：
+- education：教育经历、学历、课程
+- work：工作、实习、校园活动、社团、志愿服务等经历
+- projects：项目、作品，以及开发 / 科研 / 课程设计等实践
+- skills：技能、技术栈、专业能力
+- awards：获奖、荣誉、奖学金、证书
+- summary：自我评价、个人简介、个人优势
+- other：兴趣爱好、论文发表等以上都不是的章节
+- none：它不是章节标题，只是正文里的一行（如项目名、公司名、小标题）
+
+同时看标题本身和它下面的内容；拿不准是不是标题时选 none。文本中的 X、* 、某 是脱敏占位符。
+JSON 示例：
+{"items": [{"id": 1, "type": "projects"}, {"id": 2, "type": "none"}]}"""
+
+SECTION_USER = """\
+已认出的章节标题（供参考）：{known}
+
+待判断的行：
+{candidates}"""
 
 # ───────────────────────── 语义诊断 ─────────────────────────
 
@@ -97,8 +127,6 @@ DIAGNOSE_RETRY_EVIDENCE = """\
 请只针对这几个问题重新输出：evidence_quote 必须从【原文】里逐字复制一段连续文字。
 仍然无法逐字引用的问题请直接放弃，不要再报告。输出格式不变。"""
 
-DIAGNOSE_RETRY_SCHEMA = "你上一次的输出无法使用：{error}。请严格按示例的 JSON 结构重新输出，只输出 JSON。"
-
 # ───────────────────────── JD 解析 ─────────────────────────
 
 JD_VERSION = "jd-v2"   # v2：用"或"连接的可替代技术不再拆开
@@ -130,8 +158,6 @@ JD_USER = """\
 【JD 原文】
 {raw_text}"""
 
-JD_RETRY = "你上一次的输出无法使用：{error}。请严格按示例的 JSON 结构重新输出，只输出 JSON。"
-
 # ───────────────────────── 匹配判定 ─────────────────────────
 
 MATCH_VERSION = "match-v2"   # v2：去掉了"按检索片段判定"，只保留全文判定
@@ -152,8 +178,6 @@ MATCH_USER = """【岗位要求】
 {requirements}
 【简历全文】
 {resume}"""
-
-MATCH_RETRY = "你上一次的输出无法使用：{error}。请严格按示例的 JSON 结构重新输出，只输出 JSON。"
 
 # ───────────────────────── 具体建议（结果页点开一条时现场生成，流式） ─────────────────────────
 # 用本机一次真实投递调过三版，过程与实测见 docs/design/具体建议-提示词草稿.md。
@@ -230,8 +254,6 @@ INTERVIEW_PLAN_USER = """\
 {experiences}
 【初筛发现的简历问题】
 {findings}{context}"""
-
-INTERVIEW_PLAN_RETRY = "你上一次的输出无法使用：{error}。请严格按示例的 JSON 结构重新输出，只输出 JSON。"
 
 INTERVIEW_ASK_SYSTEM = """\
 你是{company}的技术面试官，正在面试「{job_title}」岗位的实习生候选人。你一次只问一个问题。

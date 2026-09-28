@@ -33,7 +33,7 @@ basics 抽取 / 规则诊断 / 证据校验 / 综合评分 / 时间归一化 / �
 ```
 extract → (扫描件判定) → layout（PDF：页眉页脚/表格/region-first/阅读顺序/项目符号分块；DOCX〔未实现〕：线性）
 → full_text 与偏移固定 → fallback〔未实现〕（PDF unknown 页 → llm_relayout 只回序号 → 重排重算）
-→ section → basics（本地）→ structure（LLM 回 block_ids → 服务端切片）→ normalize → mentions → persist（同一事务）
+→ section → basics（本地）→ section_llm（词典认不出的候选标题交 LLM 归类，没有候选不调用）→ structure（LLM 回 block_ids → 服务端切片）→ normalize → mentions → persist（同一事务）
 ```
 
 ## 4.4 诊断工作流（图 A 的 diagnose 子图，见 06-workflows 6.2）
@@ -120,6 +120,8 @@ client.invoke(scene, messages, prompt_version, schema?, ref?, model?, temperatur
   ③ Redis 令牌桶限流
   ④ 调模型；token 取自 AIMessage.usage_metadata；cost 按单价表；取 system_fingerprint
   ⑤ 写缓存（TTL 7d）+ llm_calls 落库 → Result{parsed, raw, cost, tokens}
+invoke_json(llm, scene, messages, schema, prompt_version, …) → (parsed | None, 两次总花费, 错误)：不合格时把上一次输出和原因（prompts.JSON_RETRY）发回去重试一次；
+  结构化抽取 / 章节归类 / JD 解析 / 匹配用它；面试出题、评分、诊断重试前还要核对编号 / 证据 / 引用，自己写循环，只共用 JSON_RETRY
 client.embed / client.rerank 同样五步；降级：失败记 WARNING，不阻塞（rerank 失败退化为召回序）
 评测模式：run_id 存在 ⇒ 跳过缓存，prompt/response 写 data/eval_runs/{run_id}/calls.jsonl
 ```
@@ -226,7 +228,8 @@ locate_span(quote, text, hint=(lo,hi)) -> (start, end, score) | None
 
 ## 5.4 章节识别
 
-8 类：`basics / summary / education / work / projects / skills / awards / other`。双语三步匹配：整行==别名 → 去拉丁后中文==中文别名 → 去中文后拉丁==英文别名。
+8 类：`basics / summary / education / work / projects / skills / awards / other`。词典匹配：整行==别名 → 中英双语（中文部分、英文部分各自是别名）→ 组合标题按 与 / 及 / 和 / & / 、 / 斜杠 拆开，每部分都是别名则取第一部分的类型（「专业技能与证书」→ skills；拆之前先去掉「一、」这类编号）。
+词典 2026-09-28 补过一轮：9-27 实测漏掉的 14 个（项目展示、开发经历、工作履历、校园活动、技能证书、技术专长、主修课程……）及同类常见写法。有歧义的归法：主修课程 → education、实习项目 → projects、技能证书 → skills。
 
 | 特征 | 分值 |
 |---|---|
@@ -237,7 +240,19 @@ locate_span(quote, text, hint=(lo,hi)) -> (start, end, score) | None
 | 上方留白 ≥ 0.6 倍行高（正常行间留白约 0.1–0.3 倍；页 / 栏的第一块视为有留白） | +1 |
 
 分 ≥ 3 判标题；`confidence = min(1, 分/5)`。双语标题要求「中文部分 + 英文部分」恰好拼出整行且各自都是别名（「技术栈：SpringBoot」「项目经历 2024」不算）。
-词典未命中的候选须同时满足：出现在第一个词典标题之后（页顶大号姓名属于 basics）、字号更大、≤12 字、不以冒号结尾（「核心业务开发：」是项目内小标题）→ 记为 other 并标 `needs_llm`，留给 LLM 归类兜底〔兜底未实现，M8 前补：先补标题词典，再上模型〕。
+词典未命中的候选（记为 other 并标 `needs_llm`）：出现在第一个词典标题之后（页顶大号姓名属于 basics）、≤12 字、不以冒号结尾（「核心业务开发：」是项目内小标题）、不以项目符号开头，且满足其一：
+- `feature`：字号 ≥ 正文 × 1.1 且得分 ≥ 3；
+- `style`：和某个词典标题同字号、同粗细，且这个样式和正文不同（标题与正文一样大、只是加粗的简历靠这条；标题与正文完全同样式时不找候选）。
+
+**LLM 归类**（`parser/section_llm.py`，scene=section，prompt `SECTION_*` section-v1，temp 0、走缓存）：全部候选一次发出，每个带标题 + 下面内容前 80 字（先 PII 掩码）+ 已认出的词典标题作参考；
+模型给每个候选选 education / work / projects / skills / awards / summary / other / none。只认编号和类别，其余按"没回答"处理；输出不合格重试一次。
+none（项目名、公司名）→ 并回上一节；其余 → matched_by=llm。没回答或调用失败 → 同不调模型：feature 仍是 other + needs_llm，style 并回上一节；失败原因写进 `structure.extraction_errors`，不算解析失败。
+实测一次约 ¥0.002、1.8 秒。
+
+**没有标题的教育**：全文没有 education 章节时，开头段（第一个标题之前）末尾连续的"像教育"的块（含「××大学 / ××学院」或本科、硕士等学历词，且不含电话、邮箱、住址——「海淀区学院路」「大学城」也会命中学校名）切出来作为 education（matched_by=implicit）。
+只切末尾：放在前面的电话邮箱仍留在 basics，basics 不发给模型。结构化抽取的 prompt 里这一节称「教育经历」。表格型简历的教育表常常没有标题，就靠这条。
+
+不处理：全文一个词典标题都没有（整篇 other，分不清标题和页顶姓名）；标题与正文完全同样式（同字号、都不加粗，只能靠颜色区分，而抽取没有记颜色）。
 
 ## 5.5 时间归一化
 
@@ -328,7 +343,7 @@ backend/app/
 
 scripts/   dump_schema.py dump_seed.py   〔待建，M8〕gen_eval_set.py run_eval.py
 data/      skills_seed.csv resumes/ uploads/ chroma/ eval_runs/
-tests/     每个模块一个 test_*.py（314 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
+tests/     每个模块一个 test_*.py（339 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
 
 frontend/src/
 ├── pages/       Home（首页 + 登录）  Workbench（新的投递：选岗位 → 选简历 → 投递）  ApplyResult（初筛结果，含"进入面试 / 练习模式"入口）

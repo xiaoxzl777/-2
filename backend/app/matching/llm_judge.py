@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.diagnose.evidence import locate_span
 from app.llm import prompts
-from app.llm.client import LLMClient
+from app.llm.client import LLMClient, invoke_json
 from app.matching.matcher import MatchItem
 
 
@@ -48,7 +48,9 @@ def judge_with_fulltext(reqs: list[dict], full_text: str, masked_text: str, llm:
     listing = "\n".join(f"{r['id']}. {requirement_query(r)}" for r in reqs)
     messages = [("system", prompts.MATCH_SYSTEM),
                 ("user", prompts.MATCH_USER.format(requirements=listing, resume=masked_text))]
-    out, cost = _invoke(llm, messages, model, ref)
+    # 两次都不合格时 out 为 None：全部按 miss 处理，不让格式问题拖垮整次匹配
+    out, cost, _ = invoke_json(llm, "match", messages, schema=_FulltextOut, prompt_version=prompts.MATCH_VERSION,
+                               ref=ref, model=model)
     answers = {r.id: r for r in out.results} if out else {}
 
     result = JudgeResult(cost=cost)
@@ -67,22 +69,6 @@ def judge_with_fulltext(reqs: list[dict], full_text: str, masked_text: str, llm:
         result.items.append(MatchItem(req["id"], answer.status, "fulltext", answer.reason,
                                       full_text[span.start:span.end], span.start, span.end))
     return result
-
-
-def _invoke(llm: LLMClient, messages: list, model: str | None,
-            ref: tuple[str, int] | None) -> tuple[_FulltextOut | None, float]:
-    """输出不合格时带着原因重试一次；仍不合格返回 None（调用方按 miss 处理，不让格式问题拖垮整次匹配）。"""
-    cost = 0.0
-    for attempt in range(2):
-        result = llm.invoke("match", messages, prompt_version=prompts.MATCH_VERSION, schema=_FulltextOut,
-                            ref=ref, model=model)
-        cost += result.cost
-        if result.parsed is not None:
-            return result.parsed, cost
-        if attempt == 0:
-            messages = [*messages, ("assistant", result.text[:2000]),
-                        ("user", prompts.MATCH_RETRY.format(error=result.parse_error))]
-    return None, cost
 
 
 def _miss(req: dict, reason: str) -> MatchItem:

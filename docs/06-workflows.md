@@ -77,8 +77,9 @@
 extract ──► layout ──┬─(有 unknown 页)─► llm_relayout ─┐
   PyMuPDF   分栏算法  └─(都判出来了)────────────────────┤
   python-docx                                          ▼
-        section ──► structure ──► mentions
-        章节识别    LLM 回 block_ids  词典扫技能
+        section ──► section_llm ──► structure ──► mentions
+        章节识别    认不出的标题     LLM 回 block_ids  词典扫技能
+                    交 LLM 归类（没有就跳过）
 ```
 
 ### diagnose 子图

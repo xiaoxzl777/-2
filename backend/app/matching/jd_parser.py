@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from app.diagnose.evidence import locate_span, normalize_for_match
 from app.llm import prompts
-from app.llm.client import LLMClient
+from app.llm.client import LLMClient, invoke_json
 from app.matching.skill_dict import SkillDict
 
 MAX_REQUIREMENTS = 25
@@ -44,17 +44,11 @@ def parse_jd(title: str, raw_text: str, llm: LLMClient, skills: SkillDict, *,
              model: str | None = None, ref: tuple[str, int] | None = None) -> JdParseResult:
     """raw_text 必须是已经定稿的文本：返回的 char 区间相对它。输出不合格时带着原因重试一次。"""
     messages = [("system", prompts.JD_SYSTEM), ("user", prompts.JD_USER.format(title=title, raw_text=raw_text))]
-    out = JdParseResult()
-    for attempt in range(2):
-        result = llm.invoke("jd_parse", messages, prompt_version=prompts.JD_VERSION, schema=_JdOut, ref=ref, model=model)
-        out.cost += result.cost
-        if result.parsed is not None:
-            out.requirements, out.rejected = _verify(result.parsed.requirements, raw_text, skills)
-            return out
-        if attempt == 0:
-            messages = [*messages, ("assistant", result.text[:2000]),
-                        ("user", prompts.JD_RETRY.format(error=result.parse_error))]
-    out.error = result.parse_error
+    parsed, cost, error = invoke_json(llm, "jd_parse", messages, schema=_JdOut, prompt_version=prompts.JD_VERSION,
+                                      ref=ref, model=model)
+    out = JdParseResult(cost=cost, error=error)
+    if parsed is not None:
+        out.requirements, out.rejected = _verify(parsed.requirements, raw_text, skills)
     return out
 
 

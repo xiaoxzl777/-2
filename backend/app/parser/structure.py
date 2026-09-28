@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 from app.diagnose.evidence import locate_span
 from app.llm import prompts
-from app.llm.client import LLMClient
+from app.llm.client import LLMClient, invoke_json
 from app.parser.layout import Block, LayoutResult
 from app.parser.normalize import find_date_range
 from app.parser.pii import Basics, mask_pii
@@ -85,21 +85,23 @@ class _AwardsOut(BaseModel):
 
 @dataclass(slots=True)
 class _Spec:
-    """一种章节怎么问模型：用哪个 prompt、期望什么形状的输出。章节类型同时也是 structure 里的键。"""
+    """一种章节怎么问模型：用哪个 prompt、期望什么形状的输出。章节类型同时也是 structure 里的键。
+    name 是章节没有标题时（从开头段切出来的教育）在 prompt 里的称呼。"""
 
     schema: type[BaseModel]
     template: str
+    name: str
     fmt: dict = field(default_factory=dict)
 
 
 _SPECS: dict[str, _Spec] = {
-    "education": _Spec(_EducationOut, prompts.STRUCTURE_EDUCATION),
-    "work": _Spec(_ExperienceOut, prompts.STRUCTURE_EXPERIENCE,
+    "education": _Spec(_EducationOut, prompts.STRUCTURE_EDUCATION, "教育经历"),
+    "work": _Spec(_ExperienceOut, prompts.STRUCTURE_EXPERIENCE, "工作经历",
                   {"entry_noun": "工作 / 实习 / 校园经历", "name_desc": "公司或组织名称"}),
-    "projects": _Spec(_ExperienceOut, prompts.STRUCTURE_EXPERIENCE,
+    "projects": _Spec(_ExperienceOut, prompts.STRUCTURE_EXPERIENCE, "项目经历",
                       {"entry_noun": "项目经历", "name_desc": "项目名称"}),
-    "skills": _Spec(_SkillsOut, prompts.STRUCTURE_SKILLS),
-    "awards": _Spec(_AwardsOut, prompts.STRUCTURE_AWARDS),
+    "skills": _Spec(_SkillsOut, prompts.STRUCTURE_SKILLS, "专业技能"),
+    "awards": _Spec(_AwardsOut, prompts.STRUCTURE_AWARDS, "获奖情况"),
 }
 
 
@@ -214,19 +216,13 @@ def _extract_section(section: Section, sb: _SectionBlocks, masked_text: str,
                      llm: LLMClient, ref: tuple[str, int] | None) -> tuple[list[dict], float, str | None]:
     """返回 (条目, 成本, 错误)。输出不合格时带着原因重试一次。"""
     spec = _SPECS[section.type]
-    system = spec.template.format(title=section.title or section.type, **spec.fmt)
+    system = spec.template.format(title=section.title or spec.name, **spec.fmt)
     messages = [("system", system), ("user", _numbered_text(sb, masked_text))]
-    cost = 0.0
-    for attempt in range(2):
-        result = llm.invoke("structure", messages, prompt_version=prompts.STRUCTURE_VERSION,
-                            schema=spec.schema, ref=ref)
-        cost += result.cost
-        if result.parsed is not None:
-            return _BUILDERS[section.type](result.parsed, sb, section), cost, None
-        if attempt == 0:
-            messages = [*messages, ("assistant", result.text[:2000]),
-                        ("user", prompts.STRUCTURE_RETRY.format(error=result.parse_error))]
-    return [], cost, f"{section.type}: {result.parse_error}"
+    parsed, cost, error = invoke_json(llm, "structure", messages, schema=spec.schema,
+                                      prompt_version=prompts.STRUCTURE_VERSION, ref=ref)
+    if parsed is None:
+        return [], cost, f"{section.type}: {error}"
+    return _BUILDERS[section.type](parsed, sb, section), cost, None
 
 
 def _summary(section: Section, sb: _SectionBlocks) -> dict | None:

@@ -66,7 +66,7 @@ def plan_interview(materials: dict, n: int, llm: LLMClient, *, model: str | None
         out.error = error
         if attempt == 0:
             messages = [*messages, ("assistant", result.text[:2000]),
-                        ("user", prompts.INTERVIEW_PLAN_RETRY.format(error=error))]
+                        ("user", prompts.JSON_RETRY.format(error=error))]
     return out
 
 

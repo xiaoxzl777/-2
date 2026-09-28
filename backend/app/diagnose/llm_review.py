@@ -89,7 +89,7 @@ def review_unit(unit: ReviewUnit, full_text: str, masked_text: str, llm: LLMClie
 
         if result.parsed is None:
             review.schema_errors += 1
-            feedback = prompts.DIAGNOSE_RETRY_SCHEMA.format(error=result.parse_error)
+            feedback = prompts.JSON_RETRY.format(error=result.parse_error)
         else:
             failed_now = []
             for item in result.parsed.findings[:MAX_FINDINGS_PER_UNIT]:

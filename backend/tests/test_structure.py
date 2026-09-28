@@ -144,6 +144,16 @@ def test_a_failing_section_does_not_take_the_others_down():
     assert r.structure["projects"] and r.structure["education"]
 
 
+def test_untitled_education_is_named_in_chinese_in_the_prompt():
+    """从开头段切出来的教育没有标题：prompt 里称它「教育经历」，而不是类型名 education。"""
+    rows = [("张三", 24, True), ("13800138000", 10.5, False),
+            ("某某大学 计算机科学与技术 本科 2022.09 - 2026.06", 10.5, False),
+            ("项目经历", 12, True), ("二手电商交易平台 全栈开发 2024.01 - 2024.06", 10.5, False)]
+    _, llm, _ = _run({}, rows)
+    system = llm.calls["_EducationOut"][0][0][1]
+    assert "「教育经历」章节" in system and "education" not in system
+
+
 def test_nothing_to_extract_means_no_model_call():
     rows = [("张三", 24, True), ("自我评价", 12, True), ("踏实认真。", 10.5, False)]
     _, llm, r = _run({}, rows)
@@ -186,6 +196,23 @@ def test_model_outage_fails_the_parse_with_a_readable_reason(client, auth_header
     again = upload_pdf(client, auth_headers, single_column_pdf).json()["data"]
     assert again["id"] == rid and again["deduplicated"] is True
     assert client.get(f"/api/v1/resumes/{rid}", headers=auth_headers).json()["data"]["parse_status"] == "success"
+
+
+def test_section_classification_failure_is_recorded_but_the_parse_succeeds(client, auth_headers, fake_llm, tmp_path):
+    from app.llm.client import LLMError
+    from tests.conftest import make_pdf, upload_pdf
+
+    body = "负责订单服务的开发与性能优化，使用 Spring Boot 与 Redis 完成缓存改造并上线"
+    items = [(250, 60, "张三", 24, "china-s"), (40, 110, "教育背景", 13, "china-s"),
+             (40, 130, "江城大学 计算机科学与技术 本科", 10.5, "china-s"),
+             (40, 170, "开源贡献", 13, "china-s")]                          # 词典不认识、字号更大 → 候选
+    items += [(40, 190 + i * 16, f"{i + 1}. {body}", 10.5, "china-s") for i in range(3)]
+    fake_llm.replies["_SectionsOut"] = [LLMError("connection reset")]
+    rid = upload_pdf(client, auth_headers, make_pdf(tmp_path / "sections.pdf", items)).json()["data"]["id"]
+
+    assert client.get(f"/api/v1/resumes/{rid}", headers=auth_headers).json()["data"]["parse_status"] == "success"
+    data = client.get(f"/api/v1/resumes/{rid}/structure", headers=auth_headers).json()["data"]
+    assert data["extraction_errors"] == ["section: connection reset"]
 
 
 @pytest.mark.parametrize("path", ["structure", "blocks"])

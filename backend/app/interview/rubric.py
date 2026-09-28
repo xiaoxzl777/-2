@@ -59,7 +59,7 @@ def evaluate(llm: LLMClient, *, job_title: str, topic: dict, question: str, answ
                             ref=ref, model=model, temperature=0.0, use_cache=False)
         cost += result.cost
         if result.parsed is None:
-            retry = prompts.INTERVIEW_PLAN_RETRY.format(error=result.parse_error)
+            retry = prompts.JSON_RETRY.format(error=result.parse_error)
         else:
             parsed = result.parsed
             evidence, missing = _verify(parsed.evidence, answer)

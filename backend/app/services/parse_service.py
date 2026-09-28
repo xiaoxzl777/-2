@@ -19,6 +19,7 @@ from app.parser.extract import EncryptedPdfError, ScannedPdfError, extract_pdf
 from app.parser.layout import LayoutResult, analyze_layout
 from app.parser.pii import extract_basics
 from app.parser.section import Section, detect_sections
+from app.parser.section_llm import classify_sections
 from app.parser.structure import extract_structure
 from app.services.skill_service import load_skill_dict
 
@@ -41,6 +42,8 @@ def parse_resume(resume_id: int, session_factory: SessionFactory, llm: LLMClient
             layout = analyze_layout(extracted)
             sections = detect_sections(layout)
             basics = extract_basics(layout, sections)
+            classified = classify_sections(layout, sections, basics.name, llm, ref=("resume", resume.id))
+            sections = classified.sections
             structured = extract_structure(layout, sections, basics, llm, ref=("resume", resume.id))
         except ScannedPdfError:
             _mark_failed(db, resume, "scanned_pdf")
@@ -53,8 +56,9 @@ def parse_resume(resume_id: int, session_factory: SessionFactory, llm: LLMClient
             logger.exception("解析失败 resume_id=%s", resume_id)
             _mark_failed(db, resume, f"exception:{type(e).__name__}")
         else:
-            # 个别章节抽取失败不算整体失败：其余章节照常可用，失败原因留在 structure 里供排查
-            structure = {**structured.structure, "extraction_errors": structured.errors}
+            # 章节归类、个别章节抽取失败都不算整体失败：其余照常可用，失败原因留在 structure 里供排查
+            errors = [classified.error, *structured.errors] if classified.error else structured.errors
+            structure = {**structured.structure, "extraction_errors": errors}
             section_dicts = [s.to_dict() for s in sections]
             annotate_skills(structure, layout.full_text, section_dicts, load_skill_dict(db))
             _save_result(db, resume, layout, sections, structure, extracted.page_count, extracted.ats_signals)

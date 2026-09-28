@@ -35,6 +35,12 @@ def _body(n=2):
         ("■ 专业技能：", "skills"), ("| 工作经历 |", "work"), ("Work Experience", "work"),
         ("TECHNICAL SKILLS", "skills"), ("自我评价", "summary"), ("获奖情况", "awards"),
         ("Honors and Awards", "awards"), ("求职意向", "basics"), ("兴趣爱好", "other"),
+        # 2026-09-27 实测漏掉的写法（补进了词典）
+        ("项目展示", "projects"), ("开发经历", "projects"), ("工作履历", "work"), ("校园活动", "work"),
+        ("技能证书", "skills"), ("技术专长", "skills"), ("主修课程", "education"),
+        # 组合标题：拆开后每部分都认得，取第一部分
+        ("专业技能与证书", "skills"), ("技能/证书", "skills"), ("获奖及荣誉", "awards"), ("Awards & Honors", "awards"),
+        ("一、项目和工作经历", "projects"), ("学习与工作经历", None),
         # 不是标题
         ("技术栈：SpringBoot + Redis", None), ("核心业务开发：", None), ("Java 项目", None),
         ("项目经历 Experience2024", None), ("负责项目的整体设计", None), ("", None),
@@ -114,12 +120,55 @@ def test_unknown_large_heading_becomes_other_and_asks_for_llm():
     assert 0.6 <= other.confidence < 1.0
 
 
-def test_table_resume_sections_come_from_the_label_column(table_resume_pdf):
-    """表格型简历把章节名放在左列：表格按行展开时左格单独成块，章节才认得出来。"""
-    sections = detect_sections(analyze_layout(extract_pdf(table_resume_pdf)))
-    assert [(s.type, s.title) for s in sections] == [
-        ("basics", ""), ("projects", "项目经历"), ("skills", "专业技能"), ("awards", "获奖情况"),
+def test_lines_styled_like_dictionary_headings_become_candidates():
+    """标题和正文一样大、只是加粗：和词典标题同样式的短行记为候选（style），交给模型判断；不加粗的短行不算。"""
+    layout = _layout([("张三", 10.5, False, 0), ("教育背景", 10.5, True, 12), *_body(1),
+                      ("技术沉淀", 10.5, True, 12), *_body(2),             # 词典不认识，和标题同样式
+                      ("校园二手平台", 10.5, True, 12), *_body(1),         # 项目名也是这个样式：交给模型说"不是标题"
+                      ("负责接口开发", 10.5, False, 12), *_body(1)])       # 普通短行：不是候选
+    sections = detect_sections(layout)
+    assert [(s.type, s.title, s.matched_by, s.needs_llm) for s in sections] == [
+        ("basics", "", "implicit", False), ("education", "教育背景", "dict", False),
+        ("other", "技术沉淀", "style", True), ("other", "校园二手平台", "style", True),
     ]
+
+
+def test_no_style_candidates_when_headings_look_like_body_text():
+    layout = _layout([("张三", 10.5, False, 0), ("教育背景", 10.5, False, 12), *_body(1),
+                      ("技术沉淀", 10.5, False, 12), *_body(1)])
+    assert [s.type for s in detect_sections(layout)] == ["basics", "education"]
+
+
+def test_untitled_education_at_the_end_of_the_header_becomes_education():
+    rows = [("张三", 20, True, 0), ("电话 13800000000 邮箱 zs@example.com", 10.5, False, 4),
+            ("江城大学 计算机科学与技术 本科 2022.09-2026.06", 10.5, False, 4),
+            ("项目经历", 12, True, 20), *_body(1)]
+    sections = detect_sections(_layout(rows))
+    assert [(s.type, s.block_start, s.block_end) for s in sections] == [
+        ("basics", 0, 1), ("education", 2, 2), ("projects", 3, 4)]
+
+    # 全文已经有教育章节 → 不切
+    with_edu = rows + [("教育背景", 12, True, 20), ("北岭理工大学 硕士", 10.5, False, 4)]
+    assert [s.type for s in detect_sections(_layout(with_edu))] == ["basics", "projects", "education"]
+
+    # 带联系方式、住址的一块留在 basics：切走了本地就抽不到，还会被发给模型
+    for line in ["江城大学 本科 电话 13800000000", "地址：北京市海淀区学院路 30 号", "现居：江城市大学城 18 栋"]:
+        rows = [("张三", 20, True, 0), (line, 10.5, False, 4), ("项目经历", 12, True, 20), *_body(1)]
+        assert [s.type for s in detect_sections(_layout(rows))] == ["basics", "projects"], line
+
+
+def test_table_resume_sections_come_from_the_label_column(table_resume_pdf):
+    """表格型简历把章节名放在左列：表格按行展开时左格单独成块，章节才认得出来。
+    教育表上方没有标题：开头段末尾的教育行切出来当作教育章节，表头「时间 学校 专业 学历」留在 basics。"""
+    layout = analyze_layout(extract_pdf(table_resume_pdf))
+    sections = detect_sections(layout)
+    assert [(s.type, s.title, s.matched_by) for s in sections] == [
+        ("basics", "", "implicit"), ("education", "", "implicit"), ("projects", "项目经历", "dict"),
+        ("skills", "专业技能", "dict"), ("awards", "获奖情况", "dict"),
+    ]
+    edu = sections[1]
+    assert [b.text for b in layout.blocks[edu.block_start:edu.block_end + 1]] == ["2022.09-2026.06 江城大学 计算机科学与技术 本科"]
+    assert edu.content_start == edu.char_start
 
 
 def test_document_without_any_heading():

@@ -26,7 +26,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.cache import llm_cache, ratelimit
 from app.config import settings
-from app.llm import audit, registry
+from app.llm import audit, prompts, registry
 
 logger = logging.getLogger("app.llm")
 
@@ -218,6 +218,25 @@ class LLMClient:
             "prompt_version": prompt_version, "run_id": current_run_id.get(),
         }
         return rendered, key, base_record
+
+
+def invoke_json(llm: LLMClient, scene: str, messages: Sequence[Message], *, schema: type[T],
+                prompt_version: str, **kwargs: Any) -> tuple[T | None, float, str | None]:
+    """要求 JSON 输出的一次调用：不合格时把上一次的输出和原因发回去，重试一次。
+
+    返回 (解析结果, 两次加起来的花费, 最后一次的错误)；两次都不合格时解析结果为 None。
+    重试前还要做别的校验（面试出题核对编号、评分核对证据、诊断核对引用）的地方自己写循环，不用它。
+    """
+    cost = 0.0
+    for attempt in range(2):
+        result = llm.invoke(scene, messages, prompt_version=prompt_version, schema=schema, **kwargs)
+        cost += result.cost
+        if result.parsed is not None:
+            return result.parsed, cost, None
+        if attempt == 0:
+            messages = [*messages, ("assistant", result.text[:2000]),
+                        ("user", prompts.JSON_RETRY.format(error=result.parse_error))]
+    return None, cost, result.parse_error
 
 
 _default_client: LLMClient | None = None

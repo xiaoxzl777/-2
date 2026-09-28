@@ -4,7 +4,7 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
 from pydantic import BaseModel
 
-from app.llm.client import LLMClient, LLMError, current_run_id, parse_json
+from app.llm.client import LLMClient, LLMError, current_run_id, invoke_json, parse_json
 from app.llm.registry import estimate_cost
 
 
@@ -207,3 +207,19 @@ def test_stream_closed_early_by_the_caller_is_still_audited():
     assert next(gen) == "一"
     gen.close()                                            # 比如浏览器中途关了页面
     assert audits[-1]["success"] is False and "提前结束" in audits[-1]["error_msg"]
+
+
+def test_invoke_json_retries_once_with_the_reason():
+    """要求 JSON 的调用：不合格就把上一次的输出和原因发回去再试一次；两次都不合格返回 None 和原因。"""
+    from tests.conftest import FakeLLM
+
+    llm = FakeLLM({"Answer": ["不是 JSON", '{"verdict": "好", "score": 4}']})
+    parsed, cost, error = invoke_json(llm, "demo", MESSAGES, schema=Answer, prompt_version="v1")
+    assert parsed.score == 4 and error is None and round(cost, 6) == 0.002
+    retry = llm.calls["Answer"][1]
+    assert len(retry) == len(MESSAGES) + 2
+    assert retry[-2] == ("assistant", "不是 JSON") and retry[-1][1].startswith("你上一次的输出无法使用")
+
+    llm = FakeLLM({"Answer": ["坏的", "还是坏的"]})
+    parsed, cost, error = invoke_json(llm, "demo", MESSAGES, schema=Answer, prompt_version="v1")
+    assert parsed is None and error and len(llm.calls["Answer"]) == 2
