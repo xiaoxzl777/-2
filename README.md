@@ -60,7 +60,7 @@ docker compose up -d --build       # mysql + redis + backend + nginx，http://lo
 ```
 backend/app/     api · services · parser · diagnose · matching · interview · retrieval · graphs · llm · cache
 backend/sql/     schema.sql（建库建表）· seed.sql（技能词典 + 岗位模板）—— 均由脚本生成，在 MySQL 中手动执行
-backend/scripts/ dump_schema · dump_seed · build_job_templates · gen_layout_set / eval_layout（版面合成集与打分）· gen_eval_set / run_eval（诊断降质集与跑批）
+backend/scripts/ dump_schema · dump_seed · build_job_templates · gen_layout_set / eval_layout（版面合成集与打分）· gen_eval_set / run_eval（诊断降质集与跑批）· interview_answers（面试评分评测的三档回答）
 backend/tests/
 data/            skills_seed.csv · job_templates/（模板原文）· job_templates.json · resumes/ · uploads/ · chroma/ · eval_runs/ · layout_set/ · eval_set/（脚本生成，不进仓库）
 docs/            设计文档

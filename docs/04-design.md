@@ -354,9 +354,9 @@ backend/app/
 
 后台任务直接用 FastAPI BackgroundTasks，入口在 parse_service.parse_resume 与 apply_service.run_apply；解析不在图里。
 
-scripts/   dump_schema.py dump_seed.py   〔待建，M8〕gen_eval_set.py run_eval.py
+scripts/   dump_schema.py dump_seed.py gen_layout_set.py eval_layout.py gen_eval_set.py run_eval.py interview_answers.py
 data/      skills_seed.csv resumes/ uploads/ chroma/ eval_runs/
-tests/     每个模块一个 test_*.py（352 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
+tests/     每个模块一个 test_*.py（354 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
 
 frontend/src/
 ├── pages/       Home（首页 + 登录）  Workbench（新的投递：选岗位 → 选简历 → 投递）  ApplyResult（初筛结果，含"进入面试 / 练习模式"入口）

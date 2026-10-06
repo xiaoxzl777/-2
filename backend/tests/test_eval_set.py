@@ -1,10 +1,16 @@
-"""诊断评测集脚本：降质版本改对了地方；跑批脚本的定位与打分逻辑。不调模型。"""
+"""评测脚本：诊断降质版本改对了地方；匹配要求和面试回答按设计构造；跑批脚本的定位与打分逻辑。不调模型。"""
 import random
+import re
+import statistics
+from collections import Counter
+
+import pytest
 
 from app.matching.skill_dict import SkillDict, SkillEntry
 from scripts.dump_seed import load_skills
-from scripts.gen_eval_set import SEED, make_base, variants
-from scripts.run_eval import MATCH_KINDS, locate, match_requirements, score_run
+from scripts.gen_eval_set import PROJECTS, SEED, make_base, variants
+from scripts.interview_answers import QUESTIONS, TIERS
+from scripts.run_eval import MATCH_KINDS, locate, match_requirements, score_interview, score_run
 
 
 def _variants(i=0):
@@ -92,3 +98,33 @@ def test_match_requirements_follow_the_resume_content():
         assert all(by_kind[k]["skill_id"] for k in ("skill_used", "skill_listed", "skill_absent"))   # 词典里都有
         assert by_kind["alternative"]["skill"] is None                                     # 二选一：词典判不了
         assert {r["expect"] for r in reqs} == {"hit", "partial", "miss"}
+
+
+def test_interview_answers_are_built_as_designed():
+    """面试评分的 12 题：每个项目 2 题；"具体"档带着简历那条描述的结果数字；"答错"和"具体"篇幅相近，"空泛"明显短。"""
+    bullets = {name: [b for b, _ in items] for name, _, items in PROJECTS}
+    assert Counter(q["project"] for q in QUESTIONS) == dict.fromkeys(bullets, 2)
+    for q in QUESTIONS:
+        a = q["answers"]
+        assert tuple(a) == TIERS
+        assert all(n in a["good"] for n in re.findall(r"\d+(?:\.\d+)?", bullets[q["project"]][q["bullet"]])), q["label"]
+        assert len(a["wrong"]) >= 0.7 * len(a["good"]) and len(a["vague"]) <= 0.5 * len(a["good"]), q["label"]
+
+
+def test_score_interview_order_stability_and_evidence():
+    def g(score, c, d, cl, calls=1, low=False, method="exact"):
+        return {"score": score, "scores": {"correctness": c, "depth": d, "clarity": cl}, "low_evidence": low,
+                "evidence": [] if low else [{"verify_result": method}], "calls": calls, "cost": 0.002, "seconds": 3.0}
+
+    run1 = [{"good": g(87, 5, 4, 4), "vague": g(60, 4, 1, 4), "wrong": g(40, 1, 3, 3)},
+            {"good": g(80, 4, 4, 4, method="fuzzy"), "vague": g(80, 4, 4, 4, calls=2), "wrong": g(60, 3, 3, 3, low=True)}]
+    run2 = [{"good": g(87, 5, 4, 4), "vague": g(67, 2, 3, 5), "wrong": g(40, 1, 3, 3)},
+            {"good": g(80, 4, 4, 4), "vague": {"error": "x", "calls": 2}, "wrong": g(60, 3, 3, 3, low=True)}]
+    s = score_interview([run1, run2])
+    assert s["order"] == {"vague": [0.5, 1.0], "wrong": [1.0, 1.0]}   # 同分算没分开；失败的那条不计
+    assert s["tiers"]["good"]["score"] == 83.5
+    assert s["aimed"] == {"vague": pytest.approx(2 / 3), "wrong": 1.0}  # run2 第 1 题的空泛回答扣得最多的是正确性
+    assert s["score_stdev"] == pytest.approx(statistics.stdev([60, 67]) / 5)   # 5 条回答打了两次分，只有一条变了
+    assert s["same_score"] == 0.8
+    assert (s["first_pass"], s["low_evidence"], s["exact_quotes"], s["errors"]) == \
+        (pytest.approx(10 / 11), pytest.approx(2 / 11), pytest.approx(8 / 9), 1)

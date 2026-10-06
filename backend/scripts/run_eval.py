@@ -1,4 +1,4 @@
-"""诊断 / 匹配评测：python scripts/run_eval.py [--task diagnose|match] [--modes ...] [--repeat 1] [--limit N]
+"""诊断 / 匹配 / 面试评分评测：python scripts/run_eval.py [--task diagnose|match|interview] [--modes ...] [--repeat 1] [--limit N]
 （先跑 scripts/gen_eval_set.py 生成评测集；需要本机 MySQL、Redis 和 .env 里的 DeepSeek key）
 
 流程：每份 PDF 先走一遍和线上一样的解析（走缓存：解析不是被测对象）；再按"模式 × 重复次数"在评测批次号下跑诊断 / 匹配图
@@ -15,6 +15,10 @@
   拦截率            模型给出的问题里，引用在原文里找不到、被拦下的比例（溯源）
   定位准确率        语义类缺陷：模型在注入的那条描述上报出期望类型的问题时，证据确实落在注入的那句话上的比例
   花费、用时        每份简历一次诊断
+
+--task interview（8.4 面试评分）：不用评测集，直接拿 interview_answers.py 里 12 题 × 三档回答调评分函数（和线上同一个
+rubric.evaluate），每条打 --repeat 次分。指标：三档平均分和排序正确率（区分度）、同一回答几次得分的标准差（稳定性）、
+第一次就合格 / 最后没有依据的比例（依据有效率）。
 原始结果（每份、每种模式、每次的全部问题）和汇总写一份 JSON 到 data/eval_runs/。
 """
 from __future__ import annotations
@@ -26,6 +30,7 @@ import statistics
 import sys
 import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[1]
@@ -35,7 +40,8 @@ from app.config import settings  # noqa: E402
 from app.database import SessionLocal  # noqa: E402
 from app.diagnose.types import iter_units  # noqa: E402
 from app.graphs import diagnose_graph, match_graph  # noqa: E402
-from app.llm.client import current_run_id, get_llm_client  # noqa: E402
+from app.interview import rubric  # noqa: E402
+from app.llm.client import LLMError, current_run_id, get_llm_client  # noqa: E402
 from app.matching.skill_dict import SkillDict, annotate_skills  # noqa: E402
 from app.parser.extract import extract_pdf  # noqa: E402
 from app.parser.layout import analyze_layout  # noqa: E402
@@ -46,6 +52,7 @@ from app.parser.structure import extract_structure  # noqa: E402
 from app.services.skill_service import load_skill_dict  # noqa: E402
 from scripts.eval_layout import squash  # noqa: E402
 from scripts.gen_eval_set import OUT_DIR, SEED, UNUSED_SKILLS, make_base  # noqa: E402
+from scripts.interview_answers import JOB_TITLE, QUESTIONS, TIERS  # noqa: E402
 
 MODES = ("rule_only", "llm_only", "hybrid")
 MATCH_MODES = ("dict_only", "llm_fulltext", "hybrid")
@@ -252,14 +259,129 @@ def report_match(scores: dict[str, list[dict]]) -> None:
         print(f"{label:<12}" + "".join(f"{statistics.mean(s[key] for s in scores[m]):>20{fmt}}" for m in modes))
 
 
+# ───────────────────────── 面试评分 ─────────────────────────
+
+TIER_NAMES = {"good": "具体到位", "vague": "空泛", "wrong": "答错"}
+AIMED = {"vague": "depth", "wrong": "correctness"}     # 这两档回答各自故意压低的那一项
+
+
+class _Counted:
+    """数调了几次模型：evaluate 调了 2 次，说明第一次的输出不合格（JSON 坏了，或引用一条都对不上）被重试了。"""
+
+    def __init__(self, llm):
+        self.llm, self.calls = llm, 0
+
+    def invoke(self, *args, **kwargs):
+        self.calls += 1
+        return self.llm.invoke(*args, **kwargs)
+
+
+def grade(llm, q: dict, tier: str, run_id: str) -> dict:
+    """给一条回答打一次分。在线程池里跑，批次号在本线程里设、用完复原。"""
+    counted = _Counted(llm)
+    token = current_run_id.set(run_id)
+    started = time.perf_counter()
+    try:
+        evaluation, cost = rubric.evaluate(counted, job_title=JOB_TITLE, topic=q, question=q["question"],
+                                           answer=q["answers"][tier])
+    except (ValueError, LLMError) as e:                # 两次都没给出合法 JSON，或调用失败
+        return {"error": str(e), "calls": counted.calls}
+    finally:
+        current_run_id.reset(token)
+    return {"score": evaluation["score"], "scores": evaluation["scores"], "evidence": evaluation["evidence"],
+            "low_evidence": evaluation["low_evidence"], "calls": counted.calls, "cost": cost,
+            "seconds": time.perf_counter() - started}
+
+
+def score_interview(runs: list[list[dict[str, dict]]]) -> dict:
+    """runs[第几次][第几题][档位] = grade() 的结果。"""
+    def graded(tier: str) -> list[dict]:
+        return [q[tier] for run in runs for q in run if "error" not in q[tier]]
+
+    order = {}                                         # 每一次里"具体"比这一档分高的题占比（同分算没分开）
+    for low in AIMED:
+        order[low] = []
+        for run in runs:
+            pairs = [(q["good"], q[low]) for q in run if "error" not in q["good"] and "error" not in q[low]]
+            order[low].append(sum(a["score"] > b["score"] for a, b in pairs) / len(pairs) if pairs else None)
+
+    spreads, same = [], []                             # 同一条回答几次打分的标准差、是否完全一样
+    for i in range(len(runs[0]) if len(runs) > 1 else 0):
+        for t in TIERS:
+            values = [run[i][t]["score"] for run in runs if "error" not in run[i][t]]
+            if len(values) > 1:
+                spreads.append(statistics.stdev(values))
+                same.append(len(set(values)) == 1)
+
+    every = [g for t in TIERS for g in graded(t)]
+    quotes = [e for g in every for e in g["evidence"]]
+    return {
+        "tiers": {t: {"score": statistics.mean(g["score"] for g in graded(t)),
+                      **{d: statistics.mean(g["scores"][d] for g in graded(t)) for d in rubric.DIMENSIONS}}
+                  for t in TIERS},
+        "order": order,
+        # 这条回答三项里分最低的（可以并列）正是故意压低的那一项
+        "aimed": {t: statistics.mean(g["scores"][d] == min(g["scores"].values()) for g in graded(t))
+                  for t, d in AIMED.items()},
+        "score_stdev": statistics.mean(spreads) if spreads else None,
+        "same_score": statistics.mean(same) if same else None,
+        "first_pass": statistics.mean(g["calls"] == 1 for g in every),
+        "low_evidence": statistics.mean(g["low_evidence"] for g in every),
+        "exact_quotes": sum(e["verify_result"] == "exact" for e in quotes) / len(quotes) if quotes else None,
+        "errors": sum("error" in g for run in runs for q in run for g in q.values()),
+        "cost_per_answer": statistics.mean(g["cost"] for g in every),
+        "seconds_per_answer": statistics.mean(g["seconds"] for g in every),
+    }
+
+
+def report_interview(s: dict) -> None:
+    print(f"\n三档回答的平均分（总分 0–100，三项 0–5）\n{'':<10}{'总分':>8}{'正确性':>8}{'深度':>8}{'表达':>8}")
+    for t in TIERS:
+        row = s["tiers"][t]
+        print(f"{TIER_NAMES[t]:<10}{row['score']:>8.1f}" + "".join(f"{row[d]:>8.2f}" for d in rubric.DIMENSIONS))
+    print(f"\n排序正确率：具体 > 空泛 {_mean(s['order']['vague'])}，具体 > 答错 {_mean(s['order']['wrong'])}")
+    print(f"扣得最多的正是故意压低的那一项：空泛·深度 {s['aimed']['vague']:.1%}，答错·正确性 {s['aimed']['wrong']:.1%}")
+    if s["score_stdev"] is not None:
+        print(f"稳定性：同一回答几次得分的标准差平均 {s['score_stdev']:.2f}，几次完全一样 {s['same_score']:.1%}")
+    exact = "—" if s["exact_quotes"] is None else f"{s['exact_quotes']:.1%}"
+    print(f"依据：第一次就合格 {s['first_pass']:.1%}，最后没有依据（给中性分）{s['low_evidence']:.1%}，引用逐字 {exact}")
+    print(f"失败 {s['errors']} 次；每条花费 ¥{s['cost_per_answer']:.4f}、用时 {s['seconds_per_answer']:.1f}s")
+
+
+def run_interview(args, stamp: str) -> tuple[dict, dict]:
+    llm = get_llm_client()
+    questions = QUESTIONS[:args.limit] if args.limit else QUESTIONS
+    runs = []
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for r in range(args.repeat):
+            run_id = f"iv-{stamp}-{r + 1}"
+            futures = [{t: pool.submit(grade, llm, q, t, run_id) for t in TIERS} for q in questions]
+            runs.append([{t: f.result() for t, f in q.items()} for q in futures])
+            print(f"第 {r + 1} 次完成（run_id={run_id}）")
+    scores = score_interview(runs)
+    report_interview(scores)
+    return scores, {"questions": [q["label"] for q in questions], "runs": runs}
+
+
+def _save(task: str, stamp: str, args, scores, raw) -> None:
+    out = settings.DATA_DIR / "eval_runs" / f"{task}-{stamp}.json"
+    out.write_text(json.dumps({"args": vars(args), "scores": scores, "raw": raw}, ensure_ascii=False, indent=1),
+                   encoding="utf-8")
+    print(f"\n结果已写入 {out}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task", choices=("diagnose", "match"), default="diagnose")
+    parser.add_argument("--task", choices=("diagnose", "match", "interview"), default="diagnose")
     parser.add_argument("--modes", nargs="+", default=None, choices=MODES + MATCH_MODES[:2],
                         help="默认：diagnose 跑 rule_only / llm_only / hybrid，match 跑 dict_only / llm_fulltext / hybrid")
     parser.add_argument("--repeat", type=int, default=1)
-    parser.add_argument("--limit", type=int, default=None, help="只跑前 N 份底稿，试跑用")
+    parser.add_argument("--limit", type=int, default=None, help="只跑前 N 份底稿（interview：前 N 道题），试跑用")
     args = parser.parse_args()
+    if args.task == "interview":
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        _save(args.task, stamp, args, *run_interview(args, stamp))
+        return
     modes = args.modes or list(MODES if args.task == "diagnose" else MATCH_MODES)
 
     gt = json.loads((OUT_DIR / "gt.json").read_text(encoding="utf-8"))
@@ -296,10 +418,7 @@ def main() -> None:
             print(f"{mode} 第 {r + 1} 次完成（run_id={run_id}）")
 
     (report if args.task == "diagnose" else report_match)(scores)
-    out = settings.DATA_DIR / "eval_runs" / f"{args.task}-{stamp}.json"
-    out.write_text(json.dumps({"args": vars(args), "scores": scores, "raw": raw}, ensure_ascii=False, indent=1),
-                   encoding="utf-8")
-    print(f"\n结果已写入 {out}")
+    _save(args.task, stamp, args, scores, raw)
 
 
 if __name__ == "__main__":
