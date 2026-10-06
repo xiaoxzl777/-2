@@ -13,6 +13,8 @@
      · 0.3 < c < 0.8    → 说不清是不是两栏 → 标记 unknown，交给上层决定是否让 LLM 兜底
      · 其余             → 单栏
      空白带两侧都必须是"真正的一栏"（行数与字数够多），否则右对齐的日期会被误判成右栏。
+     较少的一侧过半是日期、且这些日期都和另一侧某一行在同一水平线上 → 时间轴版式（左列日期、右边经历），
+     不切：按行读，日期跟着它那条经历。否则会先读完所有日期再读经历，而且置信度还是 1.0。
   2. 切不动时，在足够大的水平留白处横切（Y 切），每段再试一次第 1 步。
   3. 仍切不动 → 叶子：同一水平线上的片段合并成一行，按 y 再按 x 排序。
 
@@ -29,6 +31,7 @@ from dataclasses import dataclass, field
 
 from app.config import settings
 from app.parser.extract import Box, ExtractResult, Line, PageInfo, TableBox
+from app.parser.normalize import find_date_range
 
 # ── 分栏 ──
 MIN_SIDE_LINES = 3            # 空白带每一侧至少要有这么多行，才算"一栏"
@@ -38,6 +41,7 @@ EDGE_EPS = 0.5                # 判断"在空白带一侧"时的坐标容差（p
 Y_CUT_FACTOR = 1.5            # 水平留白 ≥ 1.5 倍行高才横切
 MAX_DEPTH = 6                 # 递归深度上限
 COLUMN_PAGE_RATIO = 0.3       # 分栏 / unknown 的行数占全页比例达到这个值，才据此给整页定性
+DATE_COLUMN_RATIO = 0.8       # 时间轴的日期列：较少一侧过半是日期，且其中至少这么多和另一侧同一行
 
 # ── 表格 ──
 TABLE_MIN_FILLED = 4          # 至少这么多格子有字才算表格：也挡掉"顶部色条 + 侧边栏底色块"拼成的假表格
@@ -172,6 +176,7 @@ class _Region:
 
     page_width: float
     stats: _PageStats
+    date_columns: bool = True   # 评测消融用：False 时不认日期列（最初的算法）
 
 
 # ───────────────────────── 空白带搜索 ─────────────────────────
@@ -212,6 +217,30 @@ def _best_band(lines: list[Line], page_width: float) -> _Band | None:
     x0 = max((l.x1 for l in free if l.x1 <= a + EDGE_EPS), default=a)
     x1 = min((l.x0 for l in free if l.x0 >= a + width - EDGE_EPS), default=a + width)
     return _Band(x0, x1, blocked, 1 - len(blocked) / n)
+
+
+def _is_date_line(text: str) -> bool:
+    """这一行主要就是一个日期 / 时间段（「2023.07-2023.09」「2024.05 - 至今」），不是正文里碰巧带个年份。"""
+    found = find_date_range(text)
+    return found is not None and found.span[1] - found.span[0] >= 0.5 * len(text.strip())
+
+
+def _is_date_column(lines: list[Line], band: _Band) -> bool:
+    """空白带较少的一侧是不是时间轴的日期列：一半以上是日期，且这些日期几乎都和另一侧某一行在同一水平线上。
+
+    "一半以上"而不是"全是"：日期列里还夹着「教育背景」这类短标题（它们不跨过空白带，也不和另一侧对齐）。
+    只看"两侧对不对齐"不够：正常的两栏、侧边栏行距一样，左右也常常对得很齐（合成集里最高 0.94）。
+    """
+    left = [l for l in lines if l.x1 <= band.x0 + EDGE_EPS]
+    right = [l for l in lines if l.x0 >= band.x1 - EDGE_EPS]
+    small, other = sorted((left, right), key=len)
+
+    def same_row(a: Line, b: Line) -> bool:
+        return abs((a.y0 + a.y1) - (b.y0 + b.y1)) / 2 <= 0.5 * min(a.height, b.height)
+
+    dates = [s for s in small if _is_date_line(s.text)]
+    aligned = [s for s in dates if any(same_row(s, o) for o in other)]
+    return bool(dates) and len(dates) >= 0.5 * len(small) and len(aligned) >= DATE_COLUMN_RATIO * len(dates)
 
 
 def _header_rows_above_right_column(lines: list[Line], band: _Band, page_width: float) -> set[int]:
@@ -393,10 +422,12 @@ def _order(lines: list[Line], region: _Region, col: int | None = None,
 
     if band and band.clearness >= settings.LAYOUT_DOUBLE_MIN_C:
         spanning = band.blocked | _header_rows_above_right_column(lines, band, region.page_width)
-        _record_cut(stats, band, column_lines=len(lines) - len(spanning))
-        if spanning:
-            return _split_by_spanning_rows(lines, spanning, region, col, depth)
-        return _split_columns(lines, band, region, col, depth)
+        rest = [l for i, l in enumerate(lines) if i not in spanning]
+        if not (region.date_columns and _is_date_column(rest, band)):   # 时间轴：不切，往下走横切 / 叶子，按行读
+            _record_cut(stats, band, column_lines=len(lines) - len(spanning))
+            if spanning:
+                return _split_by_spanning_rows(lines, spanning, region, col, depth)
+            return _split_columns(lines, band, region, col, depth)
 
     if allow_y_cut:
         segments = _y_segments(lines)
@@ -518,7 +549,8 @@ def _starts_new_block(prev: _Placed | None, cur: _Placed, body_size: float, head
     a, b = prev.line, cur.line
     different_place = cur.leaf != prev.leaf or a.page_no != b.page_no
     different_style = a.font_size != b.font_size or a.is_bold != b.is_bold
-    explicit_start = _BULLET.match(b.text) is not None or _is_heading_like(b, body_size)
+    # 相隔较远的几段拼成的行（「标题 …… 日期」「日期 …… 标题」）是新条目的标题行，不会是上一句的折行
+    explicit_start = _BULLET.match(b.text) is not None or _is_heading_like(b, body_size) or cur.tabular
     prev_is_complete = _is_heading_like(a, body_size) or prev.tabular or not _line_was_full(prev)
     paragraph_gap = b.y0 - a.y1 > PARAGRAPH_GAP * b.height
     # "标签：内容"列表的下一项：上一项恰好写满整行时，光看行宽会把它误判成折行。
@@ -583,7 +615,8 @@ def _summarize_page(page: PageInfo, s: _PageStats) -> PageLayout:
     return PageLayout(page.page_no, "single", round(1 - doubt, 3), None)
 
 
-def analyze_layout(extracted: ExtractResult) -> LayoutResult:
+def analyze_layout(extracted: ExtractResult, *, date_columns: bool = True) -> LayoutResult:
+    """date_columns=False 关掉"时间轴日期列"规则，只给评测脚本做消融对照用（表格识别的消融是清空 extracted.tables）。"""
     lines = _drop_headers_footers(extracted.lines, extracted.pages)
 
     placed: list[_Placed] = []
@@ -598,7 +631,7 @@ def analyze_layout(extracted: ExtractResult) -> LayoutResult:
             table_chars=sum(len(l.text) for t in tables for l in t.lines),
             leaf_seq=leaf_seq,  # 叶子编号跨页连续，保证全局唯一
         )
-        placed.extend(_order(rest + [_stand_in(t) for t in tables], _Region(page.width, stats)))
+        placed.extend(_order(rest + [_stand_in(t) for t in tables], _Region(page.width, stats, date_columns)))
         leaf_seq = stats.leaf_seq
         pages.append(_summarize_page(page, stats))
 

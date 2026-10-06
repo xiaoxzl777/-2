@@ -49,7 +49,7 @@ CREATE TABLE resumes (
   parse_status      ENUM('pending','parsing','success','failed') NOT NULL DEFAULT 'pending',
   parse_error       VARCHAR(100) COMMENT 'scanned_pdf / interrupted / exception:<msg>',
   layout_type       ENUM('single','double','sidebar','table','unknown') NOT NULL DEFAULT 'unknown' COMMENT '第 1 页判定；DOCX 恒 single',
-  layout_confidence FLOAT   COMMENT '各页最小值；< 0.7 即存在 unknown 页 → LLM 兜底；DOCX 恒 1.0',
+  layout_confidence FLOAT   COMMENT '各页最小值；< 0.7 表示有规则拿不准的页（不做 LLM 兜底，见 04-design 5.1）；DOCX 恒 1.0',
   layout_detail     JSON    COMMENT '[{page_no, layout_type, confidence, gap:[x0,x1]|null}]',
   used_llm_fallback BOOLEAN NOT NULL DEFAULT FALSE,
   page_count        INT     NULL COMMENT 'DOCX 为 NULL',

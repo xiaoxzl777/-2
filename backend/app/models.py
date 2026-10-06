@@ -107,7 +107,7 @@ class Resume(Base):
         server_default="unknown",
         comment="第 1 页判定；DOCX 恒 single",
     )
-    layout_confidence: Mapped[float | None] = mapped_column(Float, comment="各页最小值；<0.7 触发 LLM 兜底")
+    layout_confidence: Mapped[float | None] = mapped_column(Float, comment="各页最小值；<0.7 表示有规则拿不准的页（不做 LLM 兜底，见 04-design 5.1）")
     layout_detail: Mapped[list[dict[str, Any]] | None] = mapped_column(
         JSON, comment="[{page_no, layout_type, confidence, gap}]"
     )

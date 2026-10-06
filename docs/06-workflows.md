@@ -74,13 +74,13 @@
 ### parse 子图
 
 ```
-extract ──► layout ──┬─(有 unknown 页)─► llm_relayout ─┐
-  PyMuPDF   分栏算法  └─(都判出来了)────────────────────┤
-  python-docx                                          ▼
-        section ──► section_llm ──► structure ──► mentions
-        章节识别    认不出的标题     LLM 回 block_ids  词典扫技能
-                    交 LLM 归类（没有就跳过）
+extract ──► layout ──► section ──► section_llm ──► structure ──► mentions
+ PyMuPDF    分栏 / 表格  章节识别    认不出的标题     LLM 回 block_ids  词典扫技能
+ 找表格     / 时间轴                 交 LLM 归类（没有就跳过）
 ```
+
+原设计在 layout 之后有一个 `llm_relayout` 分支（有 unknown 页就交 LLM 重排），2026-10-06 评估后不做：触发条件实测既漏报又误报，
+最常见的错（时间轴被当成两栏）规则自报置信度 1.0，兜底根本触发不了，改用规则修。数据见 04-design 5.1 末尾。
 
 ### diagnose 子图
 
@@ -203,7 +203,7 @@ class InterviewState(TypedDict):
 | 类型 | 节点 | 技术 |
 |---|---|---|
 | 纯函数（不调 API） | load_inputs · layout · section · mentions · rule_scan · rule_match · gate · pick_topic · decide · score · score_match | Python |
-| LLM | llm_relayout · structure · review_unit · judge_fulltext · plan_interview · ask_question · evaluate_answer · final_report | DeepSeek，经 `llm/client.py`（缓存 · 限流 · 记账） |
+| LLM | section_llm · structure · review_unit · judge_fulltext · plan_interview · ask_question · evaluate_answer · final_report | DeepSeek，经 `llm/client.py`（缓存 · 限流 · 记账） |
 | 检索 | 面试的 retrieve_context：只在用户贴的面经超过 3000 字时检索 | bge-m3 → Chroma → bge-reranker（`retrieval/context_store.py`） |
 | 证据校验 | review_unit / judge_fulltext / evaluate_answer 内部，以及 JD 解析 | `diagnose/evidence.locate_span`，三处同一个函数 |
 | 等人 | wait_answer | `interrupt()` + `SqliteSaver` |

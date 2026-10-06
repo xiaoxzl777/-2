@@ -12,7 +12,7 @@
 ## 1.2 解析路径分流
 
 ```
-文本版 PDF   → 完整版面流程：页眉页脚剔除 → 表格区域 → region-first 分栏 → 阅读顺序 → 章节 → 置信度 → LLM 兜底〔未实现〕
+文本版 PDF   → 完整版面流程：页眉页脚剔除 → 表格区域 → region-first 分栏 → 阅读顺序（含时间轴日期列）→ 章节 → 置信度（只作记录，不做 LLM 版面兜底）
 扫描件 PDF   → len(full_text.strip()) < 100 → parse_status='failed', parse_error='scanned_pdf' → 50003
 DOCX         →〔未实现：本期只收 PDF，上传 .docx 直接 41501〕线性读取（段落与表格按文档流；表格逐单元格出块）；layout_type='single'、confidence=1.0、
                page_no=1、bbox=NULL、page_count=NULL；跳过分栏与 LLM 兜底
@@ -45,7 +45,7 @@ DOCX         →〔未实现：本期只收 PDF，上传 .docx 直接 41501〕�
 | FR-C2 | **表格与分栏**（仅 PDF） | `page.find_tables()` 取有边框表（≥2 行 ≥2 列、≥4 格且 ≥ 半数格子有字），只用格子位置、文字仍用抽出的行；整张表缩成一块参与 region-first 分栏，排好位置后按行出块（5.1）。表格字数 ≥ 70% 的页判为 table。无边框的对齐"表格"不识别 | P0 |
 | FR-C3 | 阅读顺序重建（仅 PDF） | 跨栏行与 region 按 y 排；region 内左栏→右栏，栏内按 y；遇项目符号另起一块 | P0 |
 | FR-C4 | 章节识别 | 标题词典（中英 / 双语 / 组合标题拆开匹配）+ 特征加权（5.4），输出 8 类 + 置信度；词典认不出的候选标题一次交 LLM 归类（可判"不是标题"），失败退回；全文没有教育章节时，开头段末尾像教育的块切成教育章节 | P0 |
-| FR-C5 | LLM 兜底（仅 PDF） | 〔未实现，M8 前补，排在表格与章节兜底之后〕`layout_detail` 任一页 `unknown`（等价 `layout_confidence < 0.7`）→ 掩码文本+坐标交 LLM，**只回块序号**；在解析流水线内执行 | P1 |
+| FR-C5 | ~~LLM 版面兜底~~ | 〔不做，2026-10-06 评估后决定〕原触发条件（任一页 unknown，即 `layout_confidence < 0.7`）实测既漏报（时间轴读错却自报 1.0）又误报（无边框表格读对却报 0.5）；时间轴改用规则修（04-design 5.1 第 3 步） | — |
 | FR-C6 | 结构化抽取 | 按章节送 LLM，输入带编号的块；字段值输出文本，条目输出 `block_ids`，highlights **只输出 block_ids**，text 由服务端切片 | P0 |
 | FR-C7 | 时间归一化 | 规则见 5.5；失败整字段为 null，规则遇 null 跳过 | P0 |
 | FR-C8 | 人工纠正 | **只允许**改非文本字段值（degree/日期/kind/skill_id/level/条目归属章节/删除误抽条目）；不接收 text / char 区间 / full_text（400）。成功后 `is_corrected=TRUE`、`overall_score=NULL`、重算 `skill_mentions` | P1 |
@@ -117,7 +117,7 @@ DOCX         →〔未实现：本期只收 PDF，上传 .docx 直接 41501〕�
 | 编号 | 指标 |
 |---|---|
 | NFR-1 性能 | 单份解析 < 3s（不含 LLM）；完整诊断 < 30s；面试每轮首字 < 3s、整轮 < 15s |
-| NFR-2 准确性 | 版面合成集（N=80，4 种版面，仅 PDF）line 级相邻行对顺序准确率 ≥ 95%；残留幻觉率（人工复核）≤ 2% |
+| NFR-2 准确性 | 版面合成集（N=120，6 种版式，仅 PDF）line 级相邻行对顺序准确率 ≥ 95%；残留幻觉率（人工复核）≤ 2% |
 | NFR-3 可靠性 | LLM 调用指数退避重试 3 次；启动时清理中断任务；面试会话可续答 |
 | NFR-4 成本 | 单份诊断 `DIAGNOSE_COST_LIMIT`；单场面试 `INTERVIEW_COST_LIMIT`（默认 0.3 元），超限提前结束并出报告 |
 | NFR-5 安全与隐私 | JWT；上传校验清单；UUID 落盘；按用户隔离；**PII 不进 LLM prompt**；案例库与 JD 语料仅公开数据；软删除 30 天清理；面试回答只用于本会话 |

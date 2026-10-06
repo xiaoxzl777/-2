@@ -1,7 +1,8 @@
 """生成版面合成集：python scripts/gen_layout_set.py
 
-20 份虚构的简历内容 × 4 种版式 = 80 份单页 PDF，写进 data/layout_set/（不进仓库，随时可以重新生成）：
+20 份虚构的简历内容 × 6 种版式 = 120 份单页 PDF，写进 data/layout_set/（不进仓库，随时可以重新生成）：
   single 单栏 · double 两栏（页顶姓名通栏）· sidebar 左侧边栏（一半带底色）· table 表格型（整页带边框的表格）
+  timeline 时间轴（单栏，经历的日期单独成左列，和标题在同一行）· borderless 表格型去掉边框（只靠对齐）
 标准答案在同目录的 gt.json：{文件名: {"layout": 版式, "lines": [按正确阅读顺序排好的每一段文字]}}。
 "一段文字"就是生成时画出去的一次：一行正文、折行后的一截、右对齐的日期、表格里一格中的一行。
 画的顺序就是阅读顺序（先左栏后右栏；表格逐行、一行里从左到右）。
@@ -29,7 +30,7 @@ from app.config import settings  # noqa: E402
 
 SEED = 2026
 N_CONTENTS = 20
-LAYOUTS = ("single", "double", "sidebar", "table")
+LAYOUTS = ("single", "double", "sidebar", "table", "timeline", "borderless")
 OUT_DIR = settings.DATA_DIR / "layout_set"
 W, H = pymupdf.paper_size("a4")
 CJK_FONT, LATIN_FONT = "china-s", "helv"
@@ -248,6 +249,7 @@ class Canvas:
         self.st = style
         self.lines: list[str] = []
         self.bottom = 0.0
+        self.date_col = 0.0   # 时间轴版式：日期单独成左列的宽度；0 = 日期右对齐在标题行末尾
 
     def text(self, x: float, y: float, s: str, size: float | None = None) -> None:
         size = size or self.st.size
@@ -279,9 +281,14 @@ class Canvas:
         return [first] + (wrap(rest, width - indent, self.st.size) if rest else [])
 
     def entry(self, x0: float, x1: float, y: float, e: Entry) -> float:
-        """经历：标题 + 右对齐的日期（放不下就另起一行），再是各条描述。"""
+        """经历：标题 + 右对齐的日期（放不下就另起一行），再是各条描述。
+        时间轴版式：日期画在左列、标题和描述画在右边，日期和标题在同一行（先画日期：按行读是先左后右）。"""
         date_w = text_width(e.date, self.st.size)
-        if text_width(e.title, self.st.size) + date_w + 12 <= x1 - x0:
+        if self.date_col:
+            self.text(x0, y, e.date)
+            x0 += self.date_col
+            self.text(x0, y, e.title)
+        elif text_width(e.title, self.st.size) + date_w + 12 <= x1 - x0:
             self.text(x0, y, e.title)
             self.text(x1 - date_w, y, e.date)
         else:
@@ -316,11 +323,12 @@ class Canvas:
         return y
 
 
-# ───────────────────────── 四种版式 ─────────────────────────
+# ───────────────────────── 版式 ─────────────────────────
 
 
-def draw_single(c: Content, st: Style, rng: random.Random) -> Canvas:
+def draw_single(c: Content, st: Style, rng: random.Random, date_col: float = 0.0) -> Canvas:
     cv = Canvas(st)
+    cv.date_col = date_col
     x0, x1 = st.margin, W - st.margin
     y = st.margin + st.name_size
     cv.text((W - text_width(c.name, st.name_size)) / 2, y, c.name, st.name_size)
@@ -372,9 +380,15 @@ def draw_sidebar(c: Content, st: Style, rng: random.Random) -> Canvas:
     return cv
 
 
-def draw_table(c: Content, st: Style, rng: random.Random) -> Canvas:
+def draw_timeline(c: Content, st: Style, rng: random.Random) -> Canvas:
+    """单栏，但经历的日期单独成左列、和标题在同一行（时间轴）。技能、获奖、自我评价照常通栏。"""
+    widest = max(text_width(e.date, st.size) for e in c.education + c.work + c.projects)
+    return draw_single(c, st, rng, date_col=widest + rng.choice([16, 24, 32]))
+
+
+def draw_table(c: Content, st: Style, rng: random.Random, borders: bool = True) -> Canvas:
     """表格型：个人信息 4 列、教育 4 列（带表头），其余章节是"左列章节名 | 右列内容"的两列表。
-    一半的文档把每段经历放在单独一行、章节名竖着合并成一格。"""
+    一半的文档把每段经历放在单独一行、章节名竖着合并成一格。borders=False 时不画边框（只靠对齐）。"""
     cv = Canvas(st)
     pad, x0, x1 = 5, st.margin, W - st.margin
     title = "个人简历"
@@ -393,8 +407,9 @@ def draw_table(c: Content, st: Style, rng: random.Random) -> Canvas:
                     span = 1
                     while i + span < len(rows) and rows[i + span][j] is None:
                         span += 1
-                    cv.page.draw_rect(pymupdf.Rect(x, tops[i], x + w, tops[i] + sum(heights[i:i + span])),
-                                      color=(0, 0, 0), width=0.6)
+                    if borders:
+                        cv.page.draw_rect(pymupdf.Rect(x, tops[i], x + w, tops[i] + sum(heights[i:i + span])),
+                                          color=(0, 0, 0), width=0.6)
                     for k, s in enumerate(cell):
                         cv.text(x + pad, tops[i] + pad + st.size + k * st.lead, s)
                 x += w
@@ -434,7 +449,8 @@ def draw_table(c: Content, st: Style, rng: random.Random) -> Canvas:
     return cv
 
 
-DRAW = {"single": draw_single, "double": draw_double, "sidebar": draw_sidebar, "table": draw_table}
+DRAW = {"single": draw_single, "double": draw_double, "sidebar": draw_sidebar, "table": draw_table,
+        "timeline": draw_timeline, "borderless": lambda c, st, rng: draw_table(c, st, rng, borders=False)}
 
 
 def render(layout: str, content: Content, seed: int) -> Canvas:

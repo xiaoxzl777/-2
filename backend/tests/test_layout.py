@@ -154,6 +154,46 @@ def test_page_numbers_and_repeated_headers_are_dropped(tmp_path):
     assert [b.page_no for b in r.blocks] == [1] * 8 + [2] * 8
 
 
+# ───────────────────────── 时间轴 ─────────────────────────
+
+
+def test_timeline_date_column_is_read_row_by_row(tmp_path):
+    """左边一列日期、右边同一行是经历标题：按行读，日期跟着它那条经历，不当成两栏先左后右。"""
+    items = [(40, 60, "Zhang San", 18, "hebo"), (40, 90, "Experience", 13, "hebo")]
+    y = 115
+    for k in range(4):
+        items.append((40, y, f"202{k}.07-202{k}.09", 10, "helv"))
+        items.append((160, y, f"E{k + 1} Company {k} backend intern", 10, "helv"))
+        for j in range(2):
+            y += 15
+            items.append((160, y, f"- E{k + 1}.{j + 1} built the order service", 10, "helv"))
+        y += 23
+    path = make_pdf(tmp_path / "timeline.pdf", items)
+
+    r = analyze_layout(extract_pdf(path))
+    texts = [b.text for b in r.blocks]
+    assert texts[2:5] == ["2020.07-2020.09 E1 Company 0 backend intern",
+                          "- E1.1 built the order service", "- E1.2 built the order service"]
+    assert texts[5].startswith("2021.07-2021.09 E2")
+    assert r.pages[0].layout_type == "single" and not r.needs_llm_fallback
+    _assert_contract(r)
+
+    # 关掉这条规则（最初的算法）：先读完所有日期，再读经历，而且自报是有把握的侧边栏
+    r0 = analyze_layout(extract_pdf(path), date_columns=False)
+    assert [b.text for b in r0.blocks][2:6] == [f"202{k}.07-202{k}.09" for k in range(4)]
+    assert r0.pages[0].layout_type == "sidebar" and r0.pages[0].confidence == 1.0
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("2023.07-2023.09", True), ("2024.05 - 至今", True), ("2022年9月", True),
+    ("2022 年 优秀学生干部", False),          # 奖项里带年份：侧边栏的获奖列表不能被当成日期列
+    ("负责 2023 年的订单系统", False), ("Spring Boot", False),
+])
+def test_date_line(text, expected):
+    from app.parser.layout import _is_date_line
+    assert _is_date_line(text) is expected
+
+
 # ───────────────────────── 表格 ─────────────────────────
 
 

@@ -4,11 +4,12 @@
   相邻行对顺序准确率：标准答案里前后相邻的两段文字，在输出里也紧挨着、且顺序一样的比例（所有文档的相邻对一起算）。
                       只看"前一段在前"太宽松：两栏按行交错着读，栏内的相邻对仍然"在前"，几乎不扣分
   文档级全对率：所有相邻对都对的文档占比
-  版面判对率：analyze_layout 判出的版面类型和生成时的版式一致的占比（只对本系统算）
+  版面判对率：analyze_layout 判出的版面类型和版式应有的类型一致的占比（只对本系统算；时间轴应判 single，
+              无边框表格没有公认的答案，不算）
 对照：
   pymupdf_sort    PyMuPDF 自带的 get_text(sort=True)：按坐标从上到下、从左到右
-  ours_no_table   本系统，但去掉表格识别（相当于加表格识别之前的版本）
-  ours            本系统（analyze_layout 的 full_text）
+  ours_basic      最初的规则：去掉表格识别和时间轴日期列
+  ours            现在的规则（analyze_layout 的 full_text）
 一段文字在输出里用 str.find 定位，定位前两边都去掉空白（PyMuPDF 会把"两个空格 + 中文"压成一个空格，
 这是文字规整上的差别，不该算成顺序错）；标准答案里是别的段的子串的段不参与计分（定位不唯一）。
 结果打印成表，并写一份 JSON 到 data/eval_runs/。
@@ -32,7 +33,8 @@ from app.parser.extract import extract_pdf  # noqa: E402
 from app.parser.layout import analyze_layout  # noqa: E402
 from scripts.gen_layout_set import LAYOUTS, OUT_DIR  # noqa: E402
 
-METHODS = ("pymupdf_sort", "ours_no_table", "ours")
+METHODS = ("pymupdf_sort", "ours_basic", "ours")
+EXPECTED_TYPE = {"single": "single", "double": "double", "sidebar": "sidebar", "table": "table", "timeline": "single"}
 
 
 def read_text(path: Path, method: str) -> tuple[str, str | None]:
@@ -41,9 +43,9 @@ def read_text(path: Path, method: str) -> tuple[str, str | None]:
         with pymupdf.open(path) as doc:
             return "\n".join(page.get_text("text", sort=True) for page in doc), None
     extracted = extract_pdf(path)
-    if method == "ours_no_table":
+    if method == "ours_basic":
         extracted.tables = []
-    layout = analyze_layout(extracted)
+    layout = analyze_layout(extracted, date_columns=method != "ours_basic")
     return layout.full_text, layout.layout_type
 
 
@@ -69,8 +71,8 @@ def pair_score(lines: list[str], text: str) -> tuple[int, int, int]:
 
 def main() -> None:
     gt = json.loads((OUT_DIR / "gt.json").read_text(encoding="utf-8"))
-    # stats[method][layout] = [顺序对的相邻对, 相邻对总数, 全对的文档数, 文档数, 找不到的段, 版面判对的文档数]
-    stats: dict[str, dict[str, list[int]]] = {m: defaultdict(lambda: [0] * 6) for m in METHODS}
+    # stats[method][layout] = [顺序对的相邻对, 相邻对总数, 全对的文档数, 文档数, 找不到的段, 版面判对的文档数, 有应有类型的文档数]
+    stats: dict[str, dict[str, list[int]]] = {m: defaultdict(lambda: [0] * 7) for m in METHODS}
     started = time.perf_counter()
     for name, doc in gt.items():
         lines = scorable(doc["lines"])
@@ -84,21 +86,24 @@ def main() -> None:
                 s[2] += ok == total
                 s[3] += 1
                 s[4] += missing
-                s[5] += layout_type == doc["layout"]
+                s[5] += doc["layout"] in EXPECTED_TYPE and layout_type == EXPECTED_TYPE[doc["layout"]]
+                s[6] += doc["layout"] in EXPECTED_TYPE
 
-    groups = list(LAYOUTS) + ["all"]
+    groups = [g for g in LAYOUTS if stats["ours"][g][3]] + ["all"]
     print(f"{len(gt)} 份，用时 {time.perf_counter() - started:.1f}s\n")
     print("相邻行对顺序准确率 / 文档级全对率")
-    print(f"{'':<16}" + "".join(f"{g:>20}" for g in groups))
+    print(f"{'':<14}" + "".join(f"{g:>19}" for g in groups))
     for method in METHODS:
-        cells = [f"{s[0] / s[1]:.2%} / {s[2]}/{s[3]}" for s in (stats[method][g] for g in groups)]
-        print(f"{method:<16}" + "".join(f"{c:>20}" for c in cells))
+        cells = [f"{s[0] / s[1]:.1%} / {s[2]}/{s[3]}" for s in (stats[method][g] for g in groups)]
+        print(f"{method:<14}" + "".join(f"{c:>19}" for c in cells))
     missing = {m: stats[m]["all"][4] for m in METHODS}
     print(f"\n输出里找不到的段：{missing}")
-    print("版面判对率（ours）：" + "  ".join(
-        f"{g} {stats['ours'][g][5]}/{stats['ours'][g][3]}" for g in groups))
+    for method in ("ours_basic", "ours"):
+        print(f"版面判对率（{method}）：" + "  ".join(
+            f"{g} {stats[method][g][5]}/{stats[method][g][6]}" for g in groups if stats[method][g][6]))
 
-    report = {m: {g: dict(zip(["pairs_ok", "pairs", "docs_ok", "docs", "missing", "layout_ok"], stats[m][g]))
+    report = {m: {g: dict(zip(["pairs_ok", "pairs", "docs_ok", "docs", "missing", "layout_ok", "layout_scored"],
+                              stats[m][g]))
                   for g in groups} for m in METHODS}
     out = settings.DATA_DIR / "eval_runs" / f"layout-{time.strftime('%Y%m%d-%H%M%S')}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
