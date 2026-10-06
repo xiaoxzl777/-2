@@ -356,7 +356,7 @@ backend/app/
 
 scripts/   dump_schema.py dump_seed.py   〔待建，M8〕gen_eval_set.py run_eval.py
 data/      skills_seed.csv resumes/ uploads/ chroma/ eval_runs/
-tests/     每个模块一个 test_*.py（347 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
+tests/     每个模块一个 test_*.py（352 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
 
 frontend/src/
 ├── pages/       Home（首页 + 登录）  Workbench（新的投递：选岗位 → 选简历 → 投递）  ApplyResult（初筛结果，含"进入面试 / 练习模式"入口）

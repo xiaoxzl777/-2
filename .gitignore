@@ -26,6 +26,7 @@ data/uploads/*
 data/chroma/*
 data/eval_runs/*
 data/layout_set/
+data/eval_set/
 data/checkpoints.sqlite*
 !data/uploads/.gitkeep
 !data/chroma/.gitkeep
