@@ -63,7 +63,7 @@ basics 抽取 / 规则诊断 / 证据校验 / 综合评分 / 时间归一化 / �
 改写、匹配都不检索（理由见 06-workflows 6.2、6.5）。
 
 链路：**切块 → 向量化入库 → 召回（embedding）→ 精排（reranker，cross-encoder）→ 注入 prompt**。
-实现在 `retrieval/context_store.py`（面经：切段、入库、召回、精排、会话结束删除）与 `llm/embedding.py`；`retrieval/unit_store.py`（简历单元）主流程不用，只留作 06-workflows 6.2「逐条检索 vs 全文判定」对照实验的代码。
+实现在 `retrieval/context_store.py`（面经：切段、入库、召回、精排、会话结束删除）与 `llm/embedding.py`。简历单元的逐条检索只在 06-workflows 6.2 的对照实验里用过，代码已删除（见提交 ee10f38）。
 为什么要两阶段：embedding 是双塔模型，query 与文档各自编码，快但粗；reranker 把 query 与每个候选拼在一起过模型，准但慢——所以先用前者把上千条缩到 20 条，再用后者挑 3 条。
 reranker 失败或关闭时退化为直接取召回 top-3，功能不中断。
 
@@ -85,7 +85,7 @@ cases / jd     仅公开数据（以后建案例库时，构建脚本不读 resu
 client.invoke(scene, messages, prompt_version, schema?, ref?, model?, temperature, use_cache)  → LLMResult{text, parsed, parse_error, token, cost, cache_hit, model_version}：
   ① 渲染 prompt → key = llm:{scene}:{model}:{prompt_ver}:{sha256(rendered_prompt)}
   ② 缓存命中 → 记 llm_calls 一行（cache_hit=TRUE, token/cost=0）→ 返回      （面试 interview_plan / ask / eval / report 都不走缓存：每次对话都不同）
-  ③ Redis 限流（按分钟固定窗口计数）；Redis 不通或排队超时按调用失败处理，抛 LLMError
+  ③ Redis 限流（按分钟固定窗口计数，DeepSeek 每分钟 300 次：官方不限速率，这里只防一次发太多）；Redis 不通或排队超时按调用失败处理，抛 LLMError
   ④ 调模型；token 取自 AIMessage.usage_metadata；cost 按单价表；取 system_fingerprint
   ⑤ 写缓存（TTL 7d）+ llm_calls 落库 → Result{parsed, raw, cost, tokens}
 invoke_json(llm, scene, messages, schema, prompt_version, …) → (parsed | None, 两次总花费, 错误)：不合格时把上一次输出和原因（prompts.JSON_RETRY）发回去重试一次；
@@ -287,9 +287,9 @@ backend/app/
 ├── parser/     extract.py layout.py ★ section.py section_llm.py（候选标题交模型归类） structure.py normalize.py pii.py
 ├── diagnose/   rules.py evidence.py ★ llm_review.py scorer.py types.py
 ├── rewrite/    advice.py（具体建议：拼 prompt、数字占位符复检）
-├── matching/   skill_dict.py ★（extract_mentions） jd_parser.py matcher.py ★ llm_judge.py units.py（主流程不用，06-workflows 6.2 对照实验的代码）
+├── matching/   skill_dict.py ★（extract_mentions） jd_parser.py matcher.py ★ llm_judge.py
 ├── interview/  materials.py（面试材料与编号） planner.py（定话题） asker.py（出题 prompt） rubric.py（评分与聚合） policy.py（推进规则） report.py（报告）
-├── retrieval/  chroma_client.py context_store.py（面经切段检索） unit_store.py（简历单元，主流程不用，同上）
+├── retrieval/  chroma_client.py context_store.py（面经切段检索）
 ├── graphs/     state.py apply_graph.py（图 A） diagnose_graph.py match_graph.py interview_graph.py（图 B） checkpoint.py（SqliteSaver）
 ├── llm/        client.py ★ registry.py prompts.py audit.py embedding.py
 └── cache/      redis_client.py llm_cache.py ratelimit.py pubsub.py
@@ -298,7 +298,7 @@ backend/app/
 
 scripts/   dump_schema.py dump_seed.py build_job_templates.py gen_layout_set.py eval_layout.py gen_eval_set.py run_eval.py interview_answers.py
 data/      skills_seed.csv job_templates/ job_templates.json resumes/ uploads/ chroma/ checkpoints.sqlite eval_runs/ layout_set/ eval_set/
-tests/     每个模块一个 test_*.py（357 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
+tests/     每个模块一个 test_*.py（353 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
 
 frontend/src/
 ├── pages/       Home（首页 + 登录）  Workbench（新的投递：选岗位 → 选简历 → 投递）  ApplyResult（初筛结果，含"进入面试 / 练习模式"入口）

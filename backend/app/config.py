@@ -72,7 +72,7 @@ class Settings(BaseSettings):
 
     # ---- 缓存 / 限流 ----
     LLM_CACHE_TTL_SECONDS: int = 7 * 24 * 3600
-    DEEPSEEK_RPM: int = 60
+    DEEPSEEK_RPM: int = 300                    # DeepSeek 官方不限速率（忙时排队变慢）；这里只防一次发太多。原来 60，评测连续跑每 4–5 份就要等到下一分钟
     SILICONFLOW_RPM: int = 300
 
     @field_validator("DATA_DIR")

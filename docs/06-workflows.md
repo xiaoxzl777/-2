@@ -91,8 +91,8 @@ rule_match ──► judge_fulltext ──► score_match
 | 全文一次判断 | 1 次 | 3.7 s | ¥0.018 | — |
 | 逐条 RAG 判断 | 18 次 + 36 次向量 / 重排 | 5.1 s | ¥0.028 | 检索单元没覆盖到的内容（学历、技术栈行）会被误判为 miss，需要全文复核来兜底 |
 
-RAG 更贵、更慢、还多一种出错方式，于是从匹配中移除。逐条检索的代码（`matching/units.py`、`retrieval/unit_store.py`）主流程不用，
-只留作这组对照实验的代码。检索真正用在资料多的地方：模拟面试里用户贴的长面经（`retrieval/context_store.py`，见 6.5）。
+RAG 更贵、更慢、还多一种出错方式，于是从匹配中移除。逐条检索的代码（`matching/units.py`、`retrieval/unit_store.py`）
+跑完这组对照后已删除，要复现可以从提交 ee10f38 里取。检索真正用在资料多的地方：模拟面试里用户贴的长面经（`retrieval/context_store.py`，见 6.5）。
 
 ### 图 A 的 State
 

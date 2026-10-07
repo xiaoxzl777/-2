@@ -102,9 +102,11 @@ export default function InterviewSetup() {
             label={!apply?.gate ? job?.title ?? '…' : practice ? '初筛没过也能练' : job?.title ?? '岗位'}
             lines={['来一场', <><Mark>技术面</Mark>。</>]} />
           <p className="sub fade d2">
-            {!apply?.gate ? '5 个话题，每个最多追问一次，大约 10–15 分钟。' : practice
-              ? '5 个话题，每个最多追问一次，大约 10–15 分钟。每题答完马上告诉你好在哪、差在哪，练完同样有完整报告。'
-              : '5 个话题，每个最多追问一次，大约 10–15 分钟。和真实面试一样，答题时不打分，结束后看完整报告。'}
+            {/* 话题个数要等定完才知道（偶尔少一个），这里不写死 */}
+            围绕几个话题来问，每个最多追问一次，大约 10–15 分钟。
+            {!apply?.gate ? '' : practice
+              ? '每题答完马上告诉你好在哪、差在哪，练完同样有完整报告。'
+              : '和真实面试一样，答题时不打分，结束后看完整报告。'}
           </p>
           <div className="cta fade d3">
             <MagneticButton className="accent lg" onClick={() => void start()} disabled={!ready || !!steps}>
@@ -130,7 +132,7 @@ export default function InterviewSetup() {
                     desc={length === 0 ? '没贴面经，跳过这一步'
                       : length > CONTEXT_FULL_MAX ? `比较长（${length} 字），切段后每个话题取最相关的几段`
                       : `不长（${length} 字），整段交给面试官参考`} />
-                  <PrepNode step={steps[3]} name="定下话题" desc="5 个话题，每个最多追问 1 次" />
+                  <PrepNode step={steps[3]} name="定下话题" desc="按岗位要求和你的经历选几个话题" />
                 </div>
               </>
             ) : (

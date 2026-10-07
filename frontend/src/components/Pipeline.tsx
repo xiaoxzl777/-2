@@ -106,7 +106,7 @@ export function Pipeline({ pipe }: { pipe: PipeState }) {
           <PipeNode state={pipe.diagnose} name="诊断简历" desc="规则 + 大模型" />
           <PipeNode state={pipe.match} name="对照岗位" desc="逐条判定要求" />
         </div>
-        <PipeNode state={pipe.gate} name="初筛判定" desc="匹配度达到 60 即通过" />
+        <PipeNode state={pipe.gate} name="初筛判定" desc="匹配度过了初筛线即通过" />
       </div>
       <div className="big" aria-live="polite">
         <div className="big-top"><span>{messageOf(pipe)}</span><b>{percent}%</b></div>

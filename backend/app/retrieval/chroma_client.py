@@ -8,7 +8,6 @@ from chromadb.api.models.Collection import Collection
 
 from app.config import settings
 
-RESUME_UNITS = "resume_units"
 INTERVIEW_CTX = "interview_ctx"      # 模拟面试：用户贴的长面经切段，会话结束即删
 
 

@@ -351,8 +351,8 @@ CREATE TABLE llm_calls (
 ```
 interview_ctx  面经切段          用户贴的面经 / 公司介绍超过 3000 字时切段（约 500 字一段）入库，metadata {session_id, idx}；
                                  每个话题召回 → 精排取 3 段；会话结束即删（retrieval/context_store.py）
-resume_units   简历经历切块      主流程不用，只留作 06-workflows 6.2「逐条检索 vs 全文判定」对照实验的代码
-                                 （retrieval/unit_store.py、matching/units.py）；metadata {resume_id, unit_id, char_start, char_end, section_type}
+resume_units   简历经历切块      已删除：只在 06-workflows 6.2「逐条检索 vs 全文判定」对照实验里用过，主流程不用；
+                                 代码见提交 ee10f38 里的 retrieval/unit_store.py、matching/units.py
 cases          优秀描述案例      暂缓：改写本期不检索（06-workflows 6.5），有范例库后再建
 ```
 
