@@ -53,7 +53,6 @@ function Report({ data }: { data: Data }) {
   }, [])
   const count = useCountUp(shown ? r.overall : 0)
   const practice = r.verdict === 'practice'
-  const noVerdict = practice || r.verdict === 'incomplete'
   const reached = r.topics.filter((t) => t.score !== null).length
   const nothing = r.answered === 0
 
@@ -101,7 +100,6 @@ function Report({ data }: { data: Data }) {
         </div>
       </div>
       <div className="stage fade d4">
-        <div className="floaty tl show"><b>{r.overall}{noVerdict ? '' : ` / ${r.threshold}`}</b><span>{noVerdict ? '综合分' : '综合分 / 通过线'}</span></div>
         <TiltCard>
           <div className="card-head">
             <Tabs value={tab} onChange={setTab} tabs={[{ key: 'sum', label: '总结' }, { key: 'turns', label: `逐题回顾 · ${data.turns.filter((t) => t.answer !== null).length}` }]} />

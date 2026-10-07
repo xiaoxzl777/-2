@@ -1,5 +1,5 @@
 // 工作台（新的投递）：一步一屏 —— ① 选方向 → ② 选岗位 → ③ 选简历 → ④ 投递，流程卡实时显示进度，跑完跳到初筛结果页。
-// 四步都常驻、只切换显示，来回切换时已填的 JD、已选的简历都还在。方向决定岗位模板、诊断标准和面试官（app/domains）。
+// 四步都常驻、只切换显示，来回切换时已填的 JD、已选的简历都还在；顶上的步骤条写着每步选了什么。方向决定岗位模板、诊断标准和面试官（app/domains）。
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { applyApi, isAbort } from '../api/apply'
@@ -101,10 +101,17 @@ export default function Workbench() {
 
   return (
     <AppShell progress={pipe.done ? 100 : STEP_PROGRESS[step]}>
+      <Steps step={step} locked={started} onGo={go} items={[
+        { name: '方向', value: domain?.name ?? null },
+        { name: '岗位', value: job?.title ?? null, title: job ? `${job.title} · ${job.requirement_count} 条要求` : undefined },
+        { name: '简历', value: resume?.title ?? null },
+        { name: '投递', value: pipe.done ? '分析完成' : started ? '分析中…' : null },
+      ]} />
+
       {/* ① 方向：单独一屏、上下排版，选完再去选岗位 */}
       <section className="screen stack" hidden={step !== 0}>
         <div>
-          <Headline badge="1 / 4" label="求职方向" lines={['你想找', <><Mark>哪类</Mark>工作？</>]} />
+          <Headline lines={['你想找', <><Mark>哪类</Mark>工作？</>]} />
           <p className="sub fade d2">先选方向。岗位模板、简历按什么标准诊断、模拟面试问哪一类问题，都会跟着换。</p>
           <div className="cta fade d3">
             <MagneticButton className="accent lg" disabled={!domain} onClick={() => go(1)}>下一步：选岗位 <span className="arrow">→</span></MagneticButton>
@@ -119,15 +126,13 @@ export default function Workbench() {
       <section className="screen" hidden={step !== 1}>
         <div>
           <button type="button" className="back fade d1" onClick={() => go(0)}>← 上一步：选方向</button>
-          <Headline badge="2 / 4" label="目标岗位" lines={['你想投', <>哪个<Mark>岗位</Mark>？</>]} />
+          <Headline lines={['你想投', <>哪个<Mark>岗位</Mark>？</>]} />
           <p className="sub fade d2">「<b>{domain?.name ?? '—'}</b>」方向。把招聘信息里的「岗位要求」整段贴过来，我会拆成一条条，之后逐条对照你的简历。</p>
           <div className="cta fade d3">
             <MagneticButton className="accent lg" disabled={!job} onClick={() => go(2)}>下一步：选简历 <span className="arrow">→</span></MagneticButton>
           </div>
         </div>
         <div className="stage fade d4">
-          <div className={`floaty tl ${job ? 'show' : ''}`}><b>{job?.requirement_count ?? 0} 条</b><span>要求已拆出</span></div>
-          <div className={`floaty br ${job ? 'show' : ''}`}><b>{job?.title ?? '—'}</b><span>已选岗位</span></div>
           {domain && <JobPicker domain={domain} selected={job} onPick={setJob} onChangeDomain={() => go(0)} />}
         </div>
       </section>
@@ -136,15 +141,13 @@ export default function Workbench() {
       <section className="screen" hidden={step !== 2}>
         <div>
           <button type="button" className="back fade d1" onClick={() => go(1)}>← 上一步：选岗位</button>
-          <Headline badge="3 / 4" label="简历" lines={['用哪份', <><Mark>简历</Mark>去投？</>]} />
+          <Headline lines={['用哪份', <><Mark>简历</Mark>去投？</>]} />
           <p className="sub fade d2">目前只收 PDF，两栏排版也认得。同一份简历可以投很多个岗位，只需上传一次。</p>
           <div className="cta fade d3">
             <MagneticButton className="accent lg" disabled={!resume} onClick={() => go(3)}>下一步：确认 <span className="arrow">→</span></MagneticButton>
           </div>
         </div>
         <div className="stage fade d4">
-          <div className="floaty tl show"><b>{job?.title ?? '—'}</b><span>目标岗位</span></div>
-          <div className={`floaty br ${resume ? 'show' : ''}`}><b>{resume?.title ?? '—'}</b><span>已选简历</span></div>
           <ResumePicker selected={resume} onPick={setResume} />
         </div>
       </section>
@@ -152,7 +155,7 @@ export default function Workbench() {
       {/* ④ 投递 */}
       <section className="screen" hidden={step !== 3}>
         <div>
-          <Headline badge="4 / 4" label="投递" lines={['准备好了，', <><Mark>投</Mark>吧。</>]} />
+          <Headline lines={['准备好了，', <><Mark>投</Mark>吧。</>]} />
           <div className="pick-sum fade d2">
             <div><span>方向</span><b>{domain?.name ?? '—'}</b>{!started && <button type="button" className="link" onClick={() => go(0)}>换</button>}</div>
             <div><span>岗位</span><b>{job?.title ?? '—'}</b>{!started && <button type="button" className="link" onClick={() => go(1)}>换</button>}</div>
@@ -169,7 +172,6 @@ export default function Workbench() {
           {error && <p className="form-err" role="alert">{error}</p>}
         </div>
         <div className="stage fade d4">
-          <div className={`floaty tr ${pipe.done ? 'show' : ''}`}><b>依据已核实</b><span>模型引用都能在原文找到</span></div>
           <TiltCard>
             <div className="card-head">
               <div className="dots" aria-hidden="true"><i /><i /><i /></div>
@@ -180,5 +182,28 @@ export default function Workbench() {
         </div>
       </section>
     </AppShell>
+  )
+}
+
+type StepItem = { name: string; value: string | null; title?: string }
+
+/** 顶上的步骤条：四等分，圆点在上、步骤名和选了什么居中写在下面，连线从上一个圆点接过来（代替原来漂浮在卡片周围的小卡）；
+ *  前面都选好了的步骤可以直接点过去，投递开始后就不能再换 */
+function Steps({ step, items, locked, onGo }: { step: number; items: StepItem[]; locked: boolean; onGo: (i: number) => void }) {
+  return (
+    <nav className="wb-steps fade" aria-label="投递步骤">
+      {items.map((s, i) => {
+        const state = i === step ? 'now' : s.value ? 'done' : 'todo'
+        const reachable = !locked && i !== step && items.slice(0, i).every((x) => x.value)
+        return (
+          <button key={s.name} type="button" className={`wb-step ${state}${i <= step ? ' reached' : ''}`} disabled={!reachable}
+            aria-current={i === step ? 'step' : undefined} title={s.title ?? s.value ?? undefined} onClick={() => onGo(i)}>
+            <span className="wb-mark" aria-hidden="true">{state === 'done' ? '✓' : i + 1}</span>
+            <span className="wb-name">{s.name}</span>
+            {s.value && <span className="wb-val">{s.value}</span>}
+          </button>
+        )
+      })}
+    </nav>
   )
 }

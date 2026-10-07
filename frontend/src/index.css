@@ -340,7 +340,7 @@ button { cursor: pointer; }
 .spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(255, 255, 255, 0.35); border-top-color: #fff; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── 登录后的页面（工作台等）：版式同首页首屏 —— 左边大标题，右边操作卡 + 漂浮小卡。样稿：docs/design/工作台预览.html。初筛结果另见下面的 .rv ── */
+/* ── 登录后的页面（工作台等）：版式同首页首屏 —— 左边标题，右边操作卡。样稿：docs/design/工作台预览.html。初筛结果另见下面的 .rv ── */
 .user-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--color-ink-2); }
 .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--color-accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
 .splash { min-height: 100vh; display: grid; place-items: center; color: var(--color-ink-3); }
@@ -353,11 +353,12 @@ button { cursor: pointer; }
 .top-progress i { display: block; height: 100%; background: var(--color-accent); transition: width 0.8s var(--ease); }
 
 .screen { display: grid; grid-template-columns: 1fr 1.05fr; gap: 64px; align-items: center; min-height: calc(100vh - 83px); padding: 40px 0 80px; }
-.screen h1 { margin: 22px 0 20px; font-size: clamp(40px, 5vw, 64px); line-height: 1.14; letter-spacing: -1px; font-weight: 800; }
+/* 工具页的标题比首页小一号（和初筛结果页一样大）：原来最大 64px，压得右边的卡片和下面的说明都往下挤 */
+.screen h1 { margin: 18px 0 16px; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.14; letter-spacing: -0.5px; font-weight: 800; }
 .screen h1 .line { display: block; overflow: hidden; padding-bottom: 6px; }
 .screen h1 .line > span { display: inline-block; transform: translateY(110%); animation: rise 0.9s var(--ease) forwards; }
 .screen h1 .line:nth-child(2) > span { animation-delay: 0.1s; }
-.screen .sub { max-width: 460px; }
+.screen .sub { max-width: 460px; font-size: 16px; text-wrap: pretty; }
 .result-sub { margin-bottom: 24px; }
 .cta-note { font-size: 13px; color: var(--color-ink-3); }
 /* 返回按钮：原来是一行淡灰小字，很难发现（用户反馈），改成带边框的胶囊；fit-content 让它仍独占一行 */
@@ -366,12 +367,34 @@ button { cursor: pointer; }
   transition: box-shadow 0.2s, color 0.2s, transform 0.3s var(--spring); }
 .back:hover { color: var(--color-ink); box-shadow: inset 0 0 0 1.5px var(--color-ink-3); transform: translateX(-2px); }
 
+/* ── 工作台顶上的步骤条：四等分，圆点在上、步骤名和选了什么居中写在下面，连线从上一个圆点接过来；直接放在页面底色上，左右对称。
+   第一版是白底大框 + 四等分格子，已完成 / 当前 / 没到三种颜色太杂，用户说「一点都不协调」；
+   第二版圆点靠左、连线填空隙，选了什么的字有长有短，圆点间距跟着不一样 ── */
+.wb-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 26px; }
+.wb-step { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 0 10px; border: none; background: none; text-align: center; }
+.wb-step + .wb-step::before { /* 连线：上一个圆点右边 → 这个圆点左边 */
+  content: ""; position: absolute; top: 12px; left: calc(-50% + 24px); right: calc(50% + 24px); height: 2px; border-radius: 2px;
+  background: rgba(var(--ink-rgb), 0.1); pointer-events: none; transition: background 0.4s; }
+.wb-step.reached::before { background: var(--color-accent); }
+.wb-step:disabled { cursor: default; }
+.wb-step:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 4px; border-radius: 8px; }
+.wb-mark { flex: none; display: grid; place-items: center; width: 26px; height: 26px; margin-bottom: 4px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px rgba(var(--ink-rgb), 0.22);
+  font-size: 12px; font-weight: 800; color: var(--color-ink-3); transition: background 0.3s, box-shadow 0.3s, color 0.3s; }
+.wb-step.done .wb-mark { background: rgba(var(--accent-rgb), 0.12); box-shadow: none; color: var(--color-accent-ink); }
+.wb-step.now .wb-mark { background: var(--color-accent); box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.16); color: #fff; }
+.wb-name { font-size: 14px; font-weight: 700; white-space: nowrap; color: var(--color-ink-3); transition: color 0.2s; }
+.wb-step.done .wb-name, .wb-step.now .wb-name { color: var(--color-ink); }
+.wb-step:not(:disabled):hover .wb-name { color: var(--color-accent-ink); }
+.wb-val { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--color-ink-3); }
+/* 下面这屏从顶上排（和初筛结果页一样）；原来整屏上下居中，步骤条和标题之间空出一大截 */
+.wb-steps ~ .screen { min-height: 0; align-items: start; align-content: start; padding-top: 40px; }
+
 /* ── 工作台第一步：选求职方向。上下排版（标题 → 大号下拉 → 下一步）；样稿 docs/design/岗位方向预览.html ── */
 .screen.stack { grid-template-columns: minmax(0, 600px); justify-content: center; justify-items: center; align-content: center; gap: 0; text-align: center; }
 .screen.stack > div:first-child { display: contents; }
 .screen.stack h1 { margin: 20px 0 14px; }
 .screen.stack h1 .line { display: inline-block; }
-.screen.stack .sub { margin: 0 auto 30px; max-width: 520px; }
+.screen.stack .sub { margin: 0 auto 30px; max-width: 520px; text-wrap: balance; word-break: keep-all; } /* 居中的两行别一长一短；只在标点处折，别把「诊断」拆成两行 */
 .screen.stack .stage { order: 1; width: 100%; text-align: left; }
 .screen.stack .cta { order: 2; justify-content: center; margin-top: 30px; }
 .dsel-label { display: block; margin: 0 0 10px 4px; font-size: 13px; font-weight: 700; color: var(--color-ink-2); }
@@ -414,7 +437,7 @@ button { cursor: pointer; }
 .link:hover { text-decoration: underline; }
 .back:focus-visible, .link:focus-visible, .tabs button:focus-visible, .pick-item:focus-visible, .issue-row:focus-visible, .drop:focus-within { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
-/* 右侧操作卡：随鼠标倾斜，周围漂浮小卡（选好之后才浮出来） */
+/* 右侧操作卡：随鼠标倾斜。原来周围还有漂浮小卡，压着卡片内容，2026-10-07 去掉了（工作台改成顶上的步骤条） */
 .stage { position: relative; perspective: 1200px; }
 .card {
   position: relative; padding: 24px; border-radius: 28px; background: var(--color-paper);
@@ -423,12 +446,6 @@ button { cursor: pointer; }
 }
 .card.over { box-shadow: 0 0 0 3px var(--color-accent), 0 30px 60px -20px rgba(var(--sh-rgb), 0.3); }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
-.stage .floaty { max-width: 240px; opacity: 0; transform: scale(0.9); pointer-events: none; transition: opacity 0.4s, transform 0.5s var(--spring); animation: drift 5s ease-in-out infinite; }
-.stage .floaty.show { opacity: 1; transform: none; }
-.stage .floaty b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; }
-.floaty.tl { left: -54px; top: -26px; }
-.floaty.br { right: -40px; bottom: -64px; animation-delay: -2.5s; }
-.floaty.tr { right: -34px; top: 40px; animation-delay: -1.2s; }
 
 /* 分段切换：等宽，滑块按下标平移 */
 .tabs { position: relative; display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 4px; border-radius: 999px; background: var(--color-bg-2); }
@@ -645,6 +662,8 @@ button { cursor: pointer; }
 .rv { --cols: minmax(0, 1fr) minmax(0, 1.08fr); padding: 36px 0 90px; }
 .rv-band, .rv-body { display: grid; grid-template-columns: var(--cols); column-gap: 28px; }
 .rv-band { align-items: end; margin-bottom: 36px; }
+.rv-band.top { align-items: start; } /* 分析中 / 失败：右边的卡比左边高，顶边对齐 */
+.rv-card { padding: 22px 24px; border-radius: 20px; background: var(--color-paper); box-shadow: 0 0 0 1px var(--line), 0 24px 44px -26px rgba(var(--sh-rgb), 0.35); }
 .rv h1 { margin: 18px 0 10px; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.14; letter-spacing: -0.5px; font-weight: 800; }
 .rv h1 .line { display: inline-block; overflow: hidden; padding-bottom: 6px; } /* 两行并成一行，放不下再折 */
 .rv h1 .line > span { display: inline-block; transform: translateY(110%); animation: rise 0.9s var(--ease) forwards; }
@@ -890,6 +909,12 @@ button { cursor: pointer; }
 @media (max-width: 760px) {
   .links.keep a { padding: 8px 10px; font-size: 14px; }
   .user-chip .uname { display: none; }
+  .wb-steps { margin-top: 18px; }
+  .wb-step { padding: 0 4px; }
+  .wb-step + .wb-step::before { left: calc(-50% + 20px); right: calc(50% + 20px); }
+  .wb-val { display: none; } /* 手机上只留圆点和步骤名 */
+  .wb-name { font-size: 13px; }
+  .wb-steps ~ .screen { padding-top: 20px; }
   .screen.ap-page { padding-top: 28px; }
   .ap-head { gap: 20px; }
   .ap-stats { width: 100%; }

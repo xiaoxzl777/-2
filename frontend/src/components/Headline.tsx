@@ -11,10 +11,11 @@ export function Mark({ children }: { children: ReactNode }) {
   )
 }
 
-export function Headline({ badge, label, lines }: { badge: string; label: ReactNode; lines: [ReactNode, ReactNode] }) {
+/** 不给 badge 就不要上面的小标签（工作台：第几步、选了什么都在顶上的步骤条里） */
+export function Headline({ badge, label, lines }: { badge?: string; label?: ReactNode; lines: [ReactNode, ReactNode] }) {
   return (
     <>
-      <span className="tag fade d1"><b>{badge}</b>{label}</span>
+      {badge && <span className="tag fade d1"><b>{badge}</b>{label}</span>}
       <h1>
         <span className="line"><span>{lines[0]}</span></span>
         <span className="line"><span>{lines[1]}</span></span>

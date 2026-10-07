@@ -9,7 +9,7 @@ import { jobsApi, REQ_TYPE_LABEL } from '../api/jobs'
 import { resumesApi, type ResumeStructure } from '../api/resumes'
 import { AdviceBlock } from '../components/AdviceBlock'
 import { AppShell } from '../components/AppShell'
-import { MagneticButton, TiltCard, useCountUp, useMedia } from '../components/effects'
+import { MagneticButton, useCountUp, useMedia } from '../components/effects'
 import { Headline, Mark } from '../components/Headline'
 import { IssueItem, type DetailRow } from '../components/IssueItem'
 import { NotFound, notFoundText } from '../components/NotFound'
@@ -51,7 +51,7 @@ export default function ApplyResult() {
 
   let body
   if (error) body = <NotFound badge="初筛结果" what="这次投递" message={error} />
-  else if (!data) body = <section className="screen"><p className="hint">加载中…</p></section>
+  else if (!data) body = <section className="rv"><p className="hint">加载中…</p></section>
   else if (isRunning(data)) body = <Analyzing pipe={pipe} jobTitle={jobTitle} />
   else if (data.status === 'failed' || !data.gate) body = <Failed data={data} jobTitle={jobTitle} />
   else body = <Outcome key={data.id} data={data} gate={data.gate} jobTitle={jobTitle} />
@@ -335,21 +335,22 @@ function ItemList({ items, from, empty, wide, expanded, active, onToggle, onHove
 
 // ───────────── 其他状态 ─────────────
 
+// 分析中、失败两种状态和结果用同一个顶部排版（.rv-band），跑完换成结果时标题不跳
 function Analyzing({ pipe, jobTitle }: { pipe: PipeState; jobTitle: string }) {
   return (
-    <section className="screen">
-      <div>
-        <Headline badge="分析中" label={jobTitle || '岗位'} lines={['还在分析，', <>稍等<Mark>一下</Mark>。</>]} />
-        <p className="sub fade d2">诊断简历和对照岗位同时进行，大约 20–40 秒。跑完这里会自动换成结果。</p>
-      </div>
-      <div className="stage fade d4">
-        <TiltCard>
+    <section className="rv">
+      <div className="rv-band top">
+        <div>
+          <Headline badge="分析中" label={jobTitle || '岗位'} lines={['还在分析，', <>稍等<Mark>一下</Mark>。</>]} />
+          <p className="rv-sub fade d2">诊断简历和对照岗位同时进行，大约 20–40 秒。<br />跑完这里会自动换成结果。</p>
+        </div>
+        <div className="rv-card fade d3">
           <div className="card-head">
             <div className="dots" aria-hidden="true"><i /><i /><i /></div>
             <span className="hint">{pipe.done ? '分析完成' : '分析中…'}</span>
           </div>
           <Pipeline pipe={pipe} />
-        </TiltCard>
+        </div>
       </div>
     </section>
   )
@@ -360,31 +361,31 @@ function Failed({ data, jobTitle }: { data: Result; jobTitle: string }) {
   // 简历解析失败（如扫描件）时重投同一份没用，要换简历
   const badResume = (data.error_msg ?? '').includes('简历解析失败')
   return (
-    <section className="screen">
-      <div>
-        <Headline badge="分析失败" label={jobTitle || '岗位'} lines={['这次分析', <>没能<Mark>完成</Mark>。</>]} />
-        <p className="sub fade d2">
-          {badResume
-            ? '这份简历没能解析出来（比如是扫描件）。换一份文本版 PDF 再投这个岗位吧。'
-            : '多半是大模型服务一时没响应。岗位和简历都还在，重新投一次就好。'}
-        </p>
-        <div className="cta fade d3">
-          {badResume ? (
-            <MagneticButton className="accent lg" onClick={() => navigate(`/app?job=${data.job_id}`)}>换一份简历再投 <span className="arrow">→</span></MagneticButton>
-          ) : (
-            <MagneticButton className="accent lg" onClick={() => navigate(`/app?job=${data.job_id}&resume=${data.resume_id}`)}>重新投递 <span className="arrow">→</span></MagneticButton>
-          )}
-          <MagneticButton className="outline lg" onClick={() => navigate('/app')}>换个岗位</MagneticButton>
+    <section className="rv">
+      <div className="rv-band top">
+        <div>
+          <Headline badge="分析失败" label={jobTitle || '岗位'} lines={['这次分析', <>没能<Mark>完成</Mark>。</>]} />
+          <p className="rv-sub fade d2">
+            {badResume
+              ? <>这份简历没能解析出来（比如是扫描件）。<br />换一份文本版 PDF 再投这个岗位吧。</>
+              : <>多半是大模型服务一时没响应。<br />岗位和简历都还在，重新投一次就好。</>}
+          </p>
+          <div className="cta fade d3">
+            {badResume ? (
+              <MagneticButton className="accent lg" onClick={() => navigate(`/app?job=${data.job_id}`)}>换一份简历再投 <span className="arrow">→</span></MagneticButton>
+            ) : (
+              <MagneticButton className="accent lg" onClick={() => navigate(`/app?job=${data.job_id}&resume=${data.resume_id}`)}>重新投递 <span className="arrow">→</span></MagneticButton>
+            )}
+            <MagneticButton className="outline lg" onClick={() => navigate('/app')}>换个岗位</MagneticButton>
+          </div>
         </div>
-      </div>
-      {data.error_msg && (
-        <div className="stage fade d4">
-          <TiltCard>
+        {data.error_msg && (
+          <div className="rv-card fade d3">
             <div className="card-head"><span className="hint">技术信息（排查用）</span></div>
             <p className="tech-msg">{data.error_msg}</p>
-          </TiltCard>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </section>
   )
 }
