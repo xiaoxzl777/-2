@@ -340,7 +340,7 @@ button { cursor: pointer; }
 .spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(255, 255, 255, 0.35); border-top-color: #fff; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── 登录后的页面（工作台、初筛结果）：版式同首页首屏 —— 左边大标题，右边操作卡 + 漂浮小卡。样稿：docs/design/工作台预览.html ── */
+/* ── 登录后的页面（工作台等）：版式同首页首屏 —— 左边大标题，右边操作卡 + 漂浮小卡。样稿：docs/design/工作台预览.html。初筛结果另见下面的 .rv ── */
 .user-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--color-ink-2); }
 .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--color-accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
 .splash { min-height: 100vh; display: grid; place-items: center; color: var(--color-ink-3); }
@@ -527,7 +527,7 @@ button { cursor: pointer; }
 /* 结果：匹配度圆环 + 四项分 + 可点开的问题列表 */
 .score-hero { display: flex; align-items: center; gap: 22px; margin: 0 0 26px; }
 .score-ring { position: relative; flex: none; width: 120px; height: 120px; }
-.score-ring svg { transform: rotate(-90deg); }
+.score-ring svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
 .score-ring circle { fill: none; stroke-width: 10; }
 .arc-track { stroke: var(--color-bg-2); }
 .arc-bar { stroke: var(--color-accent); stroke-linecap: round; stroke-dasharray: 314.2; transition: stroke-dashoffset 1.4s var(--ease); }
@@ -618,7 +618,7 @@ button { cursor: pointer; }
 .paper .hl.good { background: rgba(var(--good-rgb), 0.09); box-shadow: 0 2px 0 rgba(var(--good-rgb), 0.45); }
 .paper .hl.part { background: rgba(var(--warn-rgb), 0.13); box-shadow: 0 2px 0 var(--color-warn); }
 .paper .hl.bad { background: rgba(var(--bad-rgb), 0.11); box-shadow: 0 2px 0 var(--color-bad); }
-.paper .hl:hover { background: rgba(var(--accent-rgb), 0.16); }
+.paper .hl:hover, .paper .hl.peek { background: rgba(var(--accent-rgb), 0.16); }
 .paper .hl.focus { position: relative; background: rgba(var(--accent-rgb), 0.2); box-shadow: 0 0 0 2px var(--color-accent); animation: flashFocus 1.2s var(--ease); }
 @keyframes flashFocus { 0% { box-shadow: 0 0 0 8px rgba(var(--accent-rgb), 0.35); } 100% { box-shadow: 0 0 0 2px var(--color-accent); } }
 /* 批注弹出几秒后淡出，别一直挡住上一行的字 */
@@ -639,6 +639,50 @@ button { cursor: pointer; }
 .tagx.hit { background: rgba(var(--good-rgb), 0.14); color: var(--color-good); }
 
 .tech-msg { margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--color-field); box-shadow: inset 0 0 0 1px var(--line); font-family: ui-monospace, Consolas, monospace; font-size: 12px; line-height: 1.6; color: var(--color-ink-2); word-break: break-all; }
+
+/* ── 初筛结果：顶部成绩单 + 左边问题清单、右边常驻原文。样稿：docs/design/结果页排版预览.html（「改后」）。类名都带 rv- 前缀
+   整页一套两列网格：成绩单、问题清单、原文都落在这两列上，左右边缘对齐 ── */
+.rv { --cols: minmax(0, 1fr) minmax(0, 1.08fr); padding: 36px 0 90px; }
+.rv-band, .rv-body { display: grid; grid-template-columns: var(--cols); column-gap: 28px; }
+.rv-band { align-items: end; margin-bottom: 36px; }
+.rv h1 { margin: 18px 0 10px; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.14; letter-spacing: -0.5px; font-weight: 800; }
+.rv h1 .line { display: inline-block; overflow: hidden; padding-bottom: 6px; } /* 两行并成一行，放不下再折 */
+.rv h1 .line > span { display: inline-block; transform: translateY(110%); animation: rise 0.9s var(--ease) forwards; }
+.rv h1 .line:nth-child(2) > span { animation-delay: 0.1s; }
+.rv .mark svg { bottom: -6px; height: 16px; }
+.rv .mark path { stroke-width: 5; }
+.rv-sub { margin: 0 0 22px; font-size: 16px; line-height: 1.7; color: var(--color-ink-2); text-wrap: pretty; } /* 折行时别让最后一行只剩几个字 */
+.rv .btn.lg { height: 50px; padding: 0 24px; font-size: 16px; }
+.rv-score { display: flex; align-items: center; gap: 28px; padding: 22px 28px; border-radius: 20px; background: var(--color-paper); box-shadow: 0 0 0 1px var(--line), 0 24px 44px -26px rgba(var(--sh-rgb), 0.35); }
+.rv-score .score-ring { width: 96px; height: 96px; }
+.rv-score .score-ring .num { font-size: 30px; }
+.rv-score .dims { max-width: none; gap: 12px 28px; }
+/* 左右两列都先是一行同样高的标题，下面的清单和原文卡从同一高度开始 */
+.rv-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 28px; margin: 0 0 12px; }
+.rv-h h3 { display: flex; align-items: baseline; gap: 10px; min-width: 0; margin: 0; font-size: 18px; font-weight: 800; white-space: nowrap; }
+.rv-h h3 span { overflow: hidden; text-overflow: ellipsis; font-size: 13px; font-weight: 500; color: var(--color-ink-3); }
+.rv-h .link { flex: none; font-size: 13px; white-space: nowrap; }
+.rv-h .legend { flex: none; flex-wrap: nowrap; padding: 0; border: 0; }
+.rv-list { align-self: start; }
+.rv-sec + .rv-sec { margin-top: 28px; }
+.rv-sec:last-child .issue:last-child { margin-bottom: 0; } /* 最后一条不带下间距，底边才和原文卡平齐 */
+.rv .issue.active { box-shadow: inset 0 0 0 2px var(--color-accent); }
+/* 右列不参与定行高（contain: size），行高只由左边清单决定；原文卡最高一屏、最多和清单一样高，所以滚到底时两边底边平齐。
+   清单太短时原文卡至少留 480px，宁可不齐也要看得清 */
+.rv-col { contain: size; }
+.rv-side { position: sticky; top: 84px; display: flex; flex-direction: column; height: min(calc(100vh - 104px), 100%); min-height: 480px; }
+.rv-paper { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 20px; background: var(--color-paper); box-shadow: 0 0 0 1px var(--line), 0 30px 60px -28px rgba(var(--sh-rgb), 0.35); }
+.rv-paper .paper-wrap { margin: 10px; padding: 28px 30px 60px; border-radius: 14px; }
+.rv-msg { margin: 10px 10px 0; padding: 9px 14px; border-radius: 12px; border: 1.5px dashed rgba(var(--bad-rgb), 0.35); font-size: 13px; line-height: 1.6; color: var(--color-bad); animation: noteIn 0.4s var(--spring); }
+.rv-msg.hint { border-color: var(--line); color: var(--color-ink-3); }
+@media (max-width: 1000px) { /* 放不下两栏：一列，原文从右侧滑出（断点和 ApplyResult 里的 useMedia 一致） */
+  .rv-band, .rv-body { grid-template-columns: minmax(0, 1fr); row-gap: 22px; }
+}
+@media (max-width: 640px) {
+  .rv { padding-top: 24px; }
+  .rv-score { flex-wrap: wrap; gap: 20px; padding: 20px; }
+  .rv-score .dims { min-width: 180px; } /* 再窄就把四项分换到圆环下面 */
+}
 
 /* ── 模拟面试：准备页、面试页（左边话题进度，右边对话）、报告页。样稿：docs/design/模拟面试预览.html。类名都带 iv- 前缀，首页演示卡里已有 .chat / .msg ── */
 .tag b.pr { background: var(--color-accent); }

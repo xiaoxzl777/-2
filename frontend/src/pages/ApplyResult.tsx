@@ -1,5 +1,5 @@
 // 初筛结果：/app/apply/:id。通过 / 未通过两种；还在分析就显示流程卡，跑完自动换成结果；分析失败给出重投入口。
-// 每条问题点开看依据和针对这一句的具体建议（现场生成），也可以在简历原文纸面上定位。
+// 每条问题点开看依据和针对这一句的具体建议（现场生成），同时在简历原文上定位。
 import { useCallback, useMemo, useRef, useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { applyApi, isAbort, isRunning, type ApplyResult as Result, type Dimension, type MatchItem } from '../api/apply'
@@ -9,13 +9,13 @@ import { jobsApi, REQ_TYPE_LABEL } from '../api/jobs'
 import { resumesApi, type ResumeStructure } from '../api/resumes'
 import { AdviceBlock } from '../components/AdviceBlock'
 import { AppShell } from '../components/AppShell'
-import { MagneticButton, TiltCard, useCountUp } from '../components/effects'
+import { MagneticButton, TiltCard, useCountUp, useMedia } from '../components/effects'
 import { Headline, Mark } from '../components/Headline'
 import { IssueItem, type DetailRow } from '../components/IssueItem'
 import { NotFound, notFoundText } from '../components/NotFound'
 import { Pipeline, useApplyTracker, type PipeState } from '../components/Pipeline'
-import { ResumeSheet, type SheetDoc, type SheetItem } from '../components/ResumeSheet'
-import { Tabs } from '../components/Tabs'
+import { located, ResumePaper, type SheetDoc, type SheetItem } from '../components/ResumePaper'
+import { ResumeSheet } from '../components/ResumeSheet'
 
 const DIMENSIONS: [Dimension, string][] = [['skill', '技能'], ['education', '学历'], ['experience', '经验'], ['other', '其他']]
 const MATCHED_BY = { dict: '规则判定（技能词典）', profile: '规则判定（学历 / 年限）', fulltext: '大模型判定' }
@@ -60,28 +60,28 @@ export default function ApplyResult() {
 
 // ───────────── 结果 ─────────────
 
+// 顶部成绩单，下面左边问题清单、右边常驻原文（整页一套两列网格，各边对齐）。样稿：docs/design/结果页排版预览.html（「改后」）
+// 宽屏：点开一条，右边原文就定位到它；点原文里的高亮，左边展开对应的那条。窄屏放不下两栏：原文照旧从右侧滑出
 function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Result['gate']>; jobTitle: string }) {
   const navigate = useNavigate()
-  // ?open=finding:12 / requirement:4：从面试报告点过来，切到对应的页签并展开那一条
+  const wide = useMedia('(min-width: 1001px)') // 和 index.css 里 .rv 的断点一致
+  // ?open=finding:12 / requirement:4：从面试报告点过来，展开那一条并滚过去
   const [search] = useSearchParams()
   const [openKind, openId] = (search.get('open') ?? '').split(':')
   const openKey = openKind === 'finding' ? `finding:${openId}` : openKind === 'requirement' ? `gap:${data.id}:${openId}` : null
-  const [tab, setTab] = useState<'gap' | 'self'>(openKind === 'finding' ? 'self' : 'gap')
   const [shown, setShown] = useState(false) // 进场后再让圆环、分数条动起来
   useEffect(() => {
     const t = window.setTimeout(() => setShown(true), 500)
     return () => window.clearTimeout(t)
   }, [])
 
-  // 原文纸面：第一次打开时才去取原文、结构和完整匹配明细（「满足」的标注要用）
-  const [sheet, setSheet] = useState<{ open: boolean; focus: string | null }>({ open: false, focus: null })
+  // 原文：进页面就取（宽屏常驻在右边）—— 原文、结构、简历名和完整匹配明细（「满足」的标注要用）
   const [doc, setDoc] = useState<SheetDoc | null>(null)
   const [docError, setDocError] = useState<string | null>(null)
   const [resumeTitle, setResumeTitle] = useState('')
   const [hits, setHits] = useState<MatchItem[]>([])
   const loading = useRef(false)
-  const openSheet = (focus: string | null) => {
-    setSheet({ open: true, focus })
+  const loadDoc = useCallback(() => {
     if (loading.current) return
     loading.current = true
     setDocError(null)
@@ -95,13 +95,56 @@ function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Res
       setResumeTitle(title)
       setHits(items.filter((i) => i.status === 'hit'))
     }).catch((err) => {
-      loading.current = false
+      loading.current = false // 失败了，下次打开抽屉再取
       setDocError(err instanceof ApiError ? err.message : '请稍后重试')
     })
+  }, [data.id, data.resume_id])
+  useEffect(loadDoc, [loadDoc])
+  const items = useMemo(() => sheetItems(data, hits), [data, hits])
+  const byKey = useMemo(() => new Map(items.map((x) => [x.key, x])), [items])
+
+  // 窄屏的原文抽屉
+  const [sheet, setSheet] = useState<{ open: boolean; focus: string | null }>({ open: false, focus: null })
+  const openSheet = (focus: string | null) => {
+    setSheet({ open: true, focus })
+    loadDoc()
   }
   const closeSheet = useCallback(() => setSheet((s) => ({ ...s, open: false })), [])
   const focusOn = useCallback((key: string | null) => setSheet((s) => ({ ...s, focus: key })), [])
-  const items = useMemo(() => sheetItems(data, hits), [data, hits])
+
+  // 左边清单：展开了哪些、右边原文正指着哪条（active）、鼠标停在哪条上（peek，原文里先亮一下）
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set(openKey ? [openKey] : []))
+  const [active, setActive] = useState<string | null>(openKey)
+  const [paper, setPaper] = useState({ key: openKey, pulse: 0 }) // 同一条再点一次也要重新闪、重新滚过去
+  const [peek, setPeek] = useState<string | null>(null)
+  const point = (key: string) => setPaper((p) => ({ key, pulse: p.pulse + 1 }))
+  const toggle = (key: string) => {
+    setExpanded((s) => {
+      const next = new Set(s)
+      if (!next.delete(key)) next.add(key)
+      return next
+    })
+    setActive(key)
+    point(key)
+  }
+  // 点了原文里的高亮：在左边展开那一条、滚到可见处；满足的要求左边没有，只在原文里指一下
+  const fromPaper = (key: string) => {
+    point(key)
+    if (byKey.get(key)?.list === 'hit') return setActive(null)
+    setExpanded((s) => new Set(s).add(key))
+    setActive(key)
+    scrollToItem(key)
+  }
+  // 从面试报告点过来的那一条，进页面时滚过去
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (openKey) scrollToItem(openKey) }, [])
+  const pointed = paper.key ? byKey.get(paper.key) : undefined
+  const paperMsg = !paper.key ? { hint: true, text: '点左边任意一条，这里会定位到简历里对应的那一句。' }
+    : pointed && !located(pointed) ? {
+      hint: false,
+      text: pointed.list === 'gap' ? `简历里没有找到能证明「${pointed.text}」的内容 —— 这正是需要补上的地方。` : '这条针对整份简历，没有具体的某一句。',
+    }
+    : null
 
   const passed = gate.passed
   const overall = gate.overall_match === null ? null : Math.round(gate.overall_match)
@@ -112,22 +155,45 @@ function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Res
   })
   const hasHardGap = data.gaps.some((g) => g.req_type === 'hard')
   const anythingToFix = data.gaps.length > 0 || data.resume_issues.length > 0
+  // 两句分两行：第一句是分数，第二句是接下来做什么
   const sub = passed
-    ? `匹配度 ${overall}，过了 ${gate.threshold} 分的初筛线。` +
-      (anythingToFix ? '下面还有几处可以写得更好，面试前值得先改。' : '岗位要求都满足了，简历本身也没发现明显问题。')
-    : `匹配度 ${overall ?? '—'}，初筛线是 ${gate.threshold}。` +
-      (hasHardGap ? '先看「对照岗位」里的必须项，补上它们分数涨得最快；简历本身的问题也顺手改掉。' : '先看「对照岗位」里没满足的要求，简历本身的问题也顺手改掉。')
+    ? [`匹配度 ${overall}，过了 ${gate.threshold} 分的初筛线。`,
+      anythingToFix ? '下面还有几处可以写得更好，面试前值得先改。' : '岗位要求都满足了，简历本身也没发现明显问题。']
+    : [`匹配度 ${overall ?? '—'}，初筛线是 ${gate.threshold}。`,
+      hasHardGap ? '先补「对照岗位」里的必须项，涨分最快；简历本身的问题顺手改掉。' : '先补「对照岗位」里没满足的要求，简历本身的问题顺手改掉。']
+
+  const listProps = {
+    wide, expanded, active, onToggle: toggle, onHover: setPeek,
+    onLocate: openSheet,
+  }
+  const gapItems = items.filter((x) => x.list === 'gap')
+  const selfItems = items.filter((x) => x.list === 'self')
 
   return (
     <>
-    <section className="screen">
-      <div>
-        <Headline badge="初筛结果" label={jobTitle || '岗位'}
-          lines={passed ? ['通过初筛，', <>可以去<Mark>面试</Mark>了。</>] : ['差一点，', <>这次没过<Mark>初筛</Mark>。</>]} />
-        <p className="sub result-sub fade d2">{sub}</p>
-        <div className="score-hero fade d2">
-          <div className="score-ring" role="img" aria-label={`匹配度 ${overall ?? '无'}`}>
-            <svg width="120" height="120" viewBox="0 0 120 120" aria-hidden="true">
+    <section className="rv">
+      <div className="rv-band">
+        <div>
+          <Headline badge="初筛结果" label={jobTitle || '岗位'}
+            lines={passed ? ['通过初筛，', <>可以去<Mark>面试</Mark>了。</>] : ['差一点，', <>这次没过<Mark>初筛</Mark>。</>]} />
+          <p className="rv-sub fade d2">{sub[0]}<br />{sub[1]}</p>
+          <div className="cta fade d3">
+            {passed ? (
+              <>
+                <MagneticButton className="accent lg" onClick={() => navigate(`/app/apply/${data.id}/interview`)}>进入模拟面试 <span className="arrow">→</span></MagneticButton>
+                <MagneticButton className="outline lg" onClick={() => navigate('/app')}>再投一个</MagneticButton>
+              </>
+            ) : (
+              <>
+                <MagneticButton className="accent lg" onClick={() => navigate(`/app?job=${data.job_id}`)}>改完简历，再投这个岗位 <span className="arrow">→</span></MagneticButton>
+                <MagneticButton className="outline lg" onClick={() => navigate(`/app/apply/${data.id}/interview`)}>以练习模式面试</MagneticButton>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="rv-score fade d2">
+          <div className="score-ring" role="img" aria-label={`匹配度 ${overall ?? '无'}，初筛线 ${gate.threshold}`}>
+            <svg viewBox="0 0 120 120" aria-hidden="true">
               <circle className="arc-track" cx="60" cy="60" r="50" />
               <circle className="arc-bar" cx="60" cy="60" r="50" style={{ strokeDashoffset: RING * (1 - (shown ? overall ?? 0 : 0) / 100) }} />
             </svg>
@@ -142,41 +208,51 @@ function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Res
             ))}
           </div>
         </div>
-        <div className="cta fade d3">
-          {passed ? (
-            <>
-              <MagneticButton className="accent lg" onClick={() => navigate(`/app/apply/${data.id}/interview`)}>进入模拟面试 <span className="arrow">→</span></MagneticButton>
-              <MagneticButton className="outline lg" onClick={() => navigate('/app')}>再投一个</MagneticButton>
-            </>
-          ) : (
-            <>
-              <MagneticButton className="accent lg" onClick={() => navigate(`/app?job=${data.job_id}`)}>改完简历，再投这个岗位 <span className="arrow">→</span></MagneticButton>
-              <MagneticButton className="outline lg" onClick={() => navigate(`/app/apply/${data.id}/interview`)}>以练习模式面试</MagneticButton>
-            </>
-          )}
-        </div>
       </div>
-      <div className="stage fade d4">
-        <div className="floaty tl show"><b>{overall ?? '—'} / {gate.threshold}</b><span>匹配度 / 初筛线</span></div>
-        <TiltCard>
-          <div className="card-head">
-            <Tabs value={tab} onChange={setTab} tabs={[
-              { key: 'gap', label: `对照岗位 · ${data.gaps.length}` },
-              { key: 'self', label: `简历本身 · ${data.resume_issues.length}` },
-            ]} />
-            <button type="button" className="link" onClick={() => openSheet(null)}>查看简历原文 →</button>
+
+      <div className="rv-body">
+        <div className="rv-list">
+          <div className="rv-sec">
+            <div className="rv-h">
+              <h3>对照岗位<span>{gapItems.length ? `${gapItems.length} 条没满足或只满足一部分 · 重要的在前` : '没有要补的'}</span></h3>
+              {!wide && <button type="button" className="link" onClick={() => openSheet(null)}>查看简历原文 →</button>}
+            </div>
+            <ItemList items={gapItems} from={0} empty="岗位要求都满足了。" {...listProps} />
           </div>
-          <div className="issues">
-            <ItemList key={tab} items={items.filter((x) => x.list === tab)} onLocate={openSheet} openKey={openKey}
-              empty={tab === 'gap' ? '岗位要求都满足了。' : '简历本身没发现明显问题。'} />
+          <div className="rv-sec">
+            <div className="rv-h"><h3>简历本身<span>{selfItems.length ? `${selfItems.length} 处可以写得更好 · 严重的在前` : '没有要改的'}</span></h3></div>
+            <ItemList items={selfItems} from={gapItems.length} empty="简历本身没发现明显问题。" {...listProps} />
           </div>
-        </TiltCard>
+        </div>
+        {wide && (
+          // 右列不参与定行高（见 index.css 的 .rv-col），原文卡吸在导航栏下面，底边和清单平齐
+          <div className="rv-col">
+            <div className="rv-side fade d3">
+              <div className="rv-h">
+                <h3>简历原文<span>{resumeTitle}</span></h3>
+                <div className="legend"><span><i className="bad" />简历问题</span><span><i className="part" />部分满足</span><span><i className="good" />满足</span></div>
+              </div>
+              <div className="rv-paper">
+                {paperMsg && <p key={paperMsg.text} className={`rv-msg${paperMsg.hint ? ' hint' : ''}`}>{paperMsg.text}</p>}
+                <ResumePaper doc={doc} loadError={docError} items={items} focusKey={paper.key} pulse={paper.pulse} peekKey={peek} onFocus={fromPaper} />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </section>
-    <ResumeSheet open={sheet.open} title={resumeTitle} doc={doc} loadError={docError} items={items}
-      focusKey={sheet.focus} onFocus={focusOn} onClose={closeSheet} />
+    {!wide && (
+      <ResumeSheet open={sheet.open} title={resumeTitle} doc={doc} loadError={docError} items={items}
+        focusKey={sheet.focus} onFocus={focusOn} onClose={closeSheet} />
+    )}
     </>
   )
+}
+
+/** 把左边清单里的某一条滚到屏幕中间（右边原文是吸顶的，跟着整页走） */
+function scrollToItem(key: string) {
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  document.querySelector(`.rv-list [data-key="${key}"]`)?.scrollIntoView({ block: 'center', behavior: reduce ? 'instant' : 'smooth' })
 }
 
 function matchedByText(g: MatchItem): string {
@@ -228,13 +304,25 @@ function sheetItems(data: Result, hits: MatchItem[]): ListItem[] {
   return [...gap, ...self, ...hit]
 }
 
-function ItemList({ items, empty, onLocate, openKey }: { items: ListItem[]; empty: string; onLocate: (key: string) => void; openKey: string | null }) {
+function ItemList({ items, from, empty, wide, expanded, active, onToggle, onHover, onLocate }: {
+  items: ListItem[]
+  from: number // 前面已经有几条（进场动画接着排）
+  empty: string
+  wide: boolean // 宽屏原文常驻在右边：不要「在原文中查看」，鼠标停在一条上原文先亮一下
+  expanded: ReadonlySet<string>
+  active: string | null
+  onToggle: (key: string) => void
+  onHover: (key: string | null) => void
+  onLocate: (key: string) => void
+}) {
   if (items.length === 0) return <p className="empty">{empty}</p>
   return (
     <>
       {items.map((x, i) => (
-        <IssueItem key={x.key} index={i} tag={x.tag[1]} tagClass={x.tag[0]} text={x.text} why={x.why} rows={x.rows} defaultOpen={x.key === openKey}
-          locate={{
+        <IssueItem key={x.key} itemKey={x.key} index={from + i} tag={x.tag[1]} tagClass={x.tag[0]} text={x.text} why={x.why} rows={x.rows}
+          open={expanded.has(x.key)} active={wide && x.key === active} onToggle={() => onToggle(x.key)}
+          onHover={wide ? (on) => onHover(on ? x.key : null) : undefined}
+          locate={wide ? undefined : {
             label: x.color ? '在原文中查看 →' : x.list === 'gap' ? '打开原文，看看缺在哪 →' : '打开简历原文 →',
             onClick: () => onLocate(x.key),
           }}>

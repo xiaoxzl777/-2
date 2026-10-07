@@ -124,6 +124,19 @@ export function Reveal({ className = '', onReveal, children, id }: {
   return <div ref={ref} id={id} className={`reveal ${shown ? 'in' : ''} ${className}`}>{children}</div>
 }
 
+/** 媒体查询当前是否命中，窗口宽度变了跟着变 */
+export function useMedia(query: string) {
+  const [match, setMatch] = useState(() => window.matchMedia(query).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(query)
+    const onChange = () => setMatch(mq.matches)
+    onChange()
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [query])
+  return match
+}
+
 /** 导航栏滚动后加底色 */
 export function useScrolled(offset = 10) {
   const [scrolled, setScrolled] = useState(false)
