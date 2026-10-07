@@ -7,15 +7,18 @@ from __future__ import annotations
 
 import logging
 import time
+from collections import defaultdict
 from datetime import datetime
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.cache.pubsub import Publish
+from app.deps import parse_error_message
 from app.errors import ApiError
 from app.graphs.apply_graph import build_apply_graph
 from app.llm.client import LLMClient
-from app.models import Diagnosis, Finding, Job, MatchReport, Resume
+from app.models import Diagnosis, Finding, InterviewSession, Job, MatchReport, Resume, User
 from app.parser.pii import mask_resume
 from app.services import diagnose_service, match_service
 from app.services.parse_service import SessionFactory
@@ -120,6 +123,35 @@ def stage_of(report: MatchReport, resume: Resume) -> str:
     if report.status == "pending":
         return "parsing" if resume.parse_status != "success" else "queued"
     return {"running": "analyzing", "success": "done", "failed": "failed"}[report.status]
+
+
+def failure_of(report: MatchReport, resume: Resume) -> str | None:
+    """失败时给用户看的一句话。error_msg 是给开发者排查的技术报错，不直接展示。"""
+    if report.status != "failed":
+        return None
+    return parse_error_message(resume) if resume.parse_status == "failed" else "分析时出错了，可以再投一次"
+
+
+def list_applies(db: Session, user: User, page: int, page_size: int,
+                 ) -> tuple[int, list[tuple[MatchReport, Job, Resume, list[InterviewSession]]]]:
+    """「我的投递」：当前用户的投递，新的在前（简历删掉了的不算，和 GET /apply/{id} 的归属规则一致）。
+    每条带上岗位、简历，和挂在这次投递下面的面试（新的在前）；面试一次查完，不按条查。"""
+    mine = (Resume.user_id == user.id) & Resume.is_deleted.is_(False)
+    total = db.scalar(select(func.count()).select_from(MatchReport)
+                      .join(Resume, MatchReport.resume_id == Resume.id).where(mine))
+    rows = db.execute(
+        select(MatchReport, Job, Resume)
+        .join(Resume, MatchReport.resume_id == Resume.id).join(Job, MatchReport.job_id == Job.id).where(mine)
+        .order_by(MatchReport.created_at.desc(), MatchReport.id.desc())
+        .offset((page - 1) * page_size).limit(page_size)
+    ).all()
+    sessions: dict[int, list[InterviewSession]] = defaultdict(list)
+    if rows:
+        for s in db.scalars(select(InterviewSession)
+                            .where(InterviewSession.match_report_id.in_([r.id for r, _, _ in rows]))
+                            .order_by(InterviewSession.created_at.desc(), InterviewSession.id.desc())):
+            sessions[s.match_report_id].append(s)
+    return total, [(r, job, resume, sessions[r.id]) for r, job, resume in rows]
 
 
 def gap_items(report: MatchReport) -> list[dict]:

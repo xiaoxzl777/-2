@@ -319,6 +319,34 @@ class ApplyOut(BaseModel):
     resume_issues: list[FindingOut]     # 简历自身最该先改的问题
 
 
+class ApplyInterviewBrief(BaseModel):
+    id: int
+    mode: str                   # normal / practice
+    status: str                 # planned / in_progress / completed / abandoned
+    topic_count: int
+    current_topic: int          # 进行中：正在问第几个话题（从 1 起）；其他状态为 0
+    overall: int | None         # 结束后报告里的总分
+    verdict: str | None         # 结束后：pass / fail / incomplete（没聊完）/ practice（练习不下结论）
+    created_at: datetime
+
+
+class ApplyBrief(BaseModel):
+    """「我的投递」列表的一条：只给结论，明细看 GET /apply/{id}。"""
+    id: int
+    status: str                 # pending / running / success / failed
+    overall_match: float | None
+    passed: bool | None         # 跑完才有
+    failure: str | None         # 失败时给用户看的一句话
+    job_id: int
+    job_title: str
+    company: str | None
+    domain: str
+    resume_id: int
+    resume_title: str
+    created_at: datetime
+    interviews: list[ApplyInterviewBrief]   # 这次投递下面的面试，新的在前
+
+
 # ───────────── 模拟面试 ─────────────
 
 

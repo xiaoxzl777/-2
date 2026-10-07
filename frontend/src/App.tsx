@@ -5,6 +5,7 @@ import Home from './pages/Home'
 import Interview from './pages/Interview'
 import InterviewReport from './pages/InterviewReport'
 import InterviewSetup from './pages/InterviewSetup'
+import MyApplies from './pages/MyApplies'
 import Workbench from './pages/Workbench'
 import { useAuth } from './store/auth'
 
@@ -25,6 +26,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/app" element={<RequireAuth><Workbench /></RequireAuth>} />
+        <Route path="/app/applies" element={<RequireAuth><MyApplies /></RequireAuth>} />
         <Route path="/app/apply/:id" element={<RequireAuth><ApplyResult /></RequireAuth>} />
         <Route path="/app/apply/:id/interview" element={<RequireAuth><InterviewSetup /></RequireAuth>} />
         <Route path="/app/interview/:id" element={<RequireAuth><Interview /></RequireAuth>} />

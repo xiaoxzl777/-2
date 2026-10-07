@@ -58,7 +58,36 @@ export type ApplyResult = {
   resume_issues: Finding[] // 简历自身最该先改的问题，严重的在前
 }
 
-export const isRunning = (r: ApplyResult) => r.status === 'pending' || r.status === 'running'
+/** 「我的投递」里挂在投递下面的一场面试（ApplyInterviewBrief） */
+export type ApplyInterview = {
+  id: number
+  mode: 'normal' | 'practice'
+  status: 'planned' | 'in_progress' | 'completed' | 'abandoned'
+  topic_count: number
+  current_topic: number // 进行中：正在问第几个话题（从 1 起）；其他状态为 0
+  overall: number | null // 结束后的总分
+  verdict: 'pass' | 'fail' | 'incomplete' | 'practice' | null
+  created_at: string
+}
+
+/** 「我的投递」列表的一条（ApplyBrief）：只有结论，明细看 GET /apply/{id} */
+export type ApplyBrief = {
+  id: number
+  status: ApplyResult['status']
+  overall_match: number | null
+  passed: boolean | null // 跑完才有
+  failure: string | null // 失败时给用户看的一句话
+  job_id: number
+  job_title: string
+  company: string | null
+  domain: string
+  resume_id: number
+  resume_title: string
+  created_at: string
+  interviews: ApplyInterview[] // 新的在前
+}
+
+export const isRunning = (r: { status: ApplyResult['status'] }) => r.status === 'pending' || r.status === 'running'
 
 /** 组件卸载时主动断开跟踪抛出的异常，调用方应当忽略 */
 export const isAbort = (e: unknown) => e instanceof DOMException && e.name === 'AbortError'
@@ -70,6 +99,9 @@ export const applyApi = {
       '/apply', { method: 'POST', body: { resume_id: resumeId, job_id: jobId } }),
 
   get: (id: number) => request<ApplyResult>(`/apply/${id}`),
+
+  /** 我的投递，新的在前。一次取最近 100 条（后端分页的上限），不做翻页 */
+  list: () => request<{ items: ApplyBrief[]; total: number }>('/apply?page_size=100'),
 
   /** 完整的逐条匹配明细（含已满足的），原文纸面上的绿色标注要用 */
   match: (id: number) => request<{ items: MatchItem[] }>(`/match/${id}`),

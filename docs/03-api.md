@@ -20,9 +20,9 @@
 | 50002 | LLM 调用失败 | 500 |
 | 50003 | 简历解析失败（含扫描件） | 500 |
 
-## 3.2 接口清单（29 个；已实现 27 个，标〔未实现〕的留给后续里程碑）
+## 3.2 接口清单（30 个；已实现 28 个，标〔未实现〕的留给后续里程碑）
 
-另有 `GET /api/v1/health`（启动自检：MySQL / Redis 是否可用），不计入 29 个。
+另有 `GET /api/v1/health`（启动自检：MySQL / Redis 是否可用），不计入 30 个。
 
 ```
 认证 3    POST /auth/register   POST /auth/login   GET /auth/me
@@ -35,10 +35,14 @@
 
 进度 1    GET  /tasks/{kind}/{id}/stream   SSE；kind ∈ {parse, apply}
 
-投递 2    POST /apply  {resume_id, job_id, diagnose_mode?, match_mode?, model?} → {id, diagnosis_id, task_id:"apply:{id}", status}   图 A
+投递 3    POST /apply  {resume_id, job_id, diagnose_mode?, match_mode?, model?} → {id, diagnosis_id, task_id:"apply:{id}", status}   图 A
                        投递 id = match_report_id；简历还在解析也可以投，后台任务先等解析完成
           GET  /apply/{id}  → status / stage / gate{passed, overall_match, threshold} / dimension_scores / resume_score
                        + gaps[]（未满足与部分满足的要求，重要的在前）+ resume_issues[]（诊断里最严重的 8 条，带 finding id）
+          GET  /apply  ?page=&page_size=（≤100）「我的投递」，新的在前；简历删了的不列
+                       → Page[{id, status, overall_match, passed, failure, job_id, job_title, company, domain, resume_id,
+                               resume_title, created_at, interviews[{id, mode, status, topic_count, current_topic, overall, verdict}]}]
+                       failure 是给用户看的一句话（不是 error_msg）；interviews 是这次投递下面的面试，新的在前
 
 方向 1    GET  /domains    不用登录 → [{key, name, icon, desc, rule_hint, interview_hint, interview_label, interviewer, sample_jd}]
                        工作台第一步「选方向」的下拉框；顺序即下拉顺序（app/domains，目前 cs 计算机 / ops 运营）

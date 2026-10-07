@@ -322,7 +322,7 @@ backend/app/
 
 scripts/   dump_schema.py dump_seed.py build_job_templates.py gen_layout_set.py eval_layout.py gen_eval_set.py run_eval.py interview_answers.py
 data/      skills_seed.csv job_templates/ job_templates.json resumes/ uploads/ chroma/ checkpoints.sqlite eval_runs/ layout_set/ eval_set/
-tests/     每个模块一个 test_*.py（369 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
+tests/     每个模块一个 test_*.py（370 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
 
 frontend/src/
 ├── pages/       Home（首页 + 登录）  Workbench（新的投递：选岗位 → 选简历 → 投递）  ApplyResult（初筛结果，含"进入面试 / 练习模式"入口）

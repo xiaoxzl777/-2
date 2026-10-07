@@ -1,6 +1,6 @@
 """投递接口测试：一次请求跑完 诊断 + 匹配 + 初筛，验证两条记录的落库、进度事件、未通过说明。"""
 from app.llm.client import LLMError
-from app.models import Diagnosis, MatchReport
+from app.models import Diagnosis, InterviewSession, MatchReport, Resume
 from tests.conftest import H_VAGUE, apply as _apply, fulltext_reply as _full, review_reply as _review
 
 API = "/api/v1/apply"
@@ -141,3 +141,45 @@ def test_rejections(client, auth_headers, resume_and_job, db_session_factory, ev
     assert _apply(client, auth_headers, rid, jid)["code"] == 40901
     with db_session_factory() as db:
         assert db.query(MatchReport).count() == reports_before
+
+
+def test_list_shows_my_applies_newest_first_with_their_interviews(client, auth_headers, resume_and_job, db_session_factory):
+    """我的投递：新的在前；失败的给一句人话（不是技术报错）；面试挂在各自的投递下面；别人看不到，简历删了就不列。"""
+    rid, jid = resume_and_job
+    done_id = _apply(client, auth_headers, rid, jid, match_mode="dict_only", diagnose_mode="rule_only")["data"]["id"]
+    with db_session_factory() as db:
+        resume = db.get(Resume, rid)
+        failed = MatchReport(resume_id=rid, job_id=jid, status="failed", error_msg="TimeoutError: 等待简历解析超时")
+        db.add(failed)
+        five = {"topics": [{"idx": i} for i in range(5)]}
+        db.add_all([InterviewSession(user_id=resume.user_id, resume_id=rid, job_id=jid, match_report_id=done_id,
+                                     mode="practice", status="completed", plan=five,
+                                     report={"overall": 65, "verdict": "practice"}),
+                    InterviewSession(user_id=resume.user_id, resume_id=rid, job_id=jid, match_report_id=done_id,
+                                     mode="normal", status="in_progress", plan=five, current_topic=2)])
+        db.commit()
+        failed_id, title = failed.id, resume.title
+
+    data = client.get(API, headers=auth_headers).json()["data"]
+    assert data["total"] == 2 and [a["id"] for a in data["items"]] == [failed_id, done_id]
+    newest, done = data["items"]
+    assert (newest["status"], newest["passed"], newest["failure"], newest["interviews"]) ==         ("failed", None, "分析时出错了，可以再投一次", [])
+    assert (done["status"], done["passed"], done["failure"]) == ("success", False, None) and done["overall_match"] > 0
+    assert (done["job_title"], done["domain"], done["resume_id"], done["resume_title"]) == ("后端开发", "cs", rid, title)
+    assert [(i["mode"], i["status"], i["current_topic"], i["topic_count"], i["overall"], i["verdict"])
+            for i in done["interviews"]] == [("normal", "in_progress", 3, 5, None, None),      # 新的在前；话题从 1 数
+                                             ("practice", "completed", 0, 5, 65, "practice")]
+    page2 = client.get(API, headers=auth_headers, params={"page": 2, "page_size": 1}).json()["data"]
+    assert (page2["total"], [a["id"] for a in page2["items"]]) == (2, [done_id])
+
+    with db_session_factory() as db:                                    # 简历本身没解析出来：说清原因
+        resume = db.get(Resume, rid)
+        resume.parse_status, resume.parse_error = "failed", "scanned_pdf"
+        db.commit()
+    assert "扫描件" in client.get(API, headers=auth_headers).json()["data"]["items"][0]["failure"]
+
+    other = client.post("/api/v1/auth/register", json={"username": "someone_else", "password": "secret123"})
+    other_headers = {"Authorization": f"Bearer {other.json()['data']['access_token']}"}
+    assert client.get(API, headers=other_headers).json()["data"]["total"] == 0
+    client.delete(f"/api/v1/resumes/{rid}", headers=auth_headers)
+    assert client.get(API, headers=auth_headers).json()["data"] == {"items": [], "total": 0, "page": 1, "page_size": 20}

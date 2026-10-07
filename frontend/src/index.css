@@ -719,6 +719,93 @@ button { cursor: pointer; }
 .tagx.iv-score.lo { background: rgba(194, 54, 43, 0.12); color: var(--color-bad); }
 .tagx.iv-score.skip { background: var(--color-cream-2); color: var(--color-ink-3); }
 
+
+/* ── 我的投递：/app/applies，单列列表。样稿：docs/design/我的投递预览.html。类名都带 ap- 前缀（.empty / .stat 之类已被占用） ── */
+.screen.ap-page { display: block; min-height: calc(100vh - 83px); padding: 48px 0 90px; }
+.ap-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; flex-wrap: wrap; margin-bottom: 28px; }
+.ap-head .sub { margin: 0; max-width: 520px; font-size: 17px; }
+.ap-stats { display: flex; gap: 10px; }
+.ap-stats > div { min-width: 104px; padding: 14px 18px; border-radius: 18px; background: var(--color-paper); box-shadow: 0 0 0 1px var(--line), 0 16px 30px -18px rgba(80, 50, 20, 0.3); }
+.ap-stats b { display: block; font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ap-stats span { font-size: 13px; color: var(--color-ink-3); }
+.ap-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.ap-bar .tabs button { height: 34px; padding: 0 16px; font-size: 14px; }
+.ap-bar .tabs button i { margin-left: 4px; font-style: normal; color: var(--color-ink-3); font-variant-numeric: tabular-nums; }
+.ap-list { display: flex; flex-direction: column; gap: 12px; }
+.ap { border-radius: 22px; background: var(--color-paper); box-shadow: 0 0 0 1px var(--line), 0 18px 36px -24px rgba(80, 50, 20, 0.35); animation: apIn 0.6s var(--ease) backwards; transition: box-shadow 0.25s; }
+@keyframes apIn { from { opacity: 0; transform: translateY(14px); } }
+.ap:hover { box-shadow: 0 0 0 1.5px var(--color-ink-3), 0 22px 40px -22px rgba(80, 50, 20, 0.4); }
+.ap-main { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto 24px; align-items: center; gap: 16px; padding: 18px 20px; border-radius: 22px; color: inherit; text-decoration: none; }
+.ap-main:focus-visible, .ap-pill:focus-visible, .ap-next:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.ap-ic { width: 52px; height: 52px; border-radius: 15px; background: var(--color-cream-2); display: grid; place-items: center; font-weight: 800; font-size: 14px; color: var(--color-ink-2); }
+.ap.pass .ap-ic { background: var(--color-ink); color: var(--color-cream); }
+.ap-text { min-width: 0; }
+.ap-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 800; font-size: 17px; }
+.ap-title .co { font-weight: 600; font-size: 14px; color: var(--color-ink-3); }
+.ap-dir { height: 22px; padding: 0 9px; border-radius: 999px; background: var(--color-cream-2); font-size: 12px; font-weight: 700; color: var(--color-ink-2); display: inline-grid; place-items: center; }
+.ap-dir:empty { display: none; }
+.ap-meta { margin-top: 4px; overflow: hidden; font-size: 13px; color: var(--color-ink-3); white-space: nowrap; text-overflow: ellipsis; }
+.ap-meta b { font-weight: 600; color: var(--color-ink-2); }
+.ap-go { font-size: 20px; color: var(--color-ink-3); transition: transform 0.35s var(--spring), color 0.2s; }
+.ap-main:hover .ap-go { transform: translateX(4px); color: var(--color-ink); }
+.ap-res { display: flex; align-items: center; gap: 12px; }
+.ap-res .why { max-width: 200px; font-size: 12px; line-height: 1.5; color: var(--color-ink-3); text-align: right; }
+.ap-ring { position: relative; flex: none; width: 52px; height: 52px; }
+.ap-ring svg { transform: rotate(-90deg); }
+.ap-ring circle { fill: none; stroke-width: 5; }
+.ap-ring .tr { stroke: var(--color-cream-2); }
+.ap-ring .br { stroke: var(--color-ink-3); stroke-linecap: round; stroke-dasharray: 138.2; animation: apRing 1.2s 0.2s var(--ease) backwards; }
+.ap.pass .ap-ring .br { stroke: var(--color-accent); }
+.ap-ring b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+@keyframes apRing { from { stroke-dashoffset: 138.2; } }
+.ap-badge { height: 26px; padding: 0 11px; border-radius: 999px; font-size: 13px; font-weight: 700; display: inline-grid; place-items: center; white-space: nowrap; }
+.ap-badge.ok { background: rgba(47, 125, 79, 0.12); color: var(--color-good); }
+.ap-badge.no { background: rgba(183, 121, 31, 0.14); color: var(--color-warn); }
+.ap-badge.err { background: rgba(194, 54, 43, 0.12); color: var(--color-bad); }
+.ap-badge.run { background: rgba(217, 84, 43, 0.1); color: var(--color-accent-ink); }
+.ap-spin { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid rgba(217, 84, 43, 0.25); border-top-color: var(--color-accent); animation: spin 0.8s linear infinite; }
+.ap-iv { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 20px; padding: 12px 0 16px 68px; border-top: 1px dashed var(--line); }
+.ap-iv .k { margin-right: 4px; font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--color-ink-3); }
+.ap-iv .none { font-size: 13px; color: var(--color-ink-3); }
+.ap-pill { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px 0 10px; border-radius: 999px; background: #fff; box-shadow: inset 0 0 0 1.5px var(--line); font-size: 13px; color: var(--color-ink-2); text-decoration: none; transition: box-shadow 0.2s, transform 0.3s var(--spring); }
+.ap-pill:hover { box-shadow: inset 0 0 0 1.5px var(--color-ink-3); transform: translateY(-1px); }
+.ap-pill .m { height: 20px; padding: 0 7px; border-radius: 999px; background: var(--color-cream-2); font-size: 11px; font-weight: 700; display: inline-grid; place-items: center; }
+.ap-pill .m.prac { background: rgba(217, 84, 43, 0.1); color: var(--color-accent-ink); }
+.ap-pill b { color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.ap-pill .v-ok { font-weight: 700; color: var(--color-good); }
+.ap-pill .v-no { font-weight: 700; color: var(--color-warn); }
+.ap-pill .v-mid { color: var(--color-ink-3); }
+.ap-pill .act { font-weight: 700; color: var(--color-accent-ink); }
+.ap-pill.live { box-shadow: inset 0 0 0 1.5px rgba(217, 84, 43, 0.45); }
+.ap-pill.live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--color-accent); animation: apBlink 1.4s ease-in-out infinite; }
+@keyframes apBlink { 50% { opacity: 0.25; } }
+.ap-next { padding: 0 4px; font-size: 13px; font-weight: 700; color: var(--color-accent-ink); text-decoration: none; }
+.ap-next:hover { text-decoration: underline; }
+.ap-empty { display: grid; place-items: center; gap: 14px; padding: 64px 20px; border-radius: 28px; background: var(--color-paper); box-shadow: 0 0 0 1px var(--line); text-align: center; }
+.ap-empty b { font-size: 20px; }
+.ap-empty p { margin: 0; font-size: 14px; line-height: 1.7; color: var(--color-ink-3); }
+.ap-note { padding: 30px 16px; border-radius: 18px; background: #fff; box-shadow: inset 0 0 0 1.5px var(--line); font-size: 14px; color: var(--color-ink-3); text-align: center; }
+@media (max-width: 960px) {
+  .links.keep { display: flex; }
+}
+@media (max-width: 760px) {
+  .links.keep a { padding: 8px 10px; font-size: 14px; }
+  .user-chip .uname { display: none; }
+  .screen.ap-page { padding-top: 28px; }
+  .ap-head { gap: 20px; }
+  .ap-stats { width: 100%; }
+  .ap-stats > div { flex: 1; min-width: 0; }
+  .ap-main { grid-template-columns: 44px minmax(0, 1fr) 16px; gap: 12px; padding: 16px; }
+  .ap-ic { width: 44px; height: 44px; font-size: 13px; }
+  .ap-res { grid-column: 2 / 4; grid-row: 2; }
+  .ap-go { grid-column: 3; grid-row: 1; }
+  .ap-res .why { max-width: none; text-align: left; }
+  .ap-iv { margin: 0 16px; padding-left: 0; }
+}
+@media (max-width: 420px) {
+  .logo { font-size: 0; gap: 0; } /* 只留图标，给两个链接腾地方 */
+}
+
 @media (max-width: 960px) {
   .iv-screen { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .iv-rail { position: static; }

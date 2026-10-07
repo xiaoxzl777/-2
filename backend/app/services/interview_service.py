@@ -333,6 +333,19 @@ def view(db: Session, session: InterviewSession) -> dict:
     }
 
 
+def brief(session: InterviewSession) -> dict:
+    """「我的投递」里挂在投递下面的一场面试：进行到第几个话题，结束后的总分和结论。"""
+    report = session.report if session.status in FINISHED else None
+    return {
+        "id": session.id, "mode": session.mode, "status": session.status,
+        "topic_count": len((session.plan or {}).get("topics") or []),
+        "current_topic": session.current_topic + 1 if session.status == "in_progress" else 0,   # idx 从 0 起
+        "overall": report.get("overall") if report else None,
+        "verdict": report.get("verdict") if report else None,
+        "created_at": session.created_at,
+    }
+
+
 def report_view(db: Session, session: InterviewSession) -> dict:
     if session.status not in FINISHED or session.report is None:
         raise ApiError(CONFLICT, "面试还没结束，报告还没生成")

@@ -1,19 +1,20 @@
 """投递：把简历投给一个岗位，后台一次跑完 诊断 + 匹配 + 初筛（图 A）。"""
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.cache.pubsub import Publish, get_publisher
 from app.config import settings
 from app.database import get_db, get_session_factory
 from app.deps import get_current_user, load_owned_report, load_owned_resume, require_parsed
+from app.domains import get_domain
 from app.errors import BAD_REQUEST, ApiError
 from app.llm.client import LLMClient, get_llm_client
 from app.llm.registry import MODEL_REGISTRY
 from app.models import Diagnosis, User
-from app.schemas import ApiResponse, ApplyIn, ApplyOut, ApplyStartOut, FindingOut, GateOut, ok
-from app.services import apply_service, job_service
+from app.schemas import ApiResponse, ApplyBrief, ApplyIn, ApplyOut, ApplyStartOut, FindingOut, GateOut, Page, ok
+from app.services import apply_service, interview_service, job_service
 from app.services.parse_service import SessionFactory
 
 router = APIRouter(prefix="/apply", tags=["apply"])
@@ -41,6 +42,27 @@ def start_apply(
     background.add_task(apply_service.run_apply, report.id, session_factory, llm, publish)
     return ok(ApplyStartOut(id=report.id, diagnosis_id=report.diagnosis_id, task_id=f"apply:{report.id}",
                             status=report.status))
+
+
+@router.get("", response_model=ApiResponse[Page[ApplyBrief]])
+def list_applies(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """我的投递：新的在前，每条带上结论和这次投递下面的面试。"""
+    total, rows = apply_service.list_applies(db, user, page, page_size)
+    items = [ApplyBrief(
+        id=report.id, status=report.status,
+        overall_match=float(report.overall_match) if report.overall_match is not None else None,
+        passed=report.passed if report.status == "success" else None,
+        failure=apply_service.failure_of(report, resume),
+        job_id=job.id, job_title=job.title, company=job.company, domain=get_domain(job.domain).key,
+        resume_id=resume.id, resume_title=resume.title, created_at=report.created_at,
+        interviews=[interview_service.brief(s) for s in sessions],
+    ) for report, job, resume, sessions in rows]
+    return ok(Page[ApplyBrief](items=items, total=total, page=page, page_size=page_size))
 
 
 @router.get("/{apply_id}", response_model=ApiResponse[ApplyOut])

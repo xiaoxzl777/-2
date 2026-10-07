@@ -63,10 +63,15 @@ def get_parsed_resume(resume: Resume = Depends(get_owned_resume)) -> Resume:
     return require_parsed(resume)
 
 
+def parse_error_message(resume: Resume) -> str:
+    """解析失败时给用户看的原因（parse_error 存的是错误码）。"""
+    return _PARSE_ERROR_MESSAGES.get(resume.parse_error or "", "简历解析失败")
+
+
 def require_parsed(resume: Resume) -> Resume:
     """要用到解析结果的接口（块、结构、诊断、匹配、面试）共用：解析中 → 409，解析失败 → 50003 并说明原因。"""
     if resume.parse_status == "success":
         return resume
     if resume.parse_status == "failed":
-        raise ApiError(PARSE_FAILED, _PARSE_ERROR_MESSAGES.get(resume.parse_error or "", "简历解析失败"))
+        raise ApiError(PARSE_FAILED, parse_error_message(resume))
     raise ApiError(CONFLICT, "简历还在解析中，请稍后再试")
