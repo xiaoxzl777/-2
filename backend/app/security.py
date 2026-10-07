@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from functools import cache
 
 import bcrypt
 import jwt
@@ -9,10 +10,11 @@ import jwt
 from app.config import settings
 
 ALGORITHM = "HS256"
+BCRYPT_ROUNDS = 12          # bcrypt 默认强度，一次约 0.37 秒；测试里改成 4
 
 
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("ascii")
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(BCRYPT_ROUNDS)).decode("ascii")
 
 
 def verify_password(password: str, password_hash: str) -> bool:
@@ -22,8 +24,11 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-# 用户名不存在时也验一次这个假哈希，让"用户不存在"和"密码错误"耗时相同，无法靠响应时间探测用户名
-DUMMY_HASH = hash_password("dummy-password-for-timing")
+@cache
+def dummy_hash() -> str:
+    """用户名不存在时也验一次这个假哈希，让"用户不存在"和"密码错误"耗时相同，无法靠响应时间探测用户名。
+    第一次登录时才算（启动时就算要多等约 0.4 秒）。"""
+    return hash_password("dummy-password-for-timing")
 
 
 def token_lifetime_seconds() -> int:

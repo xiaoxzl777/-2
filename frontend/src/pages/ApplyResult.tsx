@@ -12,6 +12,7 @@ import { AppShell } from '../components/AppShell'
 import { MagneticButton, TiltCard, useCountUp } from '../components/effects'
 import { Headline, Mark } from '../components/Headline'
 import { IssueItem, type DetailRow } from '../components/IssueItem'
+import { NotFound, notFoundText } from '../components/NotFound'
 import { Pipeline, useApplyTracker, type PipeState } from '../components/Pipeline'
 import { ResumeSheet, type SheetDoc, type SheetItem } from '../components/ResumeSheet'
 import { Tabs } from '../components/Tabs'
@@ -43,13 +44,13 @@ export default function ApplyResult() {
     }
     load().catch((err) => {
       if (cancelled || isAbort(err)) return
-      setError(err instanceof ApiError && err.code !== 40401 ? err.message : '这条投递记录不存在，可能已经被删除。')
+      setError(notFoundText(err, '这条投递记录不存在，可能已经被删除。'))
     })
     return () => { cancelled = true }
   }, [applyId, track])
 
   let body
-  if (error) body = <Missing message={error} />
+  if (error) body = <NotFound badge="初筛结果" what="这次投递" message={error} />
   else if (!data) body = <section className="screen"><p className="hint">加载中…</p></section>
   else if (isRunning(data)) body = <Analyzing pipe={pipe} jobTitle={jobTitle} />
   else if (data.status === 'failed' || !data.gate) body = <Failed data={data} jobTitle={jobTitle} />
@@ -296,21 +297,6 @@ function Failed({ data, jobTitle }: { data: Result; jobTitle: string }) {
           </TiltCard>
         </div>
       )}
-    </section>
-  )
-}
-
-function Missing({ message }: { message: string }) {
-  const navigate = useNavigate()
-  return (
-    <section className="screen">
-      <div>
-        <Headline badge="初筛结果" label="—" lines={['这次投递', <>找<Mark>不到</Mark>了。</>]} />
-        <p className="sub fade d2">{message}</p>
-        <div className="cta fade d3">
-          <MagneticButton className="accent lg" onClick={() => navigate('/app')}>回到工作台 <span className="arrow">→</span></MagneticButton>
-        </div>
-      </div>
     </section>
   )
 }

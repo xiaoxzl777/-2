@@ -7,14 +7,13 @@
 """
 from __future__ import annotations
 
-import json
 import time
 from collections.abc import Iterator
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.api.sse import sse_event, sse_response
 from app.cache.pubsub import Subscribe, get_subscriber
 from app.database import get_db, get_session_factory
 from app.deps import get_current_user
@@ -48,9 +47,7 @@ def stream_task(
     if kind not in _KINDS:
         raise ApiError(BAD_REQUEST, f"未知的任务类型：{kind}（可用：{sorted(_KINDS)}）")
     _require_owner(db, user, kind, task_ref)
-    return StreamingResponse(
-        _events(kind, task_ref, session_factory, subscribe), media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})      # 后者让 Nginx 不要缓冲
+    return sse_response(_events(kind, task_ref, session_factory, subscribe))
 
 
 def _require_owner(db: Session, user: User, kind: str, task_ref: int) -> None:
@@ -67,10 +64,6 @@ def _status(session_factory: SessionFactory, kind: str, task_ref: int) -> str | 
     with session_factory() as db:
         row = db.get(model, task_ref)
         return getattr(row, field) if row else None
-
-
-def sse_event(event: str, data: dict) -> str:
-    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 def _events(kind: str, task_ref: int, session_factory: SessionFactory, subscribe: Subscribe) -> Iterator[str]:

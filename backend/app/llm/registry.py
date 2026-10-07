@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from functools import cache
 
 import httpx
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -19,7 +20,9 @@ DEFAULT_PRICE = (4.0, 12.0)
 PROVIDERS: dict[str, str] = {"deepseek-chat": "deepseek"}
 
 
+@cache
 def _http_client() -> httpx.Client:
+    # 全进程共用一个（线程安全）：每次新建要重新加载证书（实测约 0.23 秒）、重新握手，诊断时十几个并行调用都要付一遍
     # 本机若配了 HTTP(S)_PROXY，国内模型服务走代理反而慢数倍；默认直连
     return httpx.Client(trust_env=settings.LLM_USE_SYSTEM_PROXY, timeout=settings.LLM_TIMEOUT_SECONDS)
 

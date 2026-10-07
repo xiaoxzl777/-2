@@ -30,6 +30,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.deps import load_owned_report
 from app.errors import BAD_REQUEST, CONFLICT, LLM_FAILED, NOT_FOUND, ApiError
 from app.graphs.checkpoint import thread_config
 from app.graphs.interview_graph import PlanError, build_interview_graph
@@ -37,8 +38,8 @@ from app.interview.materials import build_materials
 from app.interview.report import build_report
 from app.llm import prompts
 from app.llm.client import LLMClient, LLMError
-from app.models import InterviewSession, InterviewTurn, Job, MatchReport, Resume, User
-from app.parser.pii import mask_pii
+from app.models import InterviewSession, InterviewTurn, Job, User
+from app.parser.pii import mask_resume
 from app.retrieval.context_store import ContextStore
 from app.services import diagnose_service
 from app.services.parse_service import SessionFactory
@@ -59,10 +60,7 @@ _running_guard = threading.Lock()
 def create_interview(db: Session, user: User, *, apply_id: int, company_name: str | None, extra_context: str | None,
                      practice: bool, llm: LLMClient, store: ContextStore | None, checkpointer) -> InterviewSession:
     """同步定下话题（一次模型调用，几秒）。初筛没过的只能练习模式；过了的也可以主动选练习模式。"""
-    report = db.get(MatchReport, apply_id)
-    resume = db.get(Resume, report.resume_id) if report else None
-    if resume is None or resume.user_id != user.id or resume.is_deleted:
-        raise ApiError(NOT_FOUND, "投递记录不存在")
+    report, resume = load_owned_report(db, user, apply_id)
     if report.status != "success":
         raise ApiError(CONFLICT, "初筛还没完成，完成后才能面试")
     job = db.get(Job, report.job_id)
@@ -94,7 +92,7 @@ def create_interview(db: Session, user: User, *, apply_id: int, company_name: st
     materials = build_materials(
         job_title=job.title, company=session.company_name, requirements=job.requirements or [],
         match_items=report.items or [], structure=structure,
-        masked_text=mask_pii(full_text, name=(structure.get("basics") or {}).get("name")),
+        masked_text=mask_resume(structure, full_text),
         findings=findings, context=context, context_mode=context_mode)
 
     graph = build_interview_graph(llm, store, checkpointer)

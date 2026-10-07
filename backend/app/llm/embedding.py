@@ -1,14 +1,13 @@
 """向量化与重排的唯一出口（硅基流动：bge-m3 / bge-reranker-v2-m3）。
 
 与 llm/client.py 同样的纪律：限流占位 → 调接口 → 记审计；默认直连、不走系统代理。
-不做结果缓存：简历单元的向量本身就持久化在 Chroma 里，查询向量很短、接口又免费，缓存收益抵不上复杂度。
+不做结果缓存：面经切段的向量本身就存在 Chroma 里，查询向量很短、接口又免费，缓存收益抵不上复杂度。
 
 没有用 LangChain 的 OpenAIEmbeddings：它拿不到 token 用量（审计要记），而重排接口 LangChain 没有现成集成，
 两个接口放在同一个薄客户端里更简单。送进来的文本由调用方负责先做 PII 掩码（系统不变量⑤）。
 """
 from __future__ import annotations
 
-import logging
 import time
 from collections.abc import Callable, Sequence
 
@@ -18,8 +17,6 @@ from app.cache import ratelimit
 from app.config import settings
 from app.llm import audit
 from app.llm.client import LLMError
-
-logger = logging.getLogger("app.llm")
 
 PROVIDER = "siliconflow"
 EMBED_BATCH = 32            # 接口单次最多接收的条数
@@ -71,9 +68,9 @@ class EmbeddingClient:
     def _post(self, scene: str, path: str, payload: dict, model: str, ref: tuple[str, int] | None) -> dict:
         record = {"scene": scene, "ref_type": ref[0] if ref else None, "ref_id": ref[1] if ref else None,
                   "provider": PROVIDER, "model_name": model}
-        self._acquire(PROVIDER, settings.SILICONFLOW_RPM)
         started = time.perf_counter()
         try:
+            self._acquire(PROVIDER, settings.SILICONFLOW_RPM)     # Redis 不通、排队超时也按调用失败处理
             data = self._post_with_retry(path, payload)
         except Exception as e:
             self._write_audit({**record, "success": False, "latency_ms": _elapsed_ms(started),

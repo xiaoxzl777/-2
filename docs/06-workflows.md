@@ -1,7 +1,6 @@
-# 六、产品流程与 LangGraph 工作流（设计 v4，2026-09-19）
+# 六、产品流程与 LangGraph 工作流
 
-> 本文件取代 04-design 中的 4.3（解析流水线）、4.4（诊断工作流）、4.9（面试状态机）三节的流程描述；
-> 那三节里的 State 细节、prompt、算法仍然有效。
+> 流程和图只在这里写；各节点内部的算法、prompt、评分公式见 04-design。文档之间冲突时以本文件为准。
 
 ## 6.1 产品流程：JD 优先
 
@@ -20,7 +19,7 @@
 ⑤ 面试结果
    ├ 通过   → "恭喜通过" + 完整总结 + 改进建议
    ├ 未通过 → "很遗憾" + 同样完整的总结 + 改进建议 + 回到改简历
-   └ 练习   → 不给通过结论，其余相同
+   └ 练习 / 没聊完 → 不给通过结论，其余相同
 ```
 
 三条设计决定：
@@ -30,67 +29,42 @@
 
 ## 6.2 图 A：投递流水线（后台一次跑完）
 
-输入 `resume_id + job_id`，输出初筛结果。由 `POST /apply` 触发，`graph.stream()` 每过一个节点吐一个事件 → 转成 SSE 进度。
+输入 `resume_id + job_id`，输出初筛结果。由 `POST /apply` 触发；`apply_service` 在跑图之前，若简历还没解析完就先等它。
+`graph.stream()` 每过一个节点吐一个事件 → 转成 SSE 进度。实现：`graphs/apply_graph.py`。
 
 ```
-                         START
-                           │
-                    ┌──────▼───────┐
-                    │ load_inputs  │  读简历解析状态、读岗位要求项
-                    └──────┬───────┘
-          简历未解析 ┌──────┴──────┐ 已解析过
-                    ▼             │
-         ╔══════════════════╗     │
-         ║   parse 子图      ║     │
-         ╚════════╤═════════╝     │
-                  └───────┬───────┘
-                          │  并行分支，互不依赖
-            ┌─────────────┴─────────────┐
-            ▼                           ▼
-  ╔══════════════════╗        ╔══════════════════╗
-  ║  diagnose 子图    ║        ║   match 子图      ║
-  ╚════════╤═════════╝        ╚════════╤═════════╝
-            └─────────────┬─────────────┘   两条都完成才往下
-                   ┌──────▼──────┐
-                   │    gate     │  纯函数：overall_match ≥ SCREEN_THRESHOLD
-                   └──────┬──────┘
-               通过 ┌─────┴─────┐ 未通过
-                    ▼           ▼
-           ┌────────────┐  ┌─────────────────┐
-           │ pass_result│  │ build_gap_report│  匹配差距 + 诊断 findings 合并排序
-           └─────┬──────┘  └────────┬────────┘
-                 └────────┬─────────┘
-                         END
+ START ──┬──► diagnose 子图 ──┐
+         │                    ├──► gate ──► END      gate：纯函数，overall_match ≥ SCREEN_THRESHOLD
+         └──► match 子图 ─────┘
+              并行，互不依赖；两条都完成才到 gate
 ```
 
-子图各自可以单独 `invoke`：消融实验（M8 的评测脚本）直接调 diagnose / match 子图。
+- 子图各自可以单独 `invoke`：消融实验（M8 的评测脚本）直接调 diagnose / match 子图。
+- 「未通过说明」（匹配差距 + 诊断 findings 合并排序）不在图里：由 `GET /apply/{id}` 读取时组装（gaps + resume_issues），每条都带数据库 id，前端可以直接点开要建议。
 
-> **实现说明（2026-09-19，与上图的两处差异）**
-> - **解析不在图里**：上传时已经触发解析；`apply_service` 在跑图之前等它完成（解析要读文件、写数据库，不属于领域层）。
->   实际的图 A 是 `START → diagnose ∥ match → gate → END`（`graphs/apply_graph.py`）。
-> - **"未通过说明"不在图里**：`pass_result / build_gap_report` 本质是对已落库结果的一种读法，
->   由 `GET /apply/{id}` 在读取时组装（gaps + resume_issues），这样每条问题都带数据库 id，前端可以直接点开改写。
+### 解析（图外，上传时触发）
 
-### parse 子图
+解析要读文件、写数据库，不属于领域层，所以不进图：上传时由 BackgroundTasks 触发 `parse_service.parse_resume`，按顺序调用 parser/ 里的纯函数，最后同一事务落库（写库失败也标 failed）。
 
 ```
-extract ──► layout ──► section ──► section_llm ──► structure ──► mentions
- PyMuPDF    分栏 / 表格  章节识别    认不出的标题     LLM 回 block_ids  词典扫技能
- 找表格     / 时间轴                 交 LLM 归类（没有就跳过）
+extract ──► layout ──► section ──► basics ──► section_llm ──► structure ──► mentions ──► 落库
+ PyMuPDF    分栏 / 表格  章节识别   本地抽取    认不出的标题     LLM 回 block_ids   词典扫技能    同一事务
+ 找表格     / 时间轴    （词典）    不外发      交 LLM 归类      → 服务端切片；
+            定 full_text                       （没有就跳过）   日期本地归一化
 ```
 
-原设计在 layout 之后有一个 `llm_relayout` 分支（有 unknown 页就交 LLM 重排），2026-10-06 评估后不做：触发条件实测既漏报又误报，
-最常见的错（时间轴被当成两栏）规则自报置信度 1.0，兜底根本触发不了，改用规则修。数据见 04-design 5.1 末尾。
+版面不做 LLM 兜底（原设计的 `llm_relayout`），理由见 04-design 5.1 末尾。
 
 ### diagnose 子图
 
 ```
-rule_scan ──► dispatch ──Send×N──► review_unit ──► merge_findings ──► score
- 7 条规则      成本预检              每条经历一个；节点内部：
- 纯函数        mode 判断             LLM(json_mode) → locate_span 校验 → 失败带原因重试 ≤2
+rule_scan ──► plan_review ──Send×N──► review_unit ──► merge_findings ──► score
+ 7 条规则      成本预检，选出要         每条经历一个分支；节点内部：      同一维度、证据区间      五维从 100 扣分（按经历条数摊薄），
+ 纯函数        送审的经历              LLM(json_mode) → locate_span   重叠超过一半的只留规则   无来源维度 null 并重归一
+                                       校验 → 失败带原因重试 ≤2
 ```
 
-`mode ∈ {rule_only, llm_only, hybrid}`：图形状不变，只在 rule_scan / dispatch 内各一个 if。
+`mode ∈ {rule_only, llm_only, hybrid}`：图形状不变，只在 rule_scan / plan_review 内各一个 if（llm_only 不跑规则，rule_only 不送审）；没有要审的经历就直接到 merge_findings。
 
 ### match 子图
 
@@ -117,8 +91,8 @@ rule_match ──► judge_fulltext ──► score_match
 | 全文一次判断 | 1 次 | 3.7 s | ¥0.018 | — |
 | 逐条 RAG 判断 | 18 次 + 36 次向量 / 重排 | 5.1 s | ¥0.028 | 检索单元没覆盖到的内容（学历、技术栈行）会被误判为 miss，需要全文复核来兜底 |
 
-RAG 更贵、更慢、还多一种出错方式，于是从匹配中移除。检索层（`llm/embedding.py`、`retrieval/unit_store.py`）保留，
-用在真正资料多的地方：模拟面试里作为面试官的**检索工具**，查用户贴的面经 / 公司介绍 / JD（见 6.5）。
+RAG 更贵、更慢、还多一种出错方式，于是从匹配中移除。逐条检索的代码（`matching/units.py`、`retrieval/unit_store.py`）主流程不用，
+只留作这组对照实验的代码。检索真正用在资料多的地方：模拟面试里用户贴的长面经（`retrieval/context_store.py`，见 6.5）。
 
 ### 图 A 的 State
 
@@ -167,11 +141,15 @@ class ApplyState(TypedDict, total=False):
                                                 ask_question ◄────────── followup（depth + 1，最多 1 次）──────────────┘
 ```
 
-- **创建时只定话题**：`graph.invoke(state, config, interrupt_before=["pick_topic"])` 跑完 plan_interview 就停；之后 `POST /start` 用 `graph.stream(None, config)` 接着跑。整个流程都在一张图里。
+- **创建时只定话题**：投递须已分析完成；初筛没过或 `practice=true` → 练习模式；面经超过 3000 字先切段入库（`context_store`）。然后 `graph.invoke(state, config, interrupt_before=["pick_topic"])` 跑完 plan_interview 就停；之后 `POST /start` 用 `graph.stream(None, config)` 接着跑。整个流程都在一张图里。
 - **话题来源**：简历项目 / 工作经历（P1、P2…）、岗位要求（R + 要求 id，学历和软素质不进面试）、初筛发现的简历问题（F + 问题 id）。模型照抄编号，代码核对，指向不存在的丢掉。
 - **问到哪个话题才显示哪个**：接口和页面都不提前列出话题（用户看 demo 时提的）。
 - **评价按模式区分**：练习模式（初筛没过，或主动选）每题答完马上给点评；正常模式答题时不给，结束后看报告。两种模式后台都逐题评分（追问要用）。跳过的题两种模式都不给任何反馈，直接出下一题。
 - **结论**：练习模式不下结论；没聊完所有话题就结束（用户提前结束、成本到顶）也不下结论（incomplete）；其余综合分 ≥ 60 通过。
+- **作答与推进**：回答先落库（`answered_at IS NULL` 的条件更新，同一题只能答一次）再恢复图；空答接口直接拒绝，跳过记 0 分、不调模型。
+  评分：rubric 三项打分，依据须逐字引用回答、经 locate_span 核对；一条都对不上就带原因重试一次，仍不行给中性 3 分并标 low_evidence；参考答法里回答没出现过的数字换成【数值】（一位数放过）。
+  `decide`（纯函数，`interview/policy.py`）：花费到上限 → 结束出报告；模型说追问、没跳过、追问次数没用完 → 追问；其余换下一个话题。
+- **出报告**：final_report 的分数纯函数聚合（04-design 5.9），LLM 只写 strengths / weaknesses / links。
 - 提前结束（`POST /finish`）不经过图：按 MySQL 里已评完分的题直接出报告。
 
 ```python
@@ -190,7 +168,7 @@ class InterviewState(TypedDict):
     report: dict
 ```
 
-**为什么这里用 LangGraph（此前的结论已更正）**：早先决定用 DB 状态机，是因为 LangGraph 的 Redis 检查点依赖 Redis Stack。但 `SqliteSaver` 是本地文件、零部署，该理由不成立；而 `interrupt()` 正是为"跑到一半停下来等人输入"设计的，比手写状态机更规范。已验证：全新进程用同一 thread_id 可从中断处恢复。
+**为什么这里用 LangGraph**：`interrupt()` 正是为"跑到一半停下来等人输入"设计的，比手写状态机更规范；检查点用 `SqliteSaver`（本地文件、零部署，不需要 Redis Stack）。已验证：全新进程用同一 thread_id 可从中断处恢复。
 
 **两份状态的处理**：
 - MySQL（`interview_sessions` / `interview_turns`）是面试记录的**权威来源**：报告、页面、评测全部读它。话题计划和材料也存在 `sessions.plan` 里。
@@ -202,15 +180,17 @@ class InterviewState(TypedDict):
 
 | 类型 | 节点 | 技术 |
 |---|---|---|
-| 纯函数（不调 API） | load_inputs · layout · section · mentions · rule_scan · rule_match · gate · pick_topic · decide · score · score_match | Python |
-| LLM | section_llm · structure · review_unit · judge_fulltext · plan_interview · ask_question · evaluate_answer · final_report | DeepSeek，经 `llm/client.py`（缓存 · 限流 · 记账） |
+| 纯函数（不调 API） | rule_scan · plan_review · merge_findings · score · rule_match · score_match · gate · pick_topic · decide | Python |
+| LLM | review_unit · judge_fulltext · plan_interview · ask_question · evaluate_answer · final_report | DeepSeek，经 `llm/client.py`（缓存 · 限流 · 记账） |
 | 检索 | 面试的 retrieve_context：只在用户贴的面经超过 3000 字时检索 | bge-m3 → Chroma → bge-reranker（`retrieval/context_store.py`） |
-| 证据校验 | review_unit / judge_fulltext / evaluate_answer 内部，以及 JD 解析 | `diagnose/evidence.locate_span`，三处同一个函数 |
+| 证据校验 | review_unit / judge_fulltext / evaluate_answer 内部，以及图外的 JD 解析、结构化抽取 | `diagnose/evidence.locate_span`，同一个函数 |
 | 等人 | wait_answer | `interrupt()` + `SqliteSaver` |
+
+解析在图外（6.2）：section_llm、structure 两步调模型，其余是纯函数。
 
 **DB 读写全部在图外**：service 层消费 `graph.stream()` 的事件，每步落库并发布 SSE 进度。节点只收发纯数据（不变量④）。
 
-## 6.5 RAG 的位置：面试里的一个工具
+## 6.5 RAG 的位置：只用在面试的长面经上
 
 RAG 解决的是"资料太多、塞不进 prompt"。按这个标准逐处检查：
 
@@ -226,13 +206,7 @@ RAG 解决的是"资料太多、塞不进 prompt"。按这个标准逐处检查�
 链路不变：切块 → 向量化入库（bge-m3）→ 召回 → 精排（bge-reranker）→ 注入 prompt。语料来自用户自己贴的材料，不需要另外收集数据。
 检索是图 B 里固定的一个节点（retrieve_context），不做"让模型自己决定查不查"的工具调用：流程固定、好测，也方便做有检索 / 没检索的对比。
 
-## 6.6 必做线（任何时间点停下来都是一个完整的毕设）
+## 6.6 必做线
 
-```
-第 1 层（M1–M4）  解析 + 诊断 + 原文高亮页面         到这里已是合格的毕设
-第 2 层（M5）     JD 匹配 + 初筛 + 图 A               到这里是不错的毕设
-第 3 层（M6–M7）  模拟面试（图 B）                    到这里是简历亮点
-第 4 层           改写 RAG、各组对比实验               锦上添花
-```
-
-进度落后时的砍法（按顺序，每项互不影响）：RAG 检索消融实验 → 练习模式 → DOCX 支持 → 改写模块。（HR 面已经决定不做。）
+原定的四层必做线（解析 + 诊断 + 原文高亮 → JD 匹配 + 初筛 + 图 A → 模拟面试图 B → 各组对比实验）都已完成。
+本期没做的：改写检索（暂无范例库）、DOCX（只收 PDF）；HR 面决定不做。

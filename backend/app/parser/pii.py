@@ -94,3 +94,8 @@ def mask_pii(text: str, name: str | None = None) -> str:
         masked = masked.replace(name.strip(), "某" * len(name.strip()))
     assert len(masked) == len(text), "掩码必须保持长度不变，否则 char 偏移会错位"
     return masked
+
+
+def mask_resume(structure: dict | None, full_text: str | None) -> str:
+    """已解析简历的掩码全文（姓名取结构化结果里的 basics.name）。投递、建议、面试发给模型前都用它。"""
+    return mask_pii(full_text or "", name=((structure or {}).get("basics") or {}).get("name"))

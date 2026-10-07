@@ -11,6 +11,7 @@ import { resumesApi } from '../api/resumes'
 import { AppShell } from '../components/AppShell'
 import { MagneticButton, TiltCard } from '../components/effects'
 import { Headline, Mark } from '../components/Headline'
+import { NotFound, notFoundText } from '../components/NotFound'
 
 const SAMPLE = `【后端一面 · 约 40 分钟】
 1. 自我介绍，挑一个最有挑战的项目讲。
@@ -46,7 +47,7 @@ export default function InterviewSetup() {
       setCompany((c) => c || j.company || '')
       setResumeTitle(r?.title ?? '')
     }).catch((err) => {
-      if (!cancelled) setLoadError(err instanceof ApiError && err.code !== 40401 ? err.message : '这条投递记录不存在，可能已经被删除。')
+      if (!cancelled) setLoadError(notFoundText(err, '这条投递记录不存在，可能已经被删除。'))
     })
     return () => { cancelled = true }
   }, [applyId])
@@ -87,13 +88,7 @@ export default function InterviewSetup() {
   if (loadError) {
     return (
       <AppShell progress={0}>
-        <section className="screen">
-          <div>
-            <Headline badge="模拟面试" label="—" lines={['这次投递', <>找<Mark>不到</Mark>了。</>]} />
-            <p className="sub fade d2">{loadError}</p>
-            <div className="cta fade d3"><MagneticButton className="accent lg" onClick={() => navigate('/app')}>回到工作台 <span className="arrow">→</span></MagneticButton></div>
-          </div>
-        </section>
+        <NotFound badge="模拟面试" what="这次投递" message={loadError} />
       </AppShell>
     )
   }

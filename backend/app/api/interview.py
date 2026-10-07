@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.task import sse_event
+from app.api.sse import sse_event, sse_response
 from app.config import settings
 from app.database import get_db, get_session_factory
 from app.deps import get_current_user
@@ -110,6 +110,4 @@ def get_report(session_id: int, user: User = Depends(get_current_user), db: Sess
 
 
 def _stream(events: Iterable[tuple[str, dict]]) -> StreamingResponse:
-    return StreamingResponse(
-        (sse_event(name, data) for name, data in events), media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})      # 后者让 Nginx 不要缓冲
+    return sse_response(sse_event(name, data) for name, data in events)

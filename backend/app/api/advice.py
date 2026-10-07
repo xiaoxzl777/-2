@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.task import sse_event
+from app.api.sse import sse_event, sse_response
 from app.database import get_db, get_session_factory
 from app.deps import get_current_user
 from app.llm.client import LLMClient, get_llm_client
@@ -53,6 +53,4 @@ def gap_advice(
 def _respond(task: AdviceTask | dict, llm: LLMClient, session_factory: SessionFactory) -> StreamingResponse:
     events: Iterable[tuple[str, dict]] = (
         [("done", task)] if isinstance(task, dict) else advice_service.run(task, llm, session_factory))
-    return StreamingResponse(
-        (sse_event(name, data) for name, data in events), media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})      # 后者让 Nginx 不要缓冲
+    return sse_response(sse_event(name, data) for name, data in events)

@@ -5,6 +5,8 @@ import { setUnauthorizedHandler, tokenStore } from '../api/client'
 
 type Status = 'checking' | 'authed' | 'guest'
 
+const RETRY_MS = 3000
+
 type AuthState = {
   user: User | null
   status: Status
@@ -14,7 +16,7 @@ type AuthState = {
   logout: () => void
 }
 
-export const useAuth = create<AuthState>((set) => {
+export const useAuth = create<AuthState>((set, get) => {
   const signedIn = (out: TokenOut) => {
     tokenStore.set(out.access_token)
     set({ user: out.user, status: 'authed' })
@@ -34,7 +36,9 @@ export const useAuth = create<AuthState>((set) => {
       try {
         set({ user: await authApi.me(), status: 'authed' })
       } catch {
-        signedOut() // 过期、被篡改或后端不可用：都按未登录处理
+        // 令牌过期或被篡改（401）时 request 里已经退出登录。令牌还在，说明是后端没起来或断网（开发时重启后端常见）：
+        // 令牌留着，过几秒再试，期间停在"加载中"，免得每重启一次后端就得重新登录
+        if (tokenStore.get()) setTimeout(() => void get().bootstrap(), RETRY_MS)
       }
     },
 

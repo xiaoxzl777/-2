@@ -15,11 +15,12 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.deps import load_owned_report
 from app.errors import LLM_FAILED, NOT_FOUND, ApiError
 from app.llm import prompts
 from app.llm.client import LLMClient, LLMError
 from app.models import Diagnosis, Finding, Job, MatchReport, Resume, User
-from app.parser.pii import mask_pii
+from app.parser.pii import mask_resume
 from app.rewrite.advice import AdvicePrompt, finding_prompt, fix_numbers, gap_prompt
 from app.services.parse_service import SessionFactory
 
@@ -44,7 +45,7 @@ def _saved(advice: dict | None) -> dict | None:
 
 def _masked(resume: Resume) -> tuple[dict, str, str]:
     structure, full_text = resume.structure or {}, resume.full_text or ""
-    return structure, full_text, mask_pii(full_text, name=(structure.get("basics") or {}).get("name"))
+    return structure, full_text, mask_resume(structure, full_text)
 
 
 def finding_task(db: Session, user: User, finding_id: int) -> AdviceTask | dict:
@@ -70,10 +71,7 @@ def finding_task(db: Session, user: User, finding_id: int) -> AdviceTask | dict:
 
 def gap_task(db: Session, user: User, report_id: int, requirement_id: int) -> AdviceTask | dict:
     """岗位差距：只有没满足 / 部分满足的要求才有建议。"""
-    report = db.get(MatchReport, report_id)
-    resume = db.get(Resume, report.resume_id) if report else None
-    if resume is None or resume.user_id != user.id or resume.is_deleted:
-        raise ApiError(NOT_FOUND, "投递记录不存在")
+    report, resume = load_owned_report(db, user, report_id)
     item = next((i for i in report.items or [] if i["requirement_id"] == requirement_id and i["status"] != "hit"), None)
     if item is None:
         raise ApiError(NOT_FOUND, "这条要求不存在，或者已经满足")

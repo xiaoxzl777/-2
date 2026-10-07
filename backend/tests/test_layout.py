@@ -50,7 +50,7 @@ def test_two_columns_read_left_then_right_with_header_first(tmp_path):
     assert 200 < page.gap[0] < page.gap[1] <= 316           # 左栏行尾 ~214，右栏起点 315
     assert {b.column_index for b in r.blocks if b.text[0] == "L"} == {0}
     assert {b.column_index for b in r.blocks if b.text[0] == "R"} == {1}
-    assert not r.needs_llm_fallback
+    assert r.layout_confidence >= 0.7
 
 
 def test_sidebar_layout(tmp_path):
@@ -76,7 +76,7 @@ def test_right_aligned_dates_do_not_make_a_second_column(tmp_path):
     r = analyze_layout(extract_pdf(make_pdf(tmp_path / "dates.pdf", items)))
 
     assert r.pages[0].layout_type == "single"
-    assert not r.needs_llm_fallback
+    assert r.layout_confidence >= 0.7
     assert _tags(r) == [f"L{i:02d}" for i in range(1, 21)]
     first = next(b for b in r.blocks if b.text.startswith("L01"))
     assert first.text.endswith("2023.09-2024.06")          # 日期并回了所在行
@@ -175,7 +175,7 @@ def test_timeline_date_column_is_read_row_by_row(tmp_path):
     assert texts[2:5] == ["2020.07-2020.09 E1 Company 0 backend intern",
                           "- E1.1 built the order service", "- E1.2 built the order service"]
     assert texts[5].startswith("2021.07-2021.09 E2")
-    assert r.pages[0].layout_type == "single" and not r.needs_llm_fallback
+    assert r.pages[0].layout_type == "single" and r.layout_confidence >= 0.7
     _assert_contract(r)
 
     # 关掉这条规则（最初的算法）：先读完所有日期，再读经历，而且自报是有把握的侧边栏
@@ -215,7 +215,7 @@ def test_bordered_table_reads_row_by_row(tmp_path):
     i = texts.index("教育背景")
     assert texts[i + 1:i + 6] == ["时间 学校 专业", "2022.09-2026.06 江城大学 计算机科学与技术",
                                   "2019.09-2022.06 江城一中 理科", "2025.07-2025.09 北岭暑期学校 机器学习", "项目经历"]
-    assert r.pages[0].layout_type == "single" and not r.needs_llm_fallback
+    assert r.pages[0].layout_type == "single" and r.layout_confidence >= 0.7
     assert {b.column_index for b in r.blocks} == {0}
     _assert_contract(r)
 

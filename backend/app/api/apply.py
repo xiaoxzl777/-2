@@ -7,11 +7,11 @@ from sqlalchemy.orm import Session
 from app.cache.pubsub import Publish, get_publisher
 from app.config import settings
 from app.database import get_db, get_session_factory
-from app.deps import get_current_user, load_owned_resume, require_parsed
-from app.errors import BAD_REQUEST, NOT_FOUND, ApiError
+from app.deps import get_current_user, load_owned_report, load_owned_resume, require_parsed
+from app.errors import BAD_REQUEST, ApiError
 from app.llm.client import LLMClient, get_llm_client
 from app.llm.registry import MODEL_REGISTRY
-from app.models import Diagnosis, MatchReport, Resume, User
+from app.models import Diagnosis, User
 from app.schemas import ApiResponse, ApplyIn, ApplyOut, ApplyStartOut, FindingOut, GateOut, ok
 from app.services import apply_service, job_service
 from app.services.parse_service import SessionFactory
@@ -46,10 +46,7 @@ def start_apply(
 @router.get("/{apply_id}", response_model=ApiResponse[ApplyOut])
 def get_apply(apply_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """初筛结果。未通过时 gaps + resume_issues 就是"哪里不符合"；完整明细见 GET /match/{id} 与诊断接口。"""
-    report = db.get(MatchReport, apply_id)
-    resume = db.get(Resume, report.resume_id) if report else None
-    if resume is None or resume.user_id != user.id or resume.is_deleted:
-        raise ApiError(NOT_FOUND, "投递记录不存在")
+    report, resume = load_owned_report(db, user, apply_id)
 
     done = report.status == "success"
     diagnosis = db.get(Diagnosis, report.diagnosis_id) if report.diagnosis_id else None

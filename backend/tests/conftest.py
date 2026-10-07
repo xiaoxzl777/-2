@@ -172,6 +172,13 @@ def fake_llm() -> FakeLLM:
     return FakeLLM()
 
 
+@pytest.fixture(autouse=True)
+def _fast_bcrypt(monkeypatch):
+    """bcrypt 线上强度一次约 0.37 秒，几十个测试都要注册用户；测试里用最低强度（全部测试 54 秒 → 约 20 秒）。"""
+    from app import security
+    monkeypatch.setattr(security, "BCRYPT_ROUNDS", 4)
+
+
 @pytest.fixture
 def client(db_session_factory, fake_llm, tmp_path, monkeypatch):
     from fastapi.testclient import TestClient

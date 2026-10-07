@@ -10,8 +10,8 @@ import {
 } from '../api/interview'
 import { AppShell } from '../components/AppShell'
 import { MagneticButton } from '../components/effects'
-import { Headline, Mark } from '../components/Headline'
 import { placeholders, underline } from '../components/InterviewText'
+import { NotFound, notFoundText } from '../components/NotFound'
 import { useAuth } from '../store/auth'
 
 type Entry =
@@ -157,7 +157,7 @@ export default function Interview() {
       if (data.waiting) setPhase('waiting')
       else void run(data.mode)
     }).catch((err) => {
-      setLoadError(err instanceof ApiError && err.code !== 40401 ? err.message : '这场面试不存在，可能已经被删除。')
+      setLoadError(notFoundText(err, '这场面试不存在，可能已经被删除。'))
     })
     // run 每次渲染都是新的函数，只在第一次挂载时调用
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -203,13 +203,7 @@ export default function Interview() {
   if (loadError) {
     return (
       <AppShell progress={0}>
-        <section className="screen">
-          <div>
-            <Headline badge="模拟面试" label="—" lines={['这场面试', <>找<Mark>不到</Mark>了。</>]} />
-            <p className="sub fade d2">{loadError}</p>
-            <div className="cta fade d3"><MagneticButton className="accent lg" onClick={() => navigate('/app')}>回到工作台 <span className="arrow">→</span></MagneticButton></div>
-          </div>
-        </section>
+        <NotFound badge="模拟面试" what="这场面试" message={loadError} />
       </AppShell>
     )
   }

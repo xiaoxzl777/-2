@@ -1,5 +1,3 @@
-> 最后更新：2026-09-27。改设计先改这里的文档再改代码；发现文档与代码不一致时以代码为准，回头改文档。
-
 # 三、接口设计
 
 统一前缀 `/api/v1`；所有接口（含 SSE）用 `Authorization: Bearer <token>`，SSE 前端用 fetch 读流（EventSource 带不了请求头，也发不了 POST），见 `frontend/src/api/client.ts`。
@@ -55,7 +53,7 @@
           POST /match/{id}/items/{requirement_id}/advice      岗位里没满足 / 部分满足的一条要求：【考察什么】【怎么补】【面试怎么答】
                        结果页点开一条时现场生成，流式返回（POST + text/event-stream，见 3.3）；生成过的存库，再请求直接回一个 done
                        分别存进 findings.rewrite 与 match_reports.items[k].advice，GET /apply/{id} 与 GET /match/{id} 会带回来
-                       本期不做检索：模型针对原句写建议 + 数字占位符复检（06-workflows 6.5；提示词见 docs/design/具体建议-提示词草稿.md）
+                       本期不做检索：模型针对原句写建议 + 数字占位符复检（06-workflows 6.5；提示词见 llm/prompts.py 的 ADVICE_*）
 
 面试 6    只有技术面：5 个话题，每个最多追问 1 次（docs/06-workflows 6.3）
           POST /interviews                 {apply_id, company_name?, extra_context?, practice?}
@@ -91,7 +89,7 @@
            event: finished   {"report_ready","verdict","overall"}
            event: error      {"code","message"}                              ← 之后调 POST /start 从原处继续
 Nginx      proxy_buffering off; proxy_cache off; proxy_http_version 1.1; proxy_set_header Connection '';
-           proxy_read_timeout 900s; gzip 不含 text/event-stream；FastAPI 响应带 X-Accel-Buffering: no
+           proxy_read_timeout 900s; gzip 不含 text/event-stream；FastAPI 响应带 X-Accel-Buffering: no（三处流式接口共用 api/sse.py）
 ```
 
 ## 3.4 关键接口示例
@@ -152,4 +150,4 @@ data: {"turn_id":204,"text":"你刚说先更新数据库再删缓存，删失败
 
 `verdict`：pass / fail / practice（练习模式不下结论）/ incomplete（没聊完所有话题就结束，不下结论）。`links` 只挑得分低于 60、来源是简历问题或岗位要求的话题，前端点过去是结果页上对应的那一条。
 
-**GET /resumes/{id}/diagnosis** 示例同 v2（略）。
+**GET /resumes/{id}/diagnosis**：诊断状态、mode、overall_score、五维 score_detail、统计（stats）、花费，以及 findings[]（来源、规则码 / 风险类型、严重度、证据原文与 char 区间、verify_result、rewrite）；字段以 `schemas.py` 的 `DiagnosisOut` 为准。

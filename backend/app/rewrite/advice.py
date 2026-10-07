@@ -16,14 +16,13 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from app.diagnose.rules import NUMBER    # 与规则引擎判断"有没有数字"同一口径（排除 Vue3、CET-6 这类名称与版本号）
 from app.llm import prompts
 
 PLACEHOLDER = "【数值】"
 REQ_TYPE_LABEL = {"hard": "必须项", "plus": "加分项", "soft": "软素质"}
 _ENTRY_KIND = {"projects": "项目", "work": "经历"}
 
-# 与规则引擎判断"有没有数字"同一口径：紧挨字母 / 数字 / . # + - 的不算（Vue3、MD5、CET-6、2.7 这类名称与版本号）
-_NUMBER = re.compile(r"(?<![A-Za-z\d.#+\-])\d+(?:\.\d+)?")
 _UNIT = re.compile(r"(work|projects)\[(\d+)\](?:\.highlights\[(\d+)\])?")
 _SECTION = re.compile(r"【(问题|改成|为什么|考察什么|怎么补|面试怎么答)】")
 _BRACKETED = re.compile(r"(【[^【】]*】)")
@@ -105,7 +104,7 @@ def mask_new_numbers(text: str, original: str, *, keep_digits: bool = False) -> 
     """text 里 original 没有出现过的数字换成【数值】，返回 (新文本, 换掉的个数)。
     【】里的内容本来就是留给用户填的，不动。模拟面试的"参考答法"也用它，那里讲的是技术细节，
     keep_digits=True 放过单个数字（"影响行数为 0"、"重试 3 次"），编造的成果数据很少只有一位。"""
-    allowed = set(_NUMBER.findall(original))
+    allowed = set(NUMBER.findall(original))
     replaced = 0
 
     def fix(m: re.Match) -> str:
@@ -116,4 +115,4 @@ def mask_new_numbers(text: str, original: str, *, keep_digits: bool = False) -> 
         return PLACEHOLDER
 
     pieces = _BRACKETED.split(text)
-    return "".join(p if p.startswith("【") else _NUMBER.sub(fix, p) for p in pieces), replaced
+    return "".join(p if p.startswith("【") else NUMBER.sub(fix, p) for p in pieces), replaced

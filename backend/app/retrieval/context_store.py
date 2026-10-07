@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import logging
 import re
-
-from chromadb.api.models.Collection import Collection
+from typing import TYPE_CHECKING
 
 from app.llm.client import LLMError
 from app.llm.embedding import EmbeddingClient, get_embedding_client
+
+if TYPE_CHECKING:                       # 只用来写类型注解；chromadb 导入要 0.7 秒，等真正打开向量库时再加载
+    from chromadb.api.models.Collection import Collection
 
 logger = logging.getLogger("app.retrieval")
 

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.errors import CONFLICT, ApiError
 from app.llm import prompts
-from app.models import Diagnosis, Job, MatchReport, Resume
+from app.models import Job, MatchReport, Resume
 
 _IN_PROGRESS = ("pending", "running")
 _REQUIREMENT_FIELDS = ("content", "req_type", "category", "weight", "skill")
@@ -44,9 +44,5 @@ def save_result(db: Session, report: MatchReport, job: Job, result: dict) -> Non
     report.llm_item_count = result["llm_item_count"]
     report.hallucination_count = result["hallucination_count"]
     report.cost = result["cost"]
-    # 未通过时要和匹配差距一起展示的诊断：投递流水线建记录时已经指定；兜底：取这份简历最近一次完成的
-    report.diagnosis_id = report.diagnosis_id or db.scalar(
-        select(Diagnosis.id).where(Diagnosis.resume_id == report.resume_id, Diagnosis.status.in_(("success", "partial")))
-        .order_by(Diagnosis.id.desc()))
     report.status, report.finished_at = "success", datetime.now()
     db.commit()

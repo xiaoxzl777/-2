@@ -23,7 +23,7 @@ MAX_GAP_MONTHS = 3
 MAX_SKILL_FINDINGS = 5        # 技能不一致最多报这么多条，避免刷屏
 
 # 数字：前面不能紧挨字母 / 数字 / . # + -（排除 Vue3、JDK8、CET-6、2.7 这类名称与版本号）
-_NUMBER = re.compile(r"(?<![A-Za-z\d.#+\-])\d+(?:\.\d+)?")
+NUMBER = re.compile(r"(?<![A-Za-z\d.#+\-])\d+(?:\.\d+)?")
 # 只收"结果性"的动词。不收"性能 / 效率"这类名词：否则小标题「性能优化：」本身就会被当成在陈述结果
 _RESULT_WORDS = re.compile(r"提升|提高|降低|减少|缩短|节省|节约|增长|达到|降至|升至|支撑|保障|上线|获得|解决了|避免|稳定运行")
 _WEAK_VERBS = re.compile(r"参与|协助|了解|学习|接触|帮助|配合|跟随|辅助")
@@ -69,7 +69,7 @@ def run_rules(ctx: RuleContext) -> list[Finding]:
 
 def _has_number(text: str) -> bool:
     """有没有量化数字。行首的列表编号（"1." "（2）"）不算。"""
-    return any(_NUMBER.search(line, _LINE_PREFIX.match(line).end()) for line in text.split("\n"))
+    return any(NUMBER.search(line, _LINE_PREFIX.match(line).end()) for line in text.split("\n"))
 
 
 def _clause_around(unit: ReviewUnit, pos: int) -> tuple[int, int]:

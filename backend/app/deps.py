@@ -1,4 +1,4 @@
-"""FastAPI 依赖：当前登录用户、当前用户名下的简历、其中已解析完成的简历。"""
+"""FastAPI 依赖：当前登录用户、当前用户名下的简历 / 投递记录、其中已解析完成的简历。"""
 from __future__ import annotations
 
 from fastapi import Depends
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.errors import CONFLICT, NOT_FOUND, PARSE_FAILED, UNAUTHORIZED, ApiError
-from app.models import Resume, User
+from app.models import MatchReport, Resume, User
 from app.security import decode_access_token
 
 # auto_error=False：缺少令牌时由我们抛统一格式的 40101，而不是 FastAPI 默认的 403
@@ -40,6 +40,15 @@ def load_owned_resume(db: Session, user: User, resume_id: int) -> Resume:
     if resume is None or resume.user_id != user.id or resume.is_deleted:
         raise ApiError(NOT_FOUND, "简历不存在")
     return resume
+
+
+def load_owned_report(db: Session, user: User, report_id: int, message: str = "投递记录不存在") -> tuple[MatchReport, Resume]:
+    """投递记录（= 匹配报告）的归属跟着简历走：别人的、简历已删除的一律 404。返回 (投递记录, 简历)。"""
+    report = db.get(MatchReport, report_id)
+    resume = db.get(Resume, report.resume_id) if report else None
+    if resume is None or resume.user_id != user.id or resume.is_deleted:
+        raise ApiError(NOT_FOUND, message)
+    return report, resume
 
 
 _PARSE_ERROR_MESSAGES = {

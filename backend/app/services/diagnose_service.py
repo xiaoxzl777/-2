@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.diagnose.types import Finding as DomainFinding
+from app.diagnose.types import Finding as DomainFinding, severity_key
 from app.errors import CONFLICT, ApiError
 from app.llm import prompts
 from app.models import Diagnosis, Finding, LlmCall, ParsedBlock, Resume
@@ -88,5 +88,4 @@ def latest_diagnosis(db: Session, resume_id: int, diagnosis_id: int | None = Non
 def visible_findings(db: Session, diagnosis_id: int) -> list[Finding]:
     """展示给用户的 finding：不含证据定位失败的。严重的在前，同级按在原文中的位置。"""
     rows = db.scalars(select(Finding).where(Finding.diagnosis_id == diagnosis_id, Finding.verify_result != "failed")).all()
-    order = {"high": 0, "medium": 1, "low": 2}
-    return sorted(rows, key=lambda f: (order[f.severity], f.char_start if f.char_start is not None else 1 << 30))
+    return sorted(rows, key=severity_key)

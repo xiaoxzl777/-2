@@ -1,70 +1,38 @@
-> 最后更新：2026-09-27。改设计先改这里的文档再改代码；发现文档与代码不一致时以代码为准，回头改文档。
-
 # 四、AI 模块设计
 
 ## 4.1 AI 应用点
 
 | # | 场景 | 时机 | 类型 | temp | 设计要点 |
 |---|---|---|---|---|---|
-| 1 | ~~版面重排兜底~~ | — | — | — | 不做（2026-10-06 评估后决定）：原触发条件既漏报又误报，真正的错误是规则"有把握地读错"，改用规则修，见 5.1 |
-| 2 | 章节归类兜底 | 解析期 | LLM | 0 | 词典未命中且特征分 ≥3 的疑似标题 |
-| 3 | 结构化抽取 | 解析期 | LLM | 0 | 按章节送带编号块；条目输出 `block_ids`；**basics 不送** |
-| 4 | **语义诊断** ★ | 诊断期 | LLM | 0 | 单条目送审，json_mode，evidence 必须为子串 |
-| 5 | JD 解析 | 匹配期 | LLM | 0 | 拆要求项 |
-| 6 | **技能匹配判定** ★ | 匹配期 | LLM | 0 | 词典未命中的要求项一次送审；逐项输出 status + 逐字引用的简历原文，经 locate_span 校验 |
-| 7 | ~~技能语义召回~~ | — | — | — | 不做：词典未命中的要求直接交给 #6 全文判定 |
-| 8 | 具体建议 | 点开时 | LLM | 0.3 | 简历问题：【问题】【改成】【为什么】；岗位差距：【考察什么】【怎么补】【面试怎么答】。流式输出纯文本；占位符 + 确定性复检；本期不检索（06-workflows 6.5） |
-| 9 | ~~差距分析~~ | — | — | — | 不单独调模型：差距 = 匹配明细里 miss / partial 的要求，由 `GET /apply/{id}` 读取时排序组装 |
-| 10 | **面试计划** ★ | 面试创建 | LLM | 0.7 | 输入：岗位要求 + 初筛判定、经历（掩码）、最多 6 条简历问题、不长的面经 → 5 个 topics，每个带来源编号（P / R / F），代码核对 |
-| 11 | **回答评估** ★ | 每题 | LLM | 0 | rubric 结构化输出，evidence 逐字引用回答并经 locate_span 校验；参考答法里的新数字换成【数值】 |
-| 12 | **下一问生成** ★ | 每题 | LLM | 0.7 | 输入：persona、当前话题 + 材料、面经片段、本话题的问答与上一答的不足 → question（流式）；追问与否由评估的 decision + 代码规则决定 |
-| 13 | 面试报告 | 面试结束 | LLM | 0.3 | 分数由确定性聚合，LLM 只写 strengths / weaknesses / 和简历问题的关联 |
+| 1 | 章节归类兜底 | 解析期 | LLM | 0 | 词典认不出的候选标题（字号更大，或与词典标题同样式，见 5.4）一次送审，可判"不是标题" |
+| 2 | 结构化抽取 | 解析期 | LLM | 0 | 按章节送带编号块；条目输出 `block_ids`；**basics 不送** |
+| 3 | **语义诊断** ★ | 诊断期 | LLM | 0 | 单条目送审，json_mode，evidence 必须为子串 |
+| 4 | JD 解析 | 匹配期 | LLM | 0 | 拆要求项 |
+| 5 | **技能匹配判定** ★ | 匹配期 | LLM | 0 | 词典未命中的要求项一次送审；逐项输出 status + 逐字引用的简历原文，经 locate_span 校验 |
+| 6 | 具体建议 | 点开时 | LLM | 0.3 | 简历问题：【问题】【改成】【为什么】；岗位差距：【考察什么】【怎么补】【面试怎么答】。流式输出纯文本；占位符 + 确定性复检；本期不检索（06-workflows 6.5） |
+| 7 | **面试计划** ★ | 面试创建 | LLM | 0.7 | 输入：岗位要求 + 初筛判定、经历（掩码）、最多 6 条简历问题、不长的面经 → 5 个 topics，每个带来源编号（P / R / F），代码核对 |
+| 8 | **回答评估** ★ | 每题 | LLM | 0 | rubric 结构化输出，evidence 逐字引用回答并经 locate_span 校验；参考答法里的新数字换成【数值】 |
+| 9 | **下一问生成** ★ | 每题 | LLM | 0.7 | 输入：面试官设定（公司、岗位）、当前话题 + 材料、面经片段、本话题的问答与上一答的不足 → question（流式）；追问与否由评估的 decision + 代码规则决定 |
+| 10 | 面试报告 | 面试结束 | LLM | 0.3 | 分数由确定性聚合，LLM 只写 strengths / weaknesses / 和简历问题的关联 |
+
+不调模型的：版面重排兜底（理由见 5.1 末尾）、技能语义召回（词典未命中的要求直接交 #5 全文判定）、差距分析（就是匹配明细里 miss / partial 的要求，由 `GET /apply/{id}` 读取时排序组装）。
 
 ## 4.2 明确不用 AI 的地方
 
 ```
 basics 抽取 / 规则诊断 / 证据校验 / 综合评分 / 时间归一化 / 分栏与表格 / 占位符复检
-匹配：词典命中、学历、年限的判定与匹配度评分（模型只判规则判不了的要求，见 #6）
+匹配：词典命中、学历、年限的判定与匹配度评分（模型只判规则判不了的要求，见 #5）
 面试：话题推进、追问次数上限（1 次）、成本上限、分数聚合、通过判定 —— 全部确定性逻辑（只有技术面）
 ```
 
-## 4.3 解析流水线（图 A 的 parse 子图，见 [06-workflows](06-workflows.md) 6.2）
+## 4.3 解析流水线
 
-```
-extract → (扫描件判定) → layout（PDF：页眉页脚/表格/region-first/阅读顺序/项目符号分块；DOCX〔未实现〕：线性）
-→ full_text 与偏移固定（不做 LLM 版面兜底，理由见 5.1 末尾）
-→ section → basics（本地）→ section_llm（词典认不出的候选标题交 LLM 归类，没有候选不调用）→ structure（LLM 回 block_ids → 服务端切片）→ normalize → mentions → persist（同一事务）
-```
+解析不在图里：上传时由 BackgroundTasks 触发 `parse_service.parse_resume`，步骤顺序见 [06-workflows](06-workflows.md) 6.2「解析」；各步算法见 5.1–5.6。
 
-## 4.4 诊断工作流（图 A 的 diagnose 子图，见 06-workflows 6.2）
+## 4.4 诊断工作流
 
-```
-rule_scan（mode=llm_only → []）
-  → dispatch_review（成本预检；mode=rule_only 或无 unit → merge；否则 Send × N）
-    → review_unit × N（节点内：LLM json_mode → 解析失败重试 → 每条 finding locate_span → 失败带反馈重试 ≤2 → 通过/丢弃）
-  → merge_findings（同 category 且区间重叠 ≥50% 去重，规则优先）
-  → score（五维，null 维重归一）
-图形状对三种 mode 相同；mode 只在两个节点内各一个 if。
-```
-
-```python
-class DiagnoseState(TypedDict):
-    diagnosis_id: int
-    mode: Literal["rule_only", "llm_only", "hybrid"]
-    job_title: str | None
-    full_text: str                              # 已做长度不变的 PII 掩码
-    structure: dict
-    review_units: list[dict]
-    units_skipped: int
-    rule_findings: Annotated[list, add]
-    llm_findings: Annotated[list, add]
-    rejected_findings: Annotated[list, add]
-    schema_errors: Annotated[int, add]
-    cost: Annotated[float, add]
-    cost_limit: float
-```
-
-落库（diagnose_service，图外）：一次 `SELECT parsed_blocks` 映射 page_no/bbox；写 findings（含 failed 行）；统计首轮数；`status` 与 `resumes.overall_score` 同事务。
+诊断子图的节点（rule_scan → plan_review → review_unit × N → merge_findings → score）与三种 mode 见 [06-workflows](06-workflows.md) 6.2；State 见 `graphs/state.py` 的 `DiagnoseState`。
+落库在图外（diagnose_service）：一次 `SELECT parsed_blocks` 映射 page_no/bbox；写 findings（含 failed 行）；统计首轮数；`status` 与 `resumes.overall_score` 同事务。
 
 ## 4.5 语义诊断 Prompt 骨架
 
@@ -90,25 +58,25 @@ class DiagnoseState(TypedDict):
 
 | 应用点 | 检索什么 | 结果给谁 | 完整 RAG |
 |---|---|---|---|
-| ~~改写 few-shot~~ | 暂缓：本期没有范例库，改写不检索（06-workflows 6.5）；以后有 `cases` 再接 | — | — |
-| ~~匹配判定~~ | 已移除（2026-09-19）：简历与 JD 很短，全文直接给模型更准、更快、更便宜，见 06-workflows 6.2 | — | — |
-| 面试出题（M7） | 只检索 `interview_ctx`：用户贴的面经超过 3000 字时切段，每个话题召回 → reranker 精排 top-3；简历、JD 不检索（整段给） | 下一问 LLM | ✅ |
+| 面试出题 | 只检索 `interview_ctx`：用户贴的面经超过 3000 字时切段，每个话题召回 → reranker 精排 top-3；简历、JD 不检索（整段给） | 下一问 LLM | ✅ |
+
+改写、匹配都不检索（理由见 06-workflows 6.2、6.5）。
 
 链路：**切块 → 向量化入库 → 召回（embedding）→ 精排（reranker，cross-encoder）→ 注入 prompt**。
-实现在 `retrieval/context_store.py`（面经：切段、入库、召回、精排、会话结束删除）与 `llm/embedding.py`；`retrieval/unit_store.py`（简历单元）只有单测在用。
+实现在 `retrieval/context_store.py`（面经：切段、入库、召回、精排、会话结束删除）与 `llm/embedding.py`；`retrieval/unit_store.py`（简历单元）主流程不用，只留作 06-workflows 6.2「逐条检索 vs 全文判定」对照实验的代码。
 为什么要两阶段：embedding 是双塔模型，query 与文档各自编码，快但粗；reranker 把 query 与每个候选拼在一起过模型，准但慢——所以先用前者把上千条缩到 20 条，再用后者挑 3 条。
 reranker 失败或关闭时退化为直接取召回 top-3，功能不中断。
 
-**"模拟某家公司"的信息来源**：LLM 不依赖对公司的先验记忆。必填 JD（用户粘贴）给出"这家公司要什么"；可选 `company_name` + `extra_context`（面经、公司/部门介绍）给出"这家公司怎么问"；没有 JD 时用内置岗位模板。面试官 persona 的 system prompt 显式写入这些材料。
+**"模拟某家公司"的信息来源**：LLM 不依赖对公司的先验记忆。必填 JD（用户粘贴）给出"这家公司要什么"；可选 `company_name` + `extra_context`（面经、公司/部门介绍）给出"这家公司怎么问"；没有 JD 时用内置岗位模板。面试官的 system prompt 显式写入这些材料。
 
 ## 4.7 隐私
 
 ```
 basics         本地抽取，永不出现在任何 prompt
-mask_pii       长度不变：手机号数字→'X'、邮箱字符→'*'；应用于所有外发的简历文本
+mask_pii       长度不变：手机号、身份证号数字→'X'，邮箱字符→'*'，姓名→等长的'某'；应用于所有外发的简历文本（mask_resume）
 interview_ctx  会话 completed/abandoned 时删除该 session 的切块
 cases / jd     仅公开数据（以后建案例库时，构建脚本不读 resumes 表）
-清理           软删除 30 天后物理删除（未实现）；llm_calls 不存正文（评测批次除外，写文件）
+清理           软删除 30 天后物理删除（未实现）；llm_calls 不存正文（评测也只多记一个 run_id）
 ```
 
 ## 4.8 成本、缓存、审计（llm/client.py 唯一出口）
@@ -116,47 +84,21 @@ cases / jd     仅公开数据（以后建案例库时，构建脚本不读 resu
 ```
 client.invoke(scene, messages, prompt_version, schema?, ref?, model?, temperature, use_cache)  → LLMResult{text, parsed, parse_error, token, cost, cache_hit, model_version}：
   ① 渲染 prompt → key = llm:{scene}:{model}:{prompt_ver}:{sha256(rendered_prompt)}
-  ② 缓存命中 → 记 llm_calls 一行（cache_hit=TRUE, token/cost=0）→ 返回      （面试 iv_ask / iv_eval 不走缓存：每次对话都不同）
-  ③ Redis 令牌桶限流
+  ② 缓存命中 → 记 llm_calls 一行（cache_hit=TRUE, token/cost=0）→ 返回      （面试 interview_plan / ask / eval / report 都不走缓存：每次对话都不同）
+  ③ Redis 限流（按分钟固定窗口计数）；Redis 不通或排队超时按调用失败处理，抛 LLMError
   ④ 调模型；token 取自 AIMessage.usage_metadata；cost 按单价表；取 system_fingerprint
   ⑤ 写缓存（TTL 7d）+ llm_calls 落库 → Result{parsed, raw, cost, tokens}
 invoke_json(llm, scene, messages, schema, prompt_version, …) → (parsed | None, 两次总花费, 错误)：不合格时把上一次输出和原因（prompts.JSON_RETRY）发回去重试一次；
   结构化抽取 / 章节归类 / JD 解析 / 匹配用它；面试出题、评分、诊断重试前还要核对编号 / 证据 / 引用，自己写循环，只共用 JSON_RETRY
-client.embed / client.rerank 同样五步；降级：失败记 WARNING，不阻塞（rerank 失败退化为召回序）
-评测模式：run_id 存在 ⇒ 跳过缓存，prompt/response 写 data/eval_runs/{run_id}/calls.jsonl
+向量与重排走 llm/embedding.py 的 EmbeddingClient：同样限流、记账，不做结果缓存；失败抛 LLMError，调用方降级（rerank 失败退化为召回序）
+评测模式：设了评测批次号（ContextVar current_run_id）⇒ 跳过缓存，llm_calls 每行带 run_id；评测脚本把汇总结果写 data/eval_runs/{task}-{时间}.json
 ```
 
-成本：单份诊断约 0.01–0.02 元；单场面试（约 14 题 × 2 次 + 计划 + 报告 ≈ 30 次）约 0.04–0.08 元。
+成本（实测）：单份诊断约 ¥0.028（llm_only / hybrid，05 第 8.3 节）；单场面试 5 个话题、最多 10 问，一场 9 问约 ¥0.075；面试评分每次约 ¥0.0047（05 第 8.4 节）。
 
-## 4.9 模拟面试（图 B：LangGraph interrupt + SqliteSaver，见 06-workflows 6.3）
+## 4.9 模拟面试
 
-只有技术面：5 个话题，每个最多追问 1 次。推进规则由图 B 的 `decide`（纯函数）实现，游标在检查点里、问答记录在 MySQL。
-
-```
-创建  POST /interviews {apply_id, company_name?, extra_context?, practice?}
-  ① 校验：投递存在且 success；初筛没过或 practice=true → mode=practice，否则 normal
-  ② 面经 > 3000 字 → 切段 embed 进 interview_ctx；不长就整段放进材料；没贴就没有
-  ③ 整理材料（岗位要求 + 初筛判定、经历的掩码文本、简历问题），图 B 跑到 pick_topic 之前：
-     plan_interview 一次 LLM 调用 → 5 个话题，每个指向一条材料（P / R / F 编号，代码核对）
-  ④ status=planned；plan = {topics, materials} 存库
-
-开始  POST /interviews/{id}/start（也是"出错后继续"）
-  planned → in_progress；pick_topic → retrieve_context → ask_question（流式）→ 写 interview_turns → wait_answer 停住
-
-作答  POST /interviews/{id}/answer {text, skip?}
-  ① 状态校验（in_progress）；条件更新 answered_at IS NULL，同一题只能答一次；回答先落库
-  ② 空答 / 跳过 → 不调模型，记 0 分；否则 evaluate_answer：rubric 结构化输出
-     （scores + evidence[] + good + bad + better_answer + decision）
-     evidence 每条经 locate_span(quote, answer) 校验；一条都对不上 → 带原因重试一次 → 仍不行：三项中性 3 分并标 low_evidence
-     better_answer 里回答没出现过的数字换成【数值】（一位数放过）
-  ③ decide：decision=followup 且没跳过 且 depth < 1 → 追问；否则下一个话题；话题用完 → 出报告；cost ≥ cost_limit → 立即出报告
-  ④ 练习模式先推 evaluation 事件；然后流式出下一问（或 finished）
-提前结束  POST /interviews/{id}/finish：不经过图，按已评完分的题出报告
-结束  final_report：分数纯函数聚合（5.9）；LLM 只写 strengths / weaknesses / links → status=completed → 删检查点线程、interview_ctx 切块
-放弃  启动清理：last_active_at < now-24h 且未结束 → 按已答题聚合出报告（不调模型写总结）→ abandoned
-```
-
-**结论更正（v4）**：此前决定不用 LangGraph 做面试，理由是 Redis 检查点依赖 Redis Stack。`SqliteSaver` 为本地文件、零部署，该理由不成立；`interrupt()` 正是为「停下来等人输入」设计的。现改为图 B，详见 06-workflows 6.3。
+只有技术面：5 个话题，每个最多追问 1 次。创建 / 开始 / 作答 / 提前结束 / 放弃的流程、图 B 的节点和两份状态（MySQL 为准、SQLite 检查点续跑）只在 [06-workflows](06-workflows.md) 6.3 写；这里只放 prompt（4.10）和评分聚合（5.9）。
 
 ## 4.10 面试 Prompt 骨架（全文见 `llm/prompts.py` 的 `INTERVIEW_*`，版本 interview-v1）
 
@@ -176,7 +118,7 @@ client.embed / client.rerank 同样五步；降级：失败记 WARNING，不阻�
 输出 {"scores":{...},"evidence":["..."],"good":"...","bad":"...","better_answer":"...","decision":"followup|next"}
 better_answer：以候选人口吻、150 字以内；回答里没有的数字 / 规模 / 结果用【】占位，不得编造
 
-[report · temp 0.3]  strengths / weaknesses 各 1–3 条 {title, detail}；links 只写给列出的简历问题 / 岗位差距，ref 照抄编号
+[report · temp 0.3，不走缓存]  strengths / weaknesses 各 1–3 条 {title, detail}；links 只写给列出的简历问题 / 岗位差距，ref 照抄编号
 ```
 
 ---
@@ -232,12 +174,9 @@ full_text = "\n".join(b.text for b in blocks_by_index)；char_end 开区间；�
 locate_span(quote, text, hint=(lo,hi)) -> (start, end, score) | None
   text[lo:hi] 上：① str.find → 1.0  ② rapidfuzz partial_ratio_alignment ≥ 90 → 对齐区间
   都失败 → 全文再 ①②；返回全局偏移；None 即不可定位
-用途：诊断 evidence（hint=条目区间）、structure 中 skills 细化（hint=块区间）、面试评分 evidence（text=回答）
+用途（5 处调用）：诊断 evidence（llm_review，hint=条目区间）、JD 解析的要求原话（jd_parser）、匹配的简历依据（llm_judge）、
+      结构化抽取的技能名（structure，hint=块区间）、面试评分 evidence（rubric，text=回答）；规则引擎的证据本来就是原文切片，不用核对
 ```
-
-## 5.3 DOCX 线性读取〔未实现：本期只收 PDF〕
-
-按 body 子元素顺序：段落一块；表格逐单元格、单元格内逐段落（合并单元格去重，嵌套表不处理）；文本框 `.//w:txbxContent` 只计数进 ats_signals。
 
 ## 5.4 章节识别
 
@@ -300,17 +239,19 @@ degree_level(structure)∈{0..4}；experience_years(structure) = work[] 区间�
 
 ```
 dim_score[d] = max(0, 100 − Σ penalty)，high 25 / medium 12 / low 5；无来源维度 null
-初始权重 0.25 / 0.25 / 0.20 / 0.20 / 0.10（M8 评测后调整）；overall 只对非 null 维度加权归一
+权重 0.25 / 0.25 / 0.20 / 0.20 / 0.10；overall 只对非 null 维度加权归一
+扣分按经历条数摊薄：4 条以内不摊薄，超过的按 4 / 条数缩放（经历多的简历被查的地方也多）
 ```
 
-## 5.8 改写占位符复检
+## 5.8 改写占位符复检（`rewrite/advice.py`）
 
 ```
-check_placeholders(original, rewritten)：正则提取 rewritten 中的 \d+(\.\d+)?\s*(%|倍|ms|万|k)?，original 中不存在的即违规
-违规 → 替换为【数值】，violation_count 入 findings.rewrite / items[k].advice
-（原设计是违规先带反馈重试 1 次；改成流式后已经显示出去的字撤不回来，所以直接替换，以复检后的全文为准存库、在 done 事件里下发）
-实现：rewrite/advice.fix_numbers；只查【改成】（问题）/【怎么补】（差距）一段，【】里的占位不动
-评测复检时占位符视作已量化
+mask_new_numbers(text, original)：用 rules.NUMBER（与规则"有没有数字"同一口径，排除 Vue3、CET-6 这类名称与版本号）找数字，
+  original 里没出现过的换成【数值】，返回 (新文本, 换掉的个数)；【】里的占位不动
+fix_numbers(text, section, original)：按【段标题】切开，只对【改成】（问题）/【怎么补】（差距）一段调 mask_new_numbers；
+  换掉的个数记为 violation_count，存进 findings.rewrite / items[k].advice
+面试的参考答法也用 mask_new_numbers（keep_digits=True：放过一位数，"影响行数为 0" 这类技术细节不算编造）
+不重试：流式输出已经显示出去的字撤不回来，所以直接替换，以复检后的全文为准存库、在 done 事件里下发
 ```
 
 ## 5.9 面试评分聚合（确定性，`interview/rubric.py`）
@@ -334,53 +275,55 @@ api/        路由层 —— 薄
 services/   业务层 —— 流程编排、事务、DB；面试状态机在 interview_service
 parser/ diagnose/ matching/ interview/ graphs/   领域层 —— 纯逻辑
 
-（〔待建〕= 后续里程碑才有的文件；其余均已存在。逐文件说明见 07-代码导读）
+（逐文件说明见 07-代码导读）
 
 backend/app/
 ├── main.py（lifespan：检查 MySQL / Redis、启动清理）  config.py  database.py  deps.py  errors.py  security.py
 ├── models.py（11 张表）  schemas.py
 ├── api/        auth.py resume.py diagnose.py job.py match.py apply.py task.py system.py advice.py interview.py
+│               sse.py（SSE 拼装，进度流 / 具体建议 / 面试共用）
 ├── services/   resume_service.py parse_service.py diagnose_service.py job_service.py match_service.py
 │               apply_service.py skill_service.py advice_service.py interview_service.py
-├── parser/     extract.py layout.py ★ section.py structure.py normalize.py pii.py
+├── parser/     extract.py layout.py ★ section.py section_llm.py（候选标题交模型归类） structure.py normalize.py pii.py
 ├── diagnose/   rules.py evidence.py ★ llm_review.py scorer.py types.py
 ├── rewrite/    advice.py（具体建议：拼 prompt、数字占位符复检）
-├── matching/   skill_dict.py ★（extract_mentions） jd_parser.py matcher.py ★ llm_judge.py units.py（留给面试检索）
+├── matching/   skill_dict.py ★（extract_mentions） jd_parser.py matcher.py ★ llm_judge.py units.py（主流程不用，06-workflows 6.2 对照实验的代码）
 ├── interview/  materials.py（面试材料与编号） planner.py（定话题） asker.py（出题 prompt） rubric.py（评分与聚合） policy.py（推进规则） report.py（报告）
-├── retrieval/  chroma_client.py unit_store.py（简历单元，召回 + 精排） context_store.py（面经切段检索）
+├── retrieval/  chroma_client.py context_store.py（面经切段检索） unit_store.py（简历单元，主流程不用，同上）
 ├── graphs/     state.py apply_graph.py（图 A） diagnose_graph.py match_graph.py interview_graph.py（图 B） checkpoint.py（SqliteSaver）
 ├── llm/        client.py ★ registry.py prompts.py audit.py embedding.py
 └── cache/      redis_client.py llm_cache.py ratelimit.py pubsub.py
 
 后台任务直接用 FastAPI BackgroundTasks，入口在 parse_service.parse_resume 与 apply_service.run_apply；解析不在图里。
 
-scripts/   dump_schema.py dump_seed.py gen_layout_set.py eval_layout.py gen_eval_set.py run_eval.py interview_answers.py
-data/      skills_seed.csv resumes/ uploads/ chroma/ eval_runs/
-tests/     每个模块一个 test_*.py（354 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
+scripts/   dump_schema.py dump_seed.py build_job_templates.py gen_layout_set.py eval_layout.py gen_eval_set.py run_eval.py interview_answers.py
+data/      skills_seed.csv job_templates/ job_templates.json resumes/ uploads/ chroma/ checkpoints.sqlite eval_runs/ layout_set/ eval_set/
+tests/     每个模块一个 test_*.py（357 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
 
 frontend/src/
 ├── pages/       Home（首页 + 登录）  Workbench（新的投递：选岗位 → 选简历 → 投递）  ApplyResult（初筛结果，含"进入面试 / 练习模式"入口）
 │                InterviewSetup（面试准备）  Interview★（流式对话）  InterviewReport
 ├── components/  JobPicker  ResumePicker  Pipeline（投递进度）  IssueItem  AdviceBlock（具体建议，流式）
 │                ResumeSheet★（原文纸面，char 区间高亮）  Tabs  Headline  AppShell  effects  InterviewText（下划线、占位）
-└── store/ api/ types/
+└── store/ api/ hooks/
 ```
 
 ## 6.2 Redis 职责与可用性约定
 
 ```
-① LLM/embedding/rerank 缓存（面试逐轮调用不缓存）   ② 限流令牌桶   ③ 后台任务 SSE pub/sub
+① 对话模型结果缓存（面试的调用不缓存；向量 / 重排不缓存）   ② 限流（按分钟固定窗口计数）   ③ 后台任务 SSE pub/sub
 ④ LangGraph checkpoint：不用 Redis；图 B 用 `SqliteSaver`（`data/checkpoints.sqlite`）
-Redis 与 MySQL 同为必需依赖，启动 ping 失败即退出；运行期唯一容错：llm_cache get/set 异常按 miss。
+Redis 与 MySQL 同为必需依赖，启动 ping 失败即退出。运行期：llm_cache get/set 异常按 miss；
+限流占位失败（Redis 不通、排队超时）按模型调用失败处理（LLMError），走各调用方的失败路径。
 ```
 
 ## 6.3 启动清理（lifespan，单进程，只跑一次）
 
 ```sql
--- pending 也算：解析任务是进程内 BackgroundTasks，进程一退出，还没开始的也永远不会跑了
+-- pending 也算：后台任务是进程内 BackgroundTasks，进程一退出，还没开始的也永远不会跑了
 UPDATE resumes            SET parse_status='failed', parse_error='interrupted' WHERE parse_status IN ('pending','parsing');
-UPDATE diagnoses          SET status='failed', error_msg='interrupted'          WHERE status='running';
-UPDATE match_reports      SET status='failed', error_msg='interrupted'          WHERE status='running';
+UPDATE diagnoses          SET status='failed', error_msg='interrupted'          WHERE status IN ('pending','running');
+UPDATE match_reports      SET status='failed', error_msg='interrupted'          WHERE status IN ('pending','running');
 -- 面试（interview_service.cleanup_idle）：未结束且 last_active_at < now-24h → 按已答题聚合报告（不调模型）→ abandoned；删检查点线程和 interview_ctx 切块
 --   停在"等回答"是正常状态，不算中断，不在这里标失败
 -- 〔未实现〕软删除 30 天：删文件 + DELETE resumes（CASCADE）
@@ -388,4 +331,5 @@ UPDATE match_reports      SET status='failed', error_msg='interrupted'          
 
 ## 6.4 上传与存储 / 6.5 配置
 
-同 v2：五步校验、UUID 落盘、不挂 StaticFiles、同用户去重；`pydantic-settings` 读 `.env`，仓库只提交 `.env.example`。
+上传按 01 FR-B1 的顺序校验（只收 PDF）、UUID 落盘、不挂 StaticFiles、同用户同文件去重。
+配置：`pydantic-settings` 读 `.env`，阈值与常数集中在 `config.py`，仓库只提交 `.env.example`。

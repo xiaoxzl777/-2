@@ -118,7 +118,7 @@ export function JobPicker({ selected, onPick }: { selected: JobBrief | null; onP
         <JobList jobs={mine} selected={selected} onPick={onPick} empty="还没有岗位。在「粘贴 JD」里贴一份，解析后会保存在这里。" />
       )}
       {tab === 'tpl' && (
-        <JobList jobs={templates} selected={selected} onPick={onPick} empty="内置岗位模板还在整理中，先用「粘贴 JD」吧。" />
+        <JobList jobs={templates} selected={selected} onPick={onPick} empty="暂时没有内置模板，先用「粘贴 JD」吧。" />
       )}
     </TiltCard>
   )

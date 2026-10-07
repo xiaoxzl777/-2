@@ -4,6 +4,12 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 
 CATEGORIES = ("completeness", "quantification", "expression", "consistency", "ats")
+_SEVERITY_RANK = {"high": 0, "medium": 1, "low": 2}
+
+
+def severity_key(f) -> tuple[int, int]:
+    """问题的展示顺序：严重的在前，同级按在原文中的位置（没有位置的排最后）。领域对象和数据库行都能用。"""
+    return _SEVERITY_RANK[f.severity], f.char_start if f.char_start is not None else 1 << 30
 
 
 @dataclass(slots=True, frozen=True)

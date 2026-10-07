@@ -1,5 +1,3 @@
-> 最后更新：2026-09-27。改设计先改这里的文档再改代码；发现文档与代码不一致时以代码为准，回头改文档。
-
 # 二、数据库设计
 
 ## 2.1 ER 关系（MySQL 11 张表）
@@ -47,11 +45,11 @@ CREATE TABLE resumes (
   file_hash  CHAR(64)     NOT NULL,
 
   parse_status      ENUM('pending','parsing','success','failed') NOT NULL DEFAULT 'pending',
-  parse_error       VARCHAR(100) COMMENT 'scanned_pdf / interrupted / exception:<msg>',
+  parse_error       VARCHAR(100) COMMENT 'scanned_pdf / encrypted_pdf / llm_failed / interrupted / exception:<异常类型>',
   layout_type       ENUM('single','double','sidebar','table','unknown') NOT NULL DEFAULT 'unknown' COMMENT '第 1 页判定；DOCX 恒 single',
-  layout_confidence FLOAT   COMMENT '各页最小值；< 0.7 表示有规则拿不准的页（不做 LLM 兜底，见 04-design 5.1）；DOCX 恒 1.0',
+  layout_confidence FLOAT   COMMENT '各页最小值；<0.7 表示有规则拿不准的页（不做 LLM 兜底，见 04-design 5.1）',
   layout_detail     JSON    COMMENT '[{page_no, layout_type, confidence, gap:[x0,x1]|null}]',
-  used_llm_fallback BOOLEAN NOT NULL DEFAULT FALSE,
+  used_llm_fallback BOOLEAN NOT NULL DEFAULT FALSE COMMENT '恒为 0：版面不做大模型兜底（04-design 5.1），列和接口字段先留着',
   page_count        INT     NULL COMMENT 'DOCX 为 NULL',
   ats_signals       JSON    COMMENT '{textboxes, drawings, images} 计数',
 
@@ -214,7 +212,7 @@ CREATE TABLE match_reports (
   error_msg        VARCHAR(200),
   overall_match    DECIMAL(5,2),
   passed           BOOLEAN NULL COMMENT 'overall_match >= SCREEN_THRESHOLD',
-  dimension_scores JSON COMMENT '{skill, experience, education, project}',
+  dimension_scores JSON COMMENT '{skill, education, experience, other}，按要求项类别分组；JD 里没有该类要求的为 null',
   items            JSON COMMENT '[{content, req_type, category, weight, skill, requirement_id, status:hit|partial|miss, matched_by:dict|profile|fulltext|null, reason, evidence_quote, char_start, char_end, unit_id, advice?}]' /* advice：没满足的要求点开时生成的具体建议，结构同 findings.rewrite */,
   gap_summary      TEXT COMMENT '预留，目前不写：未通过说明由 GET /apply/{id} 读取时组装',
   diagnosis_id     BIGINT NULL COMMENT '同一次投递产生的诊断，未通过说明要用',
@@ -324,8 +322,8 @@ CREATE TABLE interview_turns (
 ```sql
 CREATE TABLE llm_calls (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  scene    VARCHAR(50) NOT NULL COMMENT 'relayout/section/structure/diagnose/jd_parse/match/rewrite/gap/iv_plan/iv_eval/iv_ask/iv_report/embed/rerank',
-  ref_type VARCHAR(30) COMMENT 'resume/diagnosis/finding/match_report/interview_session/interview_turn',
+  scene    VARCHAR(50) NOT NULL COMMENT 'section/structure/diagnose/jd_parse/match/rewrite/gap/interview_plan/interview_ask/interview_eval/interview_report/embed/rerank',
+  ref_type VARCHAR(30) COMMENT 'resume/job/diagnosis/match_report/finding/interview',
   ref_id   BIGINT,
   provider       VARCHAR(30),
   model_name     VARCHAR(50) NOT NULL,
@@ -348,24 +346,24 @@ CREATE TABLE llm_calls (
 
 ## 2.3 Chroma
 
-匹配不再检索（06-workflows 6.2），目前主流程**没有写入任何 collection**。检索层代码（`retrieval/unit_store.py`、`llm/embedding.py`）保留给模拟面试。
+模拟面试是主流程里唯一往 Chroma 写数据的地方（06-workflows 6.5）；匹配不检索（06-workflows 6.2）。
 
 ```
-resume_units   简历经历切块      代码已有（retrieval/chroma_client.py），主流程未写入；留给面试检索
-               metadata {resume_id, unit_id, char_start, char_end, section_type}
-interview_ctx  面试材料切块      未实现（M7）：JD 原文 + 公司介绍 + 面经；metadata {session_id, chunk_idx, source}；会话结束即删
+interview_ctx  面经切段          用户贴的面经 / 公司介绍超过 3000 字时切段（约 500 字一段）入库，metadata {session_id, idx}；
+                                 每个话题召回 → 精排取 3 段；会话结束即删（retrieval/context_store.py）
+resume_units   简历经历切块      主流程不用，只留作 06-workflows 6.2「逐条检索 vs 全文判定」对照实验的代码
+                                 （retrieval/unit_store.py、matching/units.py）；metadata {resume_id, unit_id, char_start, char_end, section_type}
 cases          优秀描述案例      暂缓：改写本期不检索（06-workflows 6.5），有范例库后再建
 ```
 
-skills 表和岗位模板（`jobs.is_template = 1`，7 份）由 `backend/sql/seed.sql` 手动导入；`uploads/`、`chroma/`、`.env` 进 `.gitignore`。
+skills 表和岗位模板（`jobs.is_template = 1`，7 份）由 `backend/sql/seed.sql` 手动导入；`uploads/`、`chroma/`、`checkpoints.sqlite`、`.env` 进 `.gitignore`。
 
-## 2.4 设计说明（v3 变更点）
+## 2.4 设计说明
 
 | 决策 | 理由 |
 |---|---|
-| 去掉 screenings / screening_items，加 interview_sessions / interview_turns | 模拟面试替换 HR 端；表数不变 |
-| 面试记录（round / topic / depth、turns）存 DB，是权威来源；图 B 另用 `SqliteSaver` 检查点续跑（v4 更正，见 06-workflows 6.3） | 报告、页面、评测都读 DB；检查点丢失时由 turns 重建 |
+| 面试记录（round / topic / depth、turns）存 DB，是权威来源；图 B 另用 `SqliteSaver` 检查点续跑（见 06-workflows 6.3） | 报告、页面、评测都读 DB；检查点丢失时由 turns 重建 |
 | 计划与报告存 JSON | 只整体读写 |
-| 评分 evidence 走同一个 `locate_span` | 一个反幻觉机制，三处复用 |
-| `jobs.is_template` | 无具体 JD 的用户也能面试 |
-| 其余（不变量、adopt 移除、checkpoint 不启用、bbox 可空…）沿用 v2 | |
+| 评分 evidence 走同一个 `locate_span` | 诊断、匹配、面试评分共用一个反幻觉机制 |
+| `jobs.is_template` | 无具体 JD 的用户也能投递、面试 |
+| bbox 可空、`parent_id` 本期恒为 NULL、`used_llm_fallback` 恒为 0 | 字段先留着，不影响现有功能 |

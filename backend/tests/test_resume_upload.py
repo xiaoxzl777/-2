@@ -64,6 +64,19 @@ def test_scanned_pdf_is_accepted_but_parse_fails_with_reason(client, auth_header
     assert detail["parse_status"] == "failed" and detail["parse_error"] == "scanned_pdf"
 
 
+def test_a_failure_while_saving_marks_the_parse_failed(client, auth_headers, single_column_pdf, monkeypatch):
+    """落库出错也要落成失败状态，不能一直停在 parsing（直到服务重启才被清理）。"""
+    from app.services import parse_service
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("写库失败")
+
+    monkeypatch.setattr(parse_service, "_save_result", broken)
+    rid = _upload(client, auth_headers, single_column_pdf).json()["data"]["id"]
+    detail = client.get(f"{API}/{rid}", headers=auth_headers).json()["data"]
+    assert detail["parse_status"] == "failed" and detail["parse_error"] == "exception:RuntimeError"
+
+
 def test_failed_parse_is_retried_on_reupload(client, auth_headers, image_only_pdf, db_session_factory):
     rid = _upload(client, auth_headers, image_only_pdf).json()["data"]["id"]
     with db_session_factory() as db:

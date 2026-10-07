@@ -88,6 +88,28 @@ def test_a_failure_while_saving_does_not_leave_records_running(client, auth_head
         assert db.get(Diagnosis, started["diagnosis_id"]).status == "failed"
 
 
+def test_startup_cleanup_also_fails_applies_still_waiting_for_the_resume(client, auth_headers, resume_and_job,
+                                                                         db_session_factory):
+    """投递在等简历解析时服务重启：两条记录还是 pending，也要标成失败，否则这份简历再也投不了（一直 409）。"""
+    from sqlalchemy import text
+
+    from app.main import _CLEANUP_SQL
+
+    rid, jid = resume_and_job
+    with db_session_factory() as db:
+        diagnosis = Diagnosis(resume_id=rid, status="pending", mode="hybrid")
+        report = MatchReport(resume_id=rid, job_id=jid, status="pending", mode="hybrid")
+        db.add_all([diagnosis, report])
+        db.commit()
+        for table in ("diagnoses", "match_reports"):
+            db.execute(text(_CLEANUP_SQL[table]))
+        db.commit()
+        db.refresh(diagnosis)
+        db.refresh(report)
+        assert (diagnosis.status, report.status, report.error_msg) == ("failed", "failed", "interrupted")
+    assert _apply(client, auth_headers, rid, jid, match_mode="dict_only", diagnose_mode="rule_only")["code"] == 0
+
+
 def test_rejections(client, auth_headers, resume_and_job, db_session_factory, events):
     rid, jid = resume_and_job
     assert _apply(client, auth_headers, rid, jid, match_mode="fast")["code"] == 40001

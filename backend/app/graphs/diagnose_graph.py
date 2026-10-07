@@ -20,7 +20,7 @@ from app.config import settings
 from app.diagnose.llm_review import review_unit
 from app.diagnose.rules import RuleContext, run_rules
 from app.diagnose.scorer import score
-from app.diagnose.types import Finding, iter_units
+from app.diagnose.types import Finding, iter_units, severity_key
 from app.graphs.state import DiagnoseState, ReviewUnitInput
 from app.llm.client import LLMClient
 
@@ -81,8 +81,7 @@ def _merge_findings(state: DiagnoseState) -> dict:
         duplicate = any(f.category == r.category and _overlap_ratio(f, r) >= DUPLICATE_OVERLAP for r in rules)
         if not duplicate:
             merged.append(f)
-    order = {"high": 0, "medium": 1, "low": 2}
-    merged.sort(key=lambda f: (order[f.severity], f.char_start if f.char_start is not None else 1 << 30))
+    merged.sort(key=severity_key)
     return {"findings": merged}
 
 

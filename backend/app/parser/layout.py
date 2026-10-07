@@ -10,7 +10,7 @@
      · c = 1            → 干净的空白带，直接左右切开（X 切），先读左栏再读右栏
      · 0.8 ≤ c < 1      → 少数行压住了空白带，它们是"跨栏行"（通栏标题、页顶姓名）；
                            用跨栏行把区域横切成几段，每段再各自处理
-     · 0.3 < c < 0.8    → 说不清是不是两栏 → 标记 unknown，交给上层决定是否让 LLM 兜底
+     · 0.3 < c < 0.8    → 说不清是不是两栏 → 标记 unknown，按行读（不做模型兜底，见 docs/04-design 5.1）
      · 其余             → 单栏
      空白带两侧都必须是"真正的一栏"（行数与字数够多），否则右对齐的日期会被误判成右栏。
      较少的一侧过半是日期、且这些日期都和另一侧某一行在同一水平线上 → 时间轴版式（左列日期、右边经历），
@@ -101,10 +101,6 @@ class LayoutResult:
     @property
     def layout_confidence(self) -> float:
         return min((p.confidence for p in self.pages), default=0.0)
-
-    @property
-    def needs_llm_fallback(self) -> bool:
-        return self.layout_confidence < settings.LAYOUT_FALLBACK_CONF
 
 
 # ───────────────────────── 内部数据结构 ─────────────────────────

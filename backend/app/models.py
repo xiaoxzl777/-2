@@ -100,7 +100,7 @@ class Resume(Base):
         nullable=False,
         server_default="pending",
     )
-    parse_error: Mapped[str | None] = mapped_column(String(100), comment="scanned_pdf / interrupted / exception:<msg>")
+    parse_error: Mapped[str | None] = mapped_column(String(100), comment="scanned_pdf / encrypted_pdf / llm_failed / interrupted / exception:<异常类型>")
     layout_type: Mapped[str] = mapped_column(
         Enum("single", "double", "sidebar", "table", "unknown", name="layout_type"),
         nullable=False,
@@ -111,7 +111,10 @@ class Resume(Base):
     layout_detail: Mapped[list[dict[str, Any]] | None] = mapped_column(
         JSON, comment="[{page_no, layout_type, confidence, gap}]"
     )
-    used_llm_fallback: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sql_text("0"))
+    used_llm_fallback: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sql_text("0"),
+        comment="恒为 0：版面不做大模型兜底（04-design 5.1），列和接口字段先留着",
+    )
     page_count: Mapped[int | None] = mapped_column(Integer, comment="DOCX 为 NULL")
     ats_signals: Mapped[dict[str, Any] | None] = mapped_column(JSON, comment="{textboxes, drawings, images}")
 
@@ -408,7 +411,7 @@ class InterviewTurn(Base):
     round: Mapped[str] = mapped_column(Enum("tech", "hr", name="turn_round"), nullable=False)
     turn_no: Mapped[int] = mapped_column(Integer, nullable=False, comment="会话内全局序号")
     topic_idx: Mapped[int] = mapped_column(Integer, nullable=False)
-    depth: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0", comment="0=主问 1/2=追问")
+    depth: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0", comment="0=主问，1 起是第几次追问（上限 INTERVIEW_MAX_FOLLOWUP）")
 
     question: Mapped[str] = mapped_column(Text, nullable=False)
     question_meta: Mapped[dict[str, Any] | None] = mapped_column(JSON)
@@ -416,7 +419,7 @@ class InterviewTurn(Base):
     answered_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     evaluation: Mapped[dict[str, Any] | None] = mapped_column(
-        JSON, comment="{scores, evidence[], feedback, better_answer, decision}"
+        JSON, comment="{skipped, scores, score, evidence[], good, bad, better_answer, number_violations, decision, low_evidence}"
     )
     cost: Mapped[Decimal] = mapped_column(Numeric(10, 6), nullable=False, server_default="0")
     created_at: Mapped[datetime] = _created_at()

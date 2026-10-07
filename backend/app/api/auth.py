@@ -12,8 +12,8 @@ from app.errors import CONFLICT, UNAUTHORIZED, ApiError
 from app.models import User
 from app.schemas import ApiResponse, LoginIn, RegisterIn, TokenOut, UserOut, ok
 from app.security import (
-    DUMMY_HASH,
     create_access_token,
+    dummy_hash,
     hash_password,
     token_lifetime_seconds,
     verify_password,
@@ -46,7 +46,7 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
 @router.post("/login", response_model=ApiResponse[TokenOut])
 def login(body: LoginIn, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.username == body.username))
-    password_ok = verify_password(body.password, user.password_hash if user else DUMMY_HASH)
+    password_ok = verify_password(body.password, user.password_hash if user else dummy_hash())
     if user is None or not password_ok:
         raise ApiError(UNAUTHORIZED, "用户名或密码错误")  # 不区分是哪一个错，防止探测用户名
     return _token_response(user)

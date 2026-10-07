@@ -1,6 +1,7 @@
 """检索单元：简历里每一段"可以拿来证明某项要求"的文字。
 
-匹配已改为全文一次判定、不再检索（见 graphs/match_graph.py），这里留给模拟面试的检索工具。
+匹配已改为全文一次判定、不再检索（见 graphs/match_graph.py），面试检索的是用户贴的面经（retrieval/context_store.py）。
+这里和 retrieval/unit_store.py 只留作 docs/06-workflows 6.2「逐条检索 vs 全文判定」对照实验的代码，主流程不用。
 
 比诊断的送审单元（diagnose.types.iter_units）范围更大，要覆盖简历里一切可能成为依据的内容：
   · 每条经历描述、自我评价（与诊断相同）

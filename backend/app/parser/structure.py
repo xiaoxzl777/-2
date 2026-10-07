@@ -31,7 +31,7 @@ from app.parser.section import Section
 
 logger = logging.getLogger("app.parse")
 
-MAX_PARALLEL_SECTIONS = 4
+MAX_PARALLEL_SECTIONS = 6          # 要抽取的章节类型有 5 种（教育、实习、项目、技能、获奖），一轮发完不排队
 
 
 # ───────────────────────── 模型输出的形状 ─────────────────────────

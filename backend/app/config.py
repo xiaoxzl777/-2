@@ -24,8 +24,6 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    APP_ENV: str = "dev"
-
     # ---- 存储 ----
     DATABASE_URL: str = "mysql+pymysql://root:your_password@localhost:3306/resume_ai?charset=utf8mb4"
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -48,9 +46,7 @@ class Settings(BaseSettings):
 
     # ---- 上传校验（FR-B1）----
     MAX_UPLOAD_MB: int = 20
-    MAX_DOCX_UNZIP_MB: int = 100
     MAX_PDF_PAGES: int = 10
-    MAX_DOCX_CHARS: int = 30_000
     SCANNED_PDF_MIN_CHARS: int = 100
 
     # ---- 版面分栏常数（5.1）----
@@ -59,7 +55,6 @@ class Settings(BaseSettings):
     LAYOUT_SINGLE_MAX_C: float = 0.30          # c 低于此值判 single
     LAYOUT_DOUBLE_MIN_C: float = 0.80          # c 高于此值判 double
     LAYOUT_TABLE_CHAR_RATIO: float = 0.70      # 表格字符占比高于此值判 table
-    LAYOUT_FALLBACK_CONF: float = 0.70         # 置信度低于此值触发 LLM 兜底
 
     # ---- 诊断 / 匹配 / 面试 ----
     DIAGNOSE_COST_LIMIT: float = 0.05          # 元
@@ -85,14 +80,6 @@ class Settings(BaseSettings):
     def _absolute_data_dir(cls, v: Path) -> Path:
         """相对路径一律相对 backend/ 解析，不受"从哪个目录启动服务"影响。"""
         return v if v.is_absolute() else (_BACKEND_DIR / v).resolve()
-
-    @property
-    def uploads_dir(self) -> Path:
-        return self.DATA_DIR / "uploads"
-
-    @property
-    def chroma_dir(self) -> Path:
-        return self.DATA_DIR / "chroma"
 
     @property
     def checkpoint_path(self) -> Path:

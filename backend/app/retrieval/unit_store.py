@@ -1,4 +1,5 @@
 """简历检索单元的向量索引与两阶段检索：embedding 召回 top-K → reranker 精排 top-N。
+主流程不用：只留作 docs/06-workflows 6.2「逐条检索 vs 全文判定」对照实验的代码（见 matching/units.py）。
 
 一份简历的全部单元共用一个 collection，靠 metadata.resume_id 过滤。索引是幂等的：
 ensure_indexed 发现库里的单元与当前结构不一致（首次匹配、或结构被人工纠正过）就整份重建。

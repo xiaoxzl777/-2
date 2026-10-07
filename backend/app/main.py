@@ -26,8 +26,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 # 上次进程异常退出时卡在"进行中"的任务 → 标为失败，前端据 interrupted 提示用户重试
 _CLEANUP_SQL = {
     "resumes": "UPDATE resumes SET parse_status='failed', parse_error='interrupted' WHERE parse_status IN ('pending','parsing')",
-    "diagnoses": "UPDATE diagnoses SET status='failed', error_msg='interrupted' WHERE status='running'",
-    "match_reports": "UPDATE match_reports SET status='failed', error_msg='interrupted' WHERE status='running'",
+    "diagnoses": "UPDATE diagnoses SET status='failed', error_msg='interrupted' WHERE status IN ('pending','running')",
+    "match_reports": "UPDATE match_reports SET status='failed', error_msg='interrupted' WHERE status IN ('pending','running')",
 }
 
 

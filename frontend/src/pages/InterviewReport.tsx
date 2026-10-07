@@ -7,6 +7,7 @@ import { interviewApi, SOURCE_LABEL, type InterviewReport as Data, type Turn } f
 import { AppShell } from '../components/AppShell'
 import { MagneticButton, TiltCard, useCountUp } from '../components/effects'
 import { Headline, Mark } from '../components/Headline'
+import { NotFound, notFoundText } from '../components/NotFound'
 import { Tabs } from '../components/Tabs'
 import { placeholders, underline } from '../components/InterviewText'
 
@@ -25,7 +26,7 @@ export default function InterviewReport() {
     interviewApi.report(sid).then((d) => { if (!cancelled) setData(d) }).catch((err) => {
       if (cancelled) return
       if (err instanceof ApiError && err.code === 40901) navigate(`/app/interview/${sid}`, { replace: true })  // 还没结束
-      else setError(err instanceof ApiError && err.code !== 40401 ? err.message : '这场面试不存在，可能已经被删除。')
+      else setError(notFoundText(err, '这场面试不存在，可能已经被删除。'))
     })
     return () => { cancelled = true }
   }, [sid, navigate])
@@ -33,13 +34,7 @@ export default function InterviewReport() {
   return (
     <AppShell progress={100}>
       {error ? (
-        <section className="screen">
-          <div>
-            <Headline badge="面试报告" label="—" lines={['这份报告', <>找<Mark>不到</Mark>了。</>]} />
-            <p className="sub fade d2">{error}</p>
-            <div className="cta fade d3"><MagneticButton className="accent lg" onClick={() => navigate('/app')}>回到工作台 <span className="arrow">→</span></MagneticButton></div>
-          </div>
-        </section>
+        <NotFound badge="面试报告" what="这份报告" message={error} />
       ) : data ? <Report data={data} /> : <section className="screen"><p className="hint">加载中…</p></section>}
     </AppShell>
   )

@@ -119,6 +119,21 @@ def test_model_failure_is_audited_and_raised_as_llm_error():
     assert h.cache.store == {}
 
 
+def test_rate_limiter_failure_becomes_llm_error():
+    """Redis 不通、限流排队超时也按调用失败处理（调用方的降级逻辑只认 LLMError），并记一行审计。"""
+    def broken(provider, rpm):
+        raise ConnectionError("Redis 连不上")
+
+    for call in (lambda c: c.invoke("jd_parse", MESSAGES, prompt_version="v1", schema=Answer),
+                 lambda c: list(c.stream("rewrite", MESSAGES, prompt_version="a1"))):
+        audits, models = [], []
+        client = LLMClient(chat_factory=lambda *args: models.append(args), cache=FakeCache(), acquire=broken,
+                           write_audit=audits.append)
+        with pytest.raises(LLMError):
+            call(client)
+        assert models == [] and audits[-1]["success"] is False and "限流" in audits[-1]["error_msg"]
+
+
 def test_evaluation_runs_bypass_the_cache_and_are_tagged():
     h = Harness(['{"verdict": "a", "score": 1}', '{"verdict": "a", "score": 1}'])
     h.client.invoke("diagnose", MESSAGES, prompt_version="v1", schema=Answer)      # 先把缓存填上

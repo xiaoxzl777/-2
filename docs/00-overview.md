@@ -1,36 +1,21 @@
-> 最后更新：2026-09-27。改设计先改这里的文档再改代码；发现文档与代码不一致时以代码为准，回头改文档。
+# 智能求职辅助系统：简历诊断与模拟面试 — 需求分析与技术设计
 
-# 智能求职辅助系统：简历诊断与模拟面试 — 需求分析与技术设计（v3）
-
-> v2 → v3：用「模拟面试」替换 HR 批量筛选端，产品变为求职者单端闭环。表数仍 11 张，接口 28 个（已实现 26 个，见 03-api）。
-> v1 → v2：6 视角审查 + 双角色核验，采纳 26 项修订（矛盾抹平、约定定死、多余去掉）。
+> 设计演进：v1 → v2 审查修订（矛盾抹平、约定定死）；v2 → v3 用「模拟面试」替换 HR 批量筛选端，产品变为求职者单端闭环；
+> v4（2026-09-19）产品改为 JD 优先，编排改用两张 LangGraph 图（见 06-workflows）。表 11 张，接口 28 个（已实现 26 个，见 03-api）。
 
 ## Context
 
 本科毕业设计（2026-09 启动，预计 2027-05 答辩），定位为**能撑起 AI 应用开发岗位面试的简历项目**。导师给定范围为「AI 应用开发」。
 
-产品主线（求职者闭环，**JD 优先**；完整流程与两张 LangGraph 图见 [06-workflows](06-workflows.md)）：
-
-```
-上传简历 ──► 解析 ──► 诊断（简历写得好不好）
-                        │
-                        ▼
-              粘贴目标 JD ──► 匹配 = 模拟初筛
-                        │
-            ┌───────────┴───────────┐
-         未通过                    通过（或练习模式）
-            │                        │
-     差距分析 + 改写建议         技术面（5 个话题）──► 面试报告
-     （改完重新上传再筛）              │
-                                  报告薄弱点 ──► 改写建议
-```
+产品主线（求职者闭环，**JD 优先**）：先定目标岗位（粘贴 JD 或选模板）→ 上传简历 → 点投递，后台诊断 ∥ 匹配 → 模拟初筛；
+通过进技术面，未通过看差距与改写建议，也可以练习模式面试；面完出报告。完整流程与两张 LangGraph 图见 [06-workflows](06-workflows.md) 6.1–6.3。
 
 **三个技术内核**（每个都有对照实验，见第八章）：
 1. 版面感知解析（region-first 启发式分栏）
 2. 词典 + LLM 可验证匹配（同义词词典精确命中；未命中的交 LLM 判定，引用的简历原文须经 locate_span 校验）
 3. 证据溯源校验（反幻觉：模型的每条结论必须能逐字定位回文本）——诊断 evidence、面试评分依据、改写占位符复检都是它的实例
 
-**应用层亮点**：多轮自适应模拟面试（面试计划有出处、追问有状态、评分有 rubric 有证据、两个 persona）。
+**应用层亮点**：多轮自适应模拟面试（面试计划有出处、追问有状态、评分有 rubric 有证据）。
 
 ## 系统不变量
 
@@ -53,8 +38,8 @@
 | 对话模型 | DeepSeek `deepseek-chat`（LangChain `ChatDeepSeek`）；结构化输出 = JSON 模式作答 + Pydantic 校验，解析失败不抛异常而是带原因重试；直连不走系统代理；面试问题用流式 |
 | Embedding | 硅基流动 `BAAI/bge-m3`：RAG 第一阶段召回，只用在模拟面试的材料检索（匹配、改写都不检索，见 06-workflows 6.5） |
 | Reranker | 硅基流动 `BAAI/bge-reranker-v2-m3`：RAG 第二阶段精排（召回 → 精排 top-3） |
-| AI 编排 | LangGraph：图 A 投递流水线（diagnose ∥ match 两个子图并行 → 初筛；解析在图外，上传时触发）；图 B 模拟面试（`interrupt()` 等人输入 + `SqliteSaver` 检查点，未实现） |
-| 存储 | MySQL 8.0 + Chroma 嵌入式 + Redis（缓存 / 限流 / SSE 推送；checkpoint 本期不启用） |
+| AI 编排 | LangGraph：图 A 投递流水线（diagnose ∥ match 两个子图并行 → 初筛；解析在图外，上传时触发）；图 B 模拟面试（`interrupt()` 等人输入 + `SqliteSaver` 检查点） |
+| 存储 | MySQL 8.0 + Chroma 嵌入式 + Redis（缓存 / 限流 / SSE 推送）；图 B 的检查点是本地 SQLite 文件 `data/checkpoints.sqlite` |
 | 异步 | FastAPI BackgroundTasks（解析、诊断、匹配），`uvicorn --workers 1`；面试逐轮为同步流式响应 |
 | 部署 | Nginx 反向代理 + Docker Compose；开发期本地跑 API / 前端 |
 
@@ -65,6 +50,6 @@
 ```
 DiagnoseState.mode   rule_only / llm_only / hybrid        架构消融
 match_mode           dict_only / llm_fulltext / hybrid            匹配消融（规则 / 模型 / 两者结合）
-use_rag / use_rerank  无检索 / 仅召回 / 召回+精排             RAG 检索消融（可选；改写接入范例库后才有）
-MODEL_REGISTRY       deepseek-chat / 硅基流动托管 Qwen      模型对比（可选）
+use_rag / use_rerank  无检索 / 仅召回 / 召回+精排             RAG 检索消融：未做（代码里没有这个开关）
+MODEL_REGISTRY       deepseek-chat / 硅基流动托管 Qwen      模型对比：未做（注册表里只有 deepseek-chat）
 ```

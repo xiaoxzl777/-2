@@ -16,7 +16,7 @@ from app.errors import ApiError
 from app.graphs.apply_graph import build_apply_graph
 from app.llm.client import LLMClient
 from app.models import Diagnosis, Finding, Job, MatchReport, Resume
-from app.parser.pii import mask_pii
+from app.parser.pii import mask_resume
 from app.services import diagnose_service, match_service
 from app.services.parse_service import SessionFactory
 
@@ -94,7 +94,7 @@ def _wait_until_parsed(db: Session, resume: Resume) -> None:
 def _run_graph(task_id: str, report: MatchReport, diagnosis: Diagnosis, resume: Resume, job: Job,
                llm: LLMClient, publish: Publish) -> dict:
     structure, full_text = resume.structure or {}, resume.full_text or ""
-    masked_text = mask_pii(full_text, name=structure.get("basics", {}).get("name"))
+    masked_text = mask_resume(structure, full_text)
     state = {
         "diagnosis_id": diagnosis.id, "match_report_id": report.id, "diagnose_mode": diagnosis.mode,
         "match_mode": report.mode, "model": report.model_name, "job_title": job.title,

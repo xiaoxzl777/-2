@@ -14,7 +14,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import re
 import time
 from collections.abc import Callable, Iterator, Sequence
@@ -27,8 +26,6 @@ from pydantic import BaseModel, ValidationError
 from app.cache import llm_cache, ratelimit
 from app.config import settings
 from app.llm import audit, prompts, registry
-
-logger = logging.getLogger("app.llm")
 
 Message = tuple[str, str]  # (role, content)；role ∈ system / user / assistant
 T = TypeVar("T", bound=BaseModel)
@@ -113,7 +110,7 @@ class LLMClient:
                                "latency_ms": 0})
             return LLMResult(hit["text"], parsed, parse_error, 0, 0, 0.0, True, model, hit.get("model_version"), 0)
 
-        self._acquire(registry.PROVIDERS.get(model, model), settings.DEEPSEEK_RPM)
+        self._take_slot(model, base_record)
         started = time.perf_counter()
         try:
             chat = self._chat_factory(model, temperature)
@@ -170,7 +167,7 @@ class LLMClient:
             yield hit["text"]
             return
 
-        self._acquire(registry.PROVIDERS.get(model, model), settings.DEEPSEEK_RPM)
+        self._take_slot(model, base_record)
         started = time.perf_counter()
         text, usage, model_version = "", {}, None
 
@@ -202,6 +199,15 @@ class LLMClient:
                            "latency_ms": int((time.perf_counter() - started) * 1000)})
         if stats is not None:
             stats.update(cost=cost, token_input=token_in, token_output=token_out, cache_hit=False)
+
+    def _take_slot(self, model: str, base_record: dict) -> None:
+        """限流占位。Redis 不通、排队超时也按调用失败处理：调用方的降级逻辑只认 LLMError。"""
+        try:
+            self._acquire(registry.PROVIDERS.get(model, model), settings.DEEPSEEK_RPM)
+        except Exception as e:
+            self._write_audit({**base_record, "success": False, "latency_ms": 0,
+                               "error_msg": f"限流占位失败：{type(e).__name__}: {e}"[:500]})
+            raise LLMError(f"{base_record['scene']} 限流占位失败：{type(e).__name__}") from e
 
     @staticmethod
     def _prepare(scene: str, messages: Sequence[Message], prompt_version: str, schema: type[BaseModel] | None,

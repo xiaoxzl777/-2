@@ -1,5 +1,4 @@
 """JD 解析（领域函数）与岗位接口。"""
-import json
 
 from app.llm.client import LLMError
 from app.matching.jd_parser import parse_jd

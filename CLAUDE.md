@@ -1,6 +1,6 @@
 # CLAUDE.md —— 给接手的 AI 看的项目交接
 
-> 最后更新：2026-10-06（M8 面试评分评测）。本文件记录**当前进度、用户的工作习惯、已定下的决定和下一步**。
+> 最后更新：2026-10-06（代码 / 性能 / 文档整理）。本文件记录**当前进度、用户的工作习惯、已定下的决定和下一步**。
 > 设计细节以 `docs/` 为准（README 有索引），这里不重复。
 
 ## 1. 项目一句话
@@ -22,7 +22,7 @@
 
 ## 3. 当前进度
 
-### 后端（已完成，354 个测试全过）
+### 后端（已完成，357 个测试全过）
 - 解析、诊断、JD 解析、匹配、图 A（诊断 ∥ 匹配 → 初筛）、`POST /apply` + SSE 进度、具体建议、模拟面试（图 B），都已实现。
 - 28 个接口已实现 26 个，未实现的在 `docs/03-api.md` 标了〔未实现〕：`PATCH /resumes/{id}/structure`、`/system/info`。
 - 匹配**不用 RAG**（已实测，理由见 `docs/06-workflows.md` 6.2）；面试只在用户贴的面经超过 3000 字时检索（`retrieval/context_store.py`）。
@@ -149,6 +149,29 @@
 - 结果（跑 3 次，108 次调用约 ¥0.5，`data/eval_runs/interview-20261006-173359.json`）：具体 86.4 / 空泛 37.7 / 答错 36.1，3 次里每题都是具体最高（具体最低 67，另两档最高 47）；答错档 83% 是正确性最低（另 2 题深度更低）；同一回答 3 次完全一样 75%、平均标准差 1.06；evidence 第一次就合格 100%。写进了 05 第 8.4 节、08 第 9 章。
 - 测试 +2（`test_eval_set.py`），共 354 个。
 
+### 已提交：代码 / 性能 / 文档整理（2026-10-06）
+- 用户说「把 docs 和代码以及性能优化一下」，先让三个子代理只读审查（文档 / 代码 / 性能实测），整理成清单给用户看，用户同意按建议范围做（清单编号 B / P / C / D / X，下面沿用）。
+- Bug：
+  - B1 启动清理漏了 pending：投递在等简历解析时重启，诊断和匹配永远停在 pending，这份简历再也投不了（409）→ `main._CLEANUP_SQL` 改成 `IN ('pending','running')`。
+  - B2 解析的写库步骤挪进 try，`_mark_failed` 先 rollback。
+  - B3 限流占位（Redis 不通 / 排队超时）失败时转成 LLMError 并记审计（`LLMClient._take_slot`，embedding 同理），否则各处降级逻辑接不住、直接 500。
+  - B4 前端刷新时后端没起来：不再删登录令牌，停在「加载中」每 3 秒重试（`store/auth.ts`）。
+- 性能（实测）：
+  - P1 所有模型调用共用一个 httpx.Client（`registry._http_client` 加 `functools.cache`）：建客户端每次约 225 ms → 首次之后约 4 ms。openai SDK 不会关掉外面传进去的客户端。
+  - P3 测试里 bcrypt 强度降到 4（`security.BCRYPT_ROUNDS` + conftest 的 autouse fixture）：全部测试 54 秒 → 约 20 秒。
+  - P4 `dummy_hash()` 第一次登录才算；context_store 的 chromadb 只在类型检查时导入：`import app.main` 约 5.2 秒 → 4.0 秒。
+  - P5 结构化抽取并发 4 → 6（5 类章节一轮发完）。
+- 代码精简：删了版面兜底残留（`needs_llm_fallback`、`LAYOUT_FALLBACK_CONF`；`used_llm_fallback` 列保留、注释写恒为 0，重新生成了 schema.sql）、没人用的配置项 / 属性 / 错误码 / logger / 走不到的分支 / `.btn.soon` 样式；requirements.txt 删了 7 个没 import 的包，venv 里卸掉后重新 `pip freeze` 生成 lock（少 10 行）。
+  合并重复：`deps.load_owned_report`（投递归属校验 4 处）、`api/sse.py`（SSE 3 处）、`pii.mask_resume`（3 处，其中 apply_service 原来 basics 为 None 时会报错）、`types.severity_key`、`rules.NUMBER`；前端 `components/NotFound.tsx`（4 个页面的「找不到了」整屏）。过时文案：删除接口说明、units / unit_store / embedding 的 docstring、模板列表空状态。
+- 文档（D1–D13，子代理按清单改，我复核过）：
+  - 和代码对不上的改对了（README 去掉 HR 面、流程改成 JD 优先；00 的图 B / 检查点改成已实现；匹配四维；面试检索只用 context_store；08 的合成集数字；「每份 13 秒」如实写明大部分是限流等待等）。
+  - 去重：流程只在 06 写，04 的 4.3 / 4.4 / 4.9 缩成链接；06 图 A 改画实际节点；「不做版面兜底」「匹配不用 RAG」各留一个出处。
+  - 作废残留：删除线、「同 v2」、06 6.6、04 5.3（DOCX）、00–05 开头「先改文档再改代码」那行。
+  - 07、08 的代码行号链接按当前代码全部核对过，一律指向函数定义行。locate_span 实际是 5 个模块在调（rules 只在注释里提到），文档统一按 5 处写。
+  - 文档合计约 −300 行。models.py 里 3 处过时的列注释（parse_error、interview_turns.depth / evaluation）一起改了，重新生成了 schema.sql。
+  - 08 补了这次的 5 个坑（解析落库、共用 httpx、限流占位、启动清理漏 pending、测试 bcrypt），附录 A 加了 5 行。
+- 测试 +3（B1、B2、B3 各一个），共 357 个。前端用本机 Chrome + 拦截接口（不起后端）验证过：后端没起来时令牌保留、每 3 秒重试、恢复后自动进工作台；401 照旧退出并弹登录框；4 个页面的「找不到了」、非 404 错误照实显示原因、手机宽度不溢出，页面没有报错。
+
 ## 4. 已定下的决定
 
 | 事项 | 决定 |
@@ -179,7 +202,7 @@
 ```powershell
 # 后端（需要本机 MySQL + Redis 已启动，.env 已配置）
 cd backend; .\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
-.\.venv\Scripts\python.exe -m pytest -q            # 354 个用例，不联网
+.\.venv\Scripts\python.exe -m pytest -q            # 357 个用例，约 20 秒，不联网
 .\.venv\Scripts\python.exe scripts\gen_layout_set.py; .\.venv\Scripts\python.exe scripts\eval_layout.py   # 版面合成集 + 打分
 
 # 前端
@@ -201,6 +224,8 @@ npm run build                                      # tsc 类型检查 + 构建
 - **本机 `uvicorn --reload` 不可靠**：日志显示 Reloading 但响应的还是旧代码。改完后端要验证时，停掉进程手动重启。
   模拟面试时踩过一次：后端加了 `asking` 事件却没重启，前端等不到它，题目气泡一个都不显示。现在前端在没收到 asking 时也会补建气泡，但改了后端照样要先重启再测。
 - **用 Bash 的 heredoc 写 JS / CSS 文件会被 shell 解析坏**（报 unexpected EOF while looking for matching `'`），这类文件用 Write 工具写。
+  heredoc 里跑 Python 做字符串替换也一样：原文带反斜杠（换行符转义、正则）时，Git Bash 会把转义吃掉，替换对不上或写坏，这种改用 Edit 工具。
+- **限流是按分钟的固定窗口（DEEPSEEK_RPM=60）**：评测连续跑时每 4–5 份就被卡到下一分钟，诊断评测「每份 13 秒」里大部分是在等（不算等待约 2.5 秒）。要不要调高或改令牌桶还没定（X6）。
 - 项目里的 `@keyframes pop` 只有结束状态（用它的元素自己先设 opacity 0）；面试页用自己的 `ivPop`（带起始状态）。
 - **PyMuPDF 内置字体只支持 Latin-1**：`insert_text` 画「•」会变成「·」（宽度却按 • 算，后面还多出一个空格）。合成简历的项目符号只用 ● · - 和编号。内置宋体 `china-s` 的英文数字按全角宽度画，`pymupdf.get_text_length` 算出的宽度和实际一致，`Font("china-s").text_length` 不一致。
 - **PyMuPDF 会把间隔小于约 6pt 的两段字抽成一行**：测试里画表格时两格的字别挨太近（真实表格有内边距，不会发生）。
@@ -217,6 +242,8 @@ npm run build                                      # tsc 类型检查 + 构建
 - 侧边栏里最宽的一行（如邮箱）会被当成「写满换行」，和下一行拼成一块（折行判断的老问题，不影响阅读顺序）。
 - 无边框表格型简历（合成集 borderless，89.3%）：顶部 2×2 信息格被按列读（不影响抽取）；左列章节名和右边第一行拼成一块，章节会认不出。
 - 两份时间轴合成简历的版面类型被判成 sidebar 0.8（外层先按跨栏行切过一刀记成了分栏），阅读顺序是对的。
+- 2026-10-06 整理时列给用户、**还没定**的：X1 删不删 `unit_store.py` + `matching/units.py`（06 6.2 对照实验的代码）；X2 08 附录 A「踩过的坑汇总」删不删；X3 02 的建表语句要不要改成指向 schema.sql；X4 00 并不并进 README；X5 本文件第 3 节要不要压成一张表；X6 限流调高还是改令牌桶。
+  还有：P6 面试评分和出下一题并行（每题少等约 3 秒，要改图）；C7 前端写死的「60 分通过」「5 个话题」改用接口值。
 
 ## 8. 下一步
 
@@ -224,4 +251,5 @@ npm run build                                      # tsc 类型检查 + 构建
 1. 解析补强 ②（时间轴日期列 + 合成集 120 份；不做模型兜底）已提交并推送（513182a）。解析补强到此结束。
 2. M8 评测：诊断（溯源 + 架构消融）和匹配消融已提交并推送（e969faf）；面试评分评测也已提交并推送。M8 只剩一项没补：诊断评测按 8.5 应每组跑 3 次（约 ¥7），用户说先不补、后面再说。
 3. 模拟面试：用户继续试用，有意见再改。
+4. 2026-10-06 的代码 / 性能 / 文档整理已提交并推送（见第 3 节最后一节）；还没定的 X1–X6、P6、C7 见第 7 节末尾。
 - 本机后端在 2026-09-28 那次重启时因权限检查出错没起来，现在是停着的；要连真实后端测试先手动启动。

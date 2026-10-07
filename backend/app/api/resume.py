@@ -72,7 +72,7 @@ def get_resume(resume: Resume = Depends(get_owned_resume)):
 
 @router.delete("/{resume_id}", response_model=ApiResponse[None])
 def delete_resume(resume: Resume = Depends(get_owned_resume), db: Session = Depends(get_db)):
-    """软删除：之后对用户不可见；文件与数据保留 30 天后由清理任务物理删除。"""
+    """软删除：之后对用户不可见；文件与数据先保留（到期物理删除还没做，见 docs/04-design 6.3）。"""
     resume.is_deleted, resume.deleted_at = True, datetime.now()
     db.commit()
     return ok()

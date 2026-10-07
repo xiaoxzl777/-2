@@ -45,6 +45,13 @@ def parse_resume(resume_id: int, session_factory: SessionFactory, llm: LLMClient
             classified = classify_sections(layout, sections, basics.name, llm, ref=("resume", resume.id))
             sections = classified.sections
             structured = extract_structure(layout, sections, basics, llm, ref=("resume", resume.id))
+            # 章节归类、个别章节抽取失败都不算整体失败：其余照常可用，失败原因留在 structure 里供排查
+            errors = [classified.error, *structured.errors] if classified.error else structured.errors
+            structure = {**structured.structure, "extraction_errors": errors}
+            section_dicts = [s.to_dict() for s in sections]
+            annotate_skills(structure, layout.full_text, section_dicts, load_skill_dict(db))
+            # 落库也要在 try 里：这里抛异常而不接住，简历会一直停在 parsing，直到服务重启才被清理
+            _save_result(db, resume, layout, sections, structure, extracted.page_count, extracted.ats_signals)
         except ScannedPdfError:
             _mark_failed(db, resume, "scanned_pdf")
         except EncryptedPdfError:
@@ -55,16 +62,10 @@ def parse_resume(resume_id: int, session_factory: SessionFactory, llm: LLMClient
         except Exception as e:  # noqa: BLE001 —— 后台任务不能把异常抛丢，必须落成失败状态
             logger.exception("解析失败 resume_id=%s", resume_id)
             _mark_failed(db, resume, f"exception:{type(e).__name__}")
-        else:
-            # 章节归类、个别章节抽取失败都不算整体失败：其余照常可用，失败原因留在 structure 里供排查
-            errors = [classified.error, *structured.errors] if classified.error else structured.errors
-            structure = {**structured.structure, "extraction_errors": errors}
-            section_dicts = [s.to_dict() for s in sections]
-            annotate_skills(structure, layout.full_text, section_dicts, load_skill_dict(db))
-            _save_result(db, resume, layout, sections, structure, extracted.page_count, extracted.ats_signals)
 
 
 def _mark_failed(db: Session, resume: Resume, reason: str) -> None:
+    db.rollback()                                   # 落库到一半出错时，先丢掉写了一半的块
     resume.parse_status, resume.parse_error = "failed", reason[:100]
     db.commit()
 
