@@ -109,6 +109,7 @@ def render(skills: list[dict] | None = None, templates: list[dict] | None = None
         "-- 本文件由 scripts/dump_seed.py 从 data/skills_seed.csv 与 data/job_templates.json 自动生成，请勿手改。",
         "-- 在 MySQL 中执行；可重复执行（skills 表先清空再插入，岗位模板按标题更新）。需先执行 schema.sql。",
         "",
+        "SET NAMES utf8mb4;  -- 不写的话 docker 首次建库导入时中文会变乱码（镜像执行 .sql 的客户端不是 utf8mb4）",
         f"USE `{DB_NAME}`;",
         "",
         *_skills_sql(skills),

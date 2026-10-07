@@ -1,15 +1,20 @@
-# 部署 / 答辩演示用：docker compose up -d --build
-# 开发期只起依赖：docker compose up -d mysql redis   （后端与前端本地跑）
+# 部署 / 答辩演示用（本机 Docker）：在项目根目录 docker compose up -d --build，浏览器打开 http://localhost
+# 第一次启动会自动建库、导入岗位模板和技能词典，注册一个账号就能用。步骤和常见问题见 README「部署」一节。
+#
+# - 对外只开 Nginx 的 80 端口；MySQL、Redis 只在容器之间的内部网络里用，不占本机的 3306 / 6379（本机开发用的 MySQL、Redis 照常跑）
+# - 后端的数据（上传的简历、面经向量库、面试检查点）放在单独的数据卷，不碰开发用的 data/ 目录
+# - restart: unless-stopped：Docker Desktop 开着，电脑重启后这几个容器会自己起来
+name: resume-ai
+
 services:
   mysql:
     image: mysql:8.0
     container_name: resume-mysql
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-your_password}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-resume_ai}
       TZ: Asia/Shanghai
-    ports:
-      - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       # 数据卷为空（首次启动）时，MySQL 镜像会自动执行此目录下的 .sql
@@ -17,16 +22,17 @@ services:
       - ./backend/sql/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-your_password}"]
+      # 走 TCP（-h 127.0.0.1）：首次建库时 MySQL 先起一个不监听网络的临时实例跑 .sql，用 localhost（套接字）会提前报健康，
+      # 后端连上来发现表还没建好就退出了
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-your_password}"]
       interval: 5s
       timeout: 3s
-      retries: 20
+      retries: 30
 
   redis:
     image: redis:7-alpine
     container_name: resume-redis
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -38,13 +44,17 @@ services:
   backend:
     build: ./backend
     container_name: resume-backend
+    restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: mysql+pymysql://root:${MYSQL_ROOT_PASSWORD:-your_password}@mysql:3306/${MYSQL_DATABASE:-resume_ai}?charset=utf8mb4
       REDIS_URL: redis://redis:6379/0
       DATA_DIR: /app/data
+      # 和 MySQL 同一个时区：创建时间是 MySQL 写的（北京时间），最后活动、结束时间是 Python 写的，
+      # 容器默认 UTC 会差 8 小时（24 小时没动静才收尾的判断也跟着错）
+      TZ: Asia/Shanghai
     volumes:
-      - ./data:/app/data
+      - backend_data:/app/data
     depends_on:
       mysql:
         condition: service_healthy
@@ -54,16 +64,17 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
 
   nginx:
-    image: nginx:alpine
+    build: ./frontend            # 先打包前端，再放进 Nginx（frontend/Dockerfile）
     container_name: resume-nginx
+    restart: unless-stopped
     ports:
       - "80:80"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./frontend/dist:/usr/share/nginx/html:ro
     depends_on:
       - backend
 
 volumes:
   mysql_data:
   redis_data:
+  backend_data:

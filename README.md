@@ -26,8 +26,8 @@
 # 1. 环境变量（唯一需要手填的地方：MySQL 密码、API key；.env 不进仓库）
 Copy-Item .env.example .env
 
-# 2. Redis：启动本机 Redis；本机没装就用容器
-docker compose up -d redis
+# 2. Redis：启动本机 Redis；本机没装就起一个容器（部署用的 compose 不对外开 6379，开发时用不了）
+docker run -d --name redis -p 6379:6379 redis:7-alpine
 
 # 3. 建库建表 + 种子数据：在 MySQL 客户端中依次执行
 #      backend\sql\schema.sql   （全新库执行一次）
@@ -48,12 +48,25 @@ npm install
 npm run dev                        # http://localhost:5173，/api 由 Vite 转发到 8000
 ```
 
-## 部署 / 答辩演示
+## 部署 / 答辩演示（本机 Docker）
+
+前提：装好并打开 Docker Desktop；项目根目录有 `.env`（同上第 1 步，至少填 `MYSQL_ROOT_PASSWORD`、`DEEPSEEK_API_KEY`、`SILICONFLOW_API_KEY`；
+给别人用之前把 `JWT_SECRET` 改成随机长字符串）。
 
 ```powershell
-cd frontend; npm run build; cd ..  # 先构建前端：nginx 直接挂载 frontend/dist
-docker compose up -d --build       # mysql + redis + backend + nginx，http://localhost
+docker compose up -d --build       # 第一次要构建镜像，几分钟；之后几秒
+# 浏览器打开 http://localhost，注册一个账号就能用（首次启动自动建库，导入岗位模板和技能词典）
+
+docker compose ps                  # 看几个容器的状态
+docker compose logs -f backend     # 看后端日志
+docker compose down                # 停掉，数据保留
+docker compose down -v             # 停掉并清空所有数据，下次启动重新建库
 ```
+
+- 四个容器：mysql、redis、backend、nginx（前端打包好放在 nginx 里，`/api` 转发给后端）。对外只开 80 端口，不占本机的 3306 / 6379，和开发环境可以同时开着。
+- 数据在 Docker 数据卷里（`mysql_data`、`redis_data`、`backend_data`），和开发用的 `data/` 分开。
+- Docker Desktop 开着时，电脑重启后容器会自己起来；后端偶尔比 MySQL 先起、连不上就退出，Docker 会接着重启它，等十几秒就好。
+- 改了代码：`docker compose up -d --build`。改了 `schema.sql` / `seed.sql`：只对空数据卷生效，已有的库手动执行，或 `down -v` 重来。
 
 ## 目录
 

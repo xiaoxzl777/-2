@@ -1,0 +1,7 @@
+# 构建镜像时不发给 Docker 的东西（虚拟环境好几百 MB，镜像里也用不上）
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+tests/
+.env

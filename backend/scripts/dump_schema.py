@@ -26,6 +26,8 @@ HEADER = f"""-- 智能求职辅助系统 建库建表脚本（MySQL 8.0）
 --   mysql -uroot -p < backend/sql/schema.sql
 -- 后端不会自动建表：启动时发现缺表会直接报错并提示执行本文件。
 
+-- 客户端字符集要先定成 utf8mb4：docker 首次建库时 MySQL 镜像执行本文件的客户端不是 utf8mb4，中文注释会变乱码
+SET NAMES utf8mb4;
 CREATE DATABASE IF NOT EXISTS `{DB_NAME}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `{DB_NAME}`;
 """

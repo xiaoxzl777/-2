@@ -6,8 +6,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+# 用锁定版本装，和开发机的环境一致（requirements.lock 由 pip freeze 生成，里面没有只能在 Windows 上装的包）
+COPY requirements.lock .
+RUN pip install -r requirements.lock
 
 COPY app ./app
 COPY scripts ./scripts
