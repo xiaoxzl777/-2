@@ -56,6 +56,7 @@ export type ApplyResult = {
   resume_score: number | null
   gaps: MatchItem[] // 未满足 / 部分满足的要求，重要的在前
   resume_issues: Finding[] // 简历自身最该先改的问题，严重的在前
+  interviews: ApplyInterview[] // 这次投递下面的面试，新的在前（成绩单里显示）
 }
 
 /** 「我的投递」里挂在投递下面的一场面试（ApplyInterviewBrief） */

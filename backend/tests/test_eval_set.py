@@ -9,9 +9,9 @@ import pytest
 from app.diagnose.rules import _RESULT_WORDS, _WEAK_VERBS
 from app.matching.skill_dict import SkillDict, SkillEntry
 from scripts.dump_seed import load_skills
-from scripts.gen_eval_set import POOLS, PROJECTS, SEED, make_base, variants
-from scripts.interview_answers import QUESTIONS, TIERS
-from scripts.run_eval import MATCH_KINDS, locate, match_requirements, score_interview, score_run
+from scripts.gen_eval_set import POOLS, SEED, make_base, variants
+from scripts.interview_answers import TIERS
+from scripts.run_eval import ANSWER_SETS, MATCH_KINDS, locate, match_requirements, score_interview, score_run
 
 
 POOL_KEYS = pytest.mark.parametrize("key", list(POOLS))
@@ -130,11 +130,14 @@ def test_match_requirements_follow_the_resume_content(key):
         assert {r["expect"] for r in reqs} == {"hit", "partial", "miss"}
 
 
-def test_interview_answers_are_built_as_designed():
-    """面试评分的 12 题：每个项目 2 题；"具体"档带着简历那条描述的结果数字；"答错"和"具体"篇幅相近，"空泛"明显短。"""
-    bullets = {name: [b for b, _ in items] for name, _, items in PROJECTS}
-    assert Counter(q["project"] for q in QUESTIONS) == dict.fromkeys(bullets, 2)
-    for q in QUESTIONS:
+@POOL_KEYS
+def test_interview_answers_are_built_as_designed(key):
+    """面试评分的 12 题（计算机、运营各一套）：每个项目 2 题；"具体"档带着简历那条描述的结果数字；
+    "答错"和"具体"篇幅相近，"空泛"明显短。"""
+    bullets = {name: [b for b, _ in items] for name, _, items in POOLS[key].projects}
+    questions = ANSWER_SETS[key].QUESTIONS
+    assert Counter(q["project"] for q in questions) == dict.fromkeys(bullets, 2)
+    for q in questions:
         a = q["answers"]
         assert tuple(a) == TIERS
         assert all(n in a["good"] for n in re.findall(r"\d+(?:\.\d+)?", bullets[q["project"]][q["bullet"]])), q["label"]

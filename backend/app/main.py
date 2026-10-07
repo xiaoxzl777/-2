@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -29,6 +30,7 @@ _CLEANUP_SQL = {
     "diagnoses": "UPDATE diagnoses SET status='failed', error_msg='interrupted' WHERE status IN ('pending','running')",
     "match_reports": "UPDATE match_reports SET status='failed', error_msg='interrupted' WHERE status IN ('pending','running')",
 }
+IDLE_SWEEP_SECONDS = 3600  # 多久扫一次很久没动静的面试（"多久算放弃"是 INTERVIEW_IDLE_HOURS）
 
 
 def check_database() -> None:
@@ -58,11 +60,26 @@ def cleanup_interrupted_tasks() -> dict[str, int]:
     with engine.begin() as conn:
         cleaned = {table: conn.execute(text(sql)).rowcount for table, sql in _CLEANUP_SQL.items()}
     # 面试不一样：停在"等回答"是正常状态，不算中断。只有很久没动静的才按已答的题出报告、标成放弃
+    cleaned["interview_sessions"] = sweep_idle_interviews()
+    return cleaned
+
+
+def sweep_idle_interviews() -> int:
     from app.graphs.checkpoint import get_checkpointer
     from app.retrieval.context_store import get_context_store
     from app.services import interview_service
-    cleaned["interview_sessions"] = interview_service.cleanup_idle(SessionLocal, get_checkpointer(), get_context_store)
-    return cleaned
+    return interview_service.cleanup_idle(SessionLocal, get_checkpointer(), get_context_store)
+
+
+async def sweep_forever(interval: float) -> None:
+    """服务一直开着时也定时给很久没动静的面试收尾。原来只在启动时清一次，长期不重启就一直显示「进行中」"""
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            if n := await asyncio.to_thread(sweep_idle_interviews):
+                logger.info("收尾了 %d 场很久没动静的面试", n)
+        except Exception:                                   # noqa: BLE001  这次失败就等下一轮，循环不能停
+            logger.exception("清理很久没动静的面试失败")
 
 
 @asynccontextmanager
@@ -74,7 +91,9 @@ async def lifespan(_: FastAPI):
         logger.warning("JWT_SECRET 仍是示例值，部署前请在 .env 中改成随机长字符串")
     cleaned = cleanup_interrupted_tasks()
     logger.info("启动完成：MySQL %d 张表，Redis ok，清理中断任务 %s", len(Base.metadata.tables), cleaned)
+    sweeper = asyncio.create_task(sweep_forever(IDLE_SWEEP_SECONDS))
     yield
+    sweeper.cancel()
     engine.dispose()
 
 

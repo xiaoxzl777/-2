@@ -1,4 +1,5 @@
 """模拟面试（图 B）：接口走完整流程，检查点用内存版、面经检索用内存 Chroma + 假向量，模型全部打桩。"""
+import asyncio
 import json
 import uuid
 from datetime import datetime, timedelta
@@ -10,7 +11,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from app.graphs.checkpoint import thread_config
 from app.interview import policy, rubric
 from app.interview.materials import build_materials
-from app.interview.planner import _Topic, _verify
+from app.interview.planner import _Topic, _verify, plan_interview
 from app.llm.client import LLMError
 from app.models import InterviewSession, InterviewTurn
 from app.retrieval.context_store import ContextStore, chunk_text
@@ -295,7 +296,7 @@ def test_idle_interviews_are_abandoned_with_a_report(client, auth_headers, appli
     from app.services import interview_service
 
     script(fake_llm, evals=[evaluation(["先更新数据库再删缓存"], decision="next")])
-    fake_llm.replies["_PlanOut"] = [PLAN, PLAN]
+    fake_llm.replies["_PlanOut"] = [PLAN] * 4              # 建两场；PLAN 里能用的话题不够，每场都会重试一次
     apply_id = applied()
     sid = create(client, auth_headers, apply_id)["data"]["id"]
     sse(client.post(f"{API}/{sid}/start", headers=auth_headers))
@@ -309,6 +310,29 @@ def test_idle_interviews_are_abandoned_with_a_report(client, auth_headers, appli
         session = db.get(InterviewSession, sid)
         assert session.status == "abandoned" and session.report["topics"][0]["score"] == 67
         assert not session.report["summary_ok"] and db.get(InterviewSession, fresh).status == "planned"
+
+
+def test_idle_sweep_keeps_running(monkeypatch):
+    """服务开着时定时收尾；某一轮出错（比如库一时连不上）不能让循环停掉"""
+    from app import main
+
+    calls = []
+
+    def sweep():
+        calls.append(1)
+        if len(calls) == 2:
+            raise RuntimeError("库连不上")
+        return 0
+
+    monkeypatch.setattr(main, "sweep_idle_interviews", sweep)
+
+    async def run():
+        task = asyncio.create_task(main.sweep_forever(0.01))
+        await asyncio.sleep(0.2)
+        task.cancel()
+
+    asyncio.run(run())
+    assert len(calls) >= 3
 
 
 # ───────────── 领域层的纯函数 ─────────────
@@ -356,6 +380,35 @@ def test_plan_topics_must_point_at_real_materials():
               [("finding", "F12"), ("finding", "f12"), ("project", "R4"), ("requirement", "R4"), ("project", "P1")]]
     kept, rejected = _verify(topics, materials, 2)
     assert [t["ref"] for t in kept] == ["F12", "R4"] and rejected == 2 and len(kept[0]["label"]) == 20
+
+
+def test_plan_retries_when_topics_fall_short():
+    materials = build_materials(
+        job_title="后端", company=None,
+        requirements=[{"id": 4, "req_type": "hard", "category": "skill", "content": "熟悉 Kafka"}],
+        match_items=[{"requirement_id": 4, "status": "miss", "reason": "没提到"}],
+        structure={"projects": [{"name": "订单系统", "char_start": 0, "char_end": 4}]}, masked_text="负责订单",
+        findings=[{"id": 12, "title": "没写结果", "description": "d", "char_start": 0, "char_end": 4}],
+        context=None, context_mode="none")                                              # 可问的一共 3 条
+    source = {"P": "project", "R": "requirement", "F": "finding"}
+
+    def plan(*refs):
+        return json.dumps({"topics": [{"source": source[r[0]], "ref": r, "label": r, "intent": "i"} for r in refs]})
+
+    llm = FakeLLM({"_PlanOut": [plan("P1", "R9", "F12"), plan("P1", "R4", "F12")]})       # R9 不存在 → 只剩 2 个，重试
+    out = plan_interview(materials, 3, llm)
+    assert [t["ref"] for t in out.topics] == ["P1", "R4", "F12"] and out.rejected == 0 and out.error is None
+    assert "能用的只有 2 个，另外 1 个的 ref 在材料里找不到" in llm.calls["_PlanOut"][1][-1][1]
+
+    llm = FakeLLM({"_PlanOut": [plan("P1", "F12"), plan("R4")]})                         # 重试反而更少：用第一次的
+    assert [t["ref"] for t in plan_interview(materials, 3, llm).topics] == ["P1", "F12"]
+
+    llm = FakeLLM({"_PlanOut": [plan("P1", "R4", "F12")]})                               # 材料只够 3 个，要 5 个也不重试
+    assert len(plan_interview(materials, 5, llm).topics) == 3 and len(llm.calls["_PlanOut"]) == 1
+
+    llm = FakeLLM({"_PlanOut": [plan("R9"), "不是 JSON"]})                                # 两次都没有能用的
+    out = plan_interview(materials, 3, llm)
+    assert out.topics == [] and out.error
 
 
 def test_chunks_and_digit_masking():

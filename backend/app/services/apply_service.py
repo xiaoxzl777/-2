@@ -145,13 +145,18 @@ def list_applies(db: Session, user: User, page: int, page_size: int,
         .order_by(MatchReport.created_at.desc(), MatchReport.id.desc())
         .offset((page - 1) * page_size).limit(page_size)
     ).all()
+    sessions = interviews_of(db, [r.id for r, _, _ in rows])
+    return total, [(r, job, resume, sessions[r.id]) for r, job, resume in rows]
+
+
+def interviews_of(db: Session, report_ids: list[int]) -> dict[int, list[InterviewSession]]:
+    """这些投递下面的面试，按投递分组、新的在前；一条 IN 查询取完（「我的投递」列表和结果页共用）。"""
     sessions: dict[int, list[InterviewSession]] = defaultdict(list)
-    if rows:
-        for s in db.scalars(select(InterviewSession)
-                            .where(InterviewSession.match_report_id.in_([r.id for r, _, _ in rows]))
+    if report_ids:
+        for s in db.scalars(select(InterviewSession).where(InterviewSession.match_report_id.in_(report_ids))
                             .order_by(InterviewSession.created_at.desc(), InterviewSession.id.desc())):
             sessions[s.match_report_id].append(s)
-    return total, [(r, job, resume, sessions[r.id]) for r, job, resume in rows]
+    return sessions
 
 
 def gap_items(report: MatchReport) -> list[dict]:

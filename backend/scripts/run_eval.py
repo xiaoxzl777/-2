@@ -1,7 +1,7 @@
 """诊断 / 匹配 / 面试评分评测：python scripts/run_eval.py [--task diagnose|match|interview] [--modes ...] [--repeat 1] [--limit N]
                                                     [--set cs|ops] [--domain cs|ops]
 （先跑 scripts/gen_eval_set.py 生成评测集；需要本机 MySQL、Redis 和 .env 里的 DeepSeek key）
---set 选评测集（计算机 / 运营的虚构简历），--domain 选诊断、匹配用哪个方向的领域包（默认和评测集同一个方向）。
+--set 选评测集（计算机 / 运营的虚构简历），--domain 选诊断、匹配、面试评分用哪个方向的领域包（默认和评测集同一个方向）。
 同一份运营评测集分别用运营、计算机的领域包跑，就能看出领域包有没有用。
 
 流程：每份 PDF 先走一遍和线上一样的解析（走缓存：解析不是被测对象）；再按"模式 × 重复次数"在评测批次号下跑诊断 / 匹配图
@@ -19,8 +19,8 @@
   定位准确率        语义类缺陷：模型在注入的那条描述上报出期望类型的问题时，证据确实落在注入的那句话上的比例
   花费、用时        每份简历一次诊断
 
---task interview（8.4 面试评分）：不用评测集，直接拿 interview_answers.py 里 12 题 × 三档回答调评分函数（和线上同一个
-rubric.evaluate），每条打 --repeat 次分。指标：三档平均分和排序正确率（区分度）、同一回答几次得分的标准差（稳定性）、
+--task interview（8.4 面试评分）：不用评测集，直接拿 12 题 × 三档回答调评分函数（和线上同一个 rubric.evaluate），每条打
+--repeat 次分。--set 选题库（计算机 interview_answers.py / 运营 interview_answers_ops.py），--domain 选评分用哪个方向的领域包。指标：三档平均分和排序正确率（区分度）、同一回答几次得分的标准差（稳定性）、
 第一次就合格 / 最后没有依据的比例（依据有效率）。
 原始结果（每份、每种模式、每次的全部问题）和汇总写一份 JSON 到 data/eval_runs/。
 """
@@ -56,7 +56,10 @@ from app.parser.structure import extract_structure  # noqa: E402
 from app.services.skill_service import load_skill_dict  # noqa: E402
 from scripts.eval_layout import squash  # noqa: E402
 from scripts.gen_eval_set import CS, POOLS, SEED, Pool, make_base  # noqa: E402
-from scripts.interview_answers import JOB_TITLE, QUESTIONS, TIERS  # noqa: E402
+from scripts import interview_answers, interview_answers_ops  # noqa: E402
+from scripts.interview_answers import TIERS  # noqa: E402
+
+ANSWER_SETS = {"cs": interview_answers, "ops": interview_answers_ops}   # 面试评分的题库：计算机 / 运营
 
 MODES = ("rule_only", "llm_only", "hybrid")
 MATCH_MODES = ("dict_only", "llm_fulltext", "hybrid")
@@ -271,13 +274,13 @@ class _Counted:
         return self.llm.invoke(*args, **kwargs)
 
 
-def grade(llm, q: dict, tier: str, run_id: str) -> dict:
+def grade(llm, q: dict, tier: str, run_id: str, job_title: str, domain) -> dict:
     """给一条回答打一次分。在线程池里跑，批次号在本线程里设、用完复原。"""
     counted = _Counted(llm)
     token = current_run_id.set(run_id)
     started = time.perf_counter()
     try:
-        evaluation, cost = rubric.evaluate(counted, job_title=JOB_TITLE, topic=q, question=q["question"],
+        evaluation, cost = rubric.evaluate(counted, job_title=job_title, topic=q, question=q["question"], domain=domain,
                                            answer=q["answers"][tier])
     except (ValueError, LLMError) as e:                # 两次都没给出合法 JSON，或调用失败
         return {"error": str(e), "calls": counted.calls}
@@ -345,12 +348,13 @@ def report_interview(s: dict) -> None:
 
 def run_interview(args, stamp: str) -> tuple[dict, dict]:
     llm = get_llm_client()
-    questions = QUESTIONS[:args.limit] if args.limit else QUESTIONS
+    answers, domain = ANSWER_SETS[args.set], DOMAINS[args.domain or args.set]
+    questions = answers.QUESTIONS[:args.limit] if args.limit else answers.QUESTIONS
     runs = []
     with ThreadPoolExecutor(max_workers=4) as pool:
         for r in range(args.repeat):
             run_id = f"iv-{stamp}-{r + 1}"
-            futures = [{t: pool.submit(grade, llm, q, t, run_id) for t in TIERS} for q in questions]
+            futures = [{t: pool.submit(grade, llm, q, t, run_id, answers.JOB_TITLE, domain) for t in TIERS} for q in questions]
             runs.append([{t: f.result() for t, f in q.items()} for q in futures])
             print(f"第 {r + 1} 次完成（run_id={run_id}）")
     scores = score_interview(runs)
@@ -372,16 +376,17 @@ def main() -> None:
                         help="默认：diagnose 跑 rule_only / llm_only / hybrid，match 跑 dict_only / llm_fulltext / hybrid")
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--limit", type=int, default=None, help="只跑前 N 份底稿（interview：前 N 道题），试跑用")
-    parser.add_argument("--set", choices=list(POOLS), default="cs", help="评测集：计算机 / 运营的虚构简历")
-    parser.add_argument("--domain", choices=list(DOMAINS), default=None, help="诊断、匹配用哪个方向的领域包，默认同 --set")
+    parser.add_argument("--set", choices=list(POOLS), default="cs", help="评测集：计算机 / 运营的虚构简历（interview：题库）")
+    parser.add_argument("--domain", choices=list(DOMAINS), default=None, help="诊断、匹配、面试评分用哪个方向的领域包，默认同 --set")
     args = parser.parse_args()
+    domain = args.domain or args.set
+    task = args.task if (args.set, domain) == ("cs", "cs") else f"{args.task}-{args.set}set-{domain}pack"
     if args.task == "interview":
         stamp = time.strftime("%Y%m%d-%H%M%S")
-        _save(args.task, stamp, args, *run_interview(args, stamp))
+        _save(task, stamp, args, *run_interview(args, stamp))
         return
     modes = args.modes or list(MODES if args.task == "diagnose" else MATCH_MODES)
-    pool, domain = POOLS[args.set], args.domain or args.set
-    task = args.task if (args.set, domain) == ("cs", "cs") else f"{args.task}-{args.set}set-{domain}pack"
+    pool = POOLS[args.set]
 
     gt = json.loads((pool.out_dir / "gt.json").read_text(encoding="utf-8"))
     if args.limit:

@@ -1,7 +1,7 @@
 // 初筛结果：/app/apply/:id。通过 / 未通过两种；还在分析就显示流程卡，跑完自动换成结果；分析失败给出重投入口。
 // 每条问题点开看依据和针对这一句的具体建议（现场生成），同时在简历原文上定位。
 import { useCallback, useMemo, useRef, useEffect, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { applyApi, isAbort, isRunning, type ApplyResult as Result, type Dimension, type MatchItem } from '../api/apply'
 import { adviceApi } from '../api/advice'
 import { ApiError } from '../api/client'
@@ -11,6 +11,7 @@ import { AdviceBlock } from '../components/AdviceBlock'
 import { AppShell } from '../components/AppShell'
 import { MagneticButton, useCountUp, useMedia } from '../components/effects'
 import { Headline, Mark } from '../components/Headline'
+import { InterviewPill, isLive } from '../components/InterviewPill'
 import { IssueItem, type DetailRow } from '../components/IssueItem'
 import { NotFound, notFoundText } from '../components/NotFound'
 import { Pipeline, useApplyTracker, type PipeState } from '../components/Pipeline'
@@ -21,6 +22,7 @@ const DIMENSIONS: [Dimension, string][] = [['skill', '技能'], ['education', '�
 const MATCHED_BY = { dict: '规则判定（技能词典）', profile: '规则判定（学历 / 年限）', fulltext: '大模型判定' }
 const SEVERITY = { high: ['high', '严重'], medium: ['med', '中等'], low: ['low', '轻微'] } as const
 const RING = 314.2 // 2π × r(50)
+const IV_SHOWN = 2
 
 export default function ApplyResult() {
   const { id } = useParams()
@@ -162,6 +164,12 @@ function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Res
     : [`匹配度 ${overall ?? '—'}，初筛线是 ${gate.threshold}。`,
       hasHardGap ? '先补「对照岗位」里的必须项，涨分最快；简历本身的问题顺手改掉。' : '先补「对照岗位」里没满足的要求，简历本身的问题顺手改掉。']
 
+  // 有一场没做完：按钮直接接着面，不再进准备页开新的一场
+  const live = data.interviews.find(isLive)
+  const toInterview = live ? `/app/interview/${live.id}` : `/app/apply/${data.id}/interview`
+  // 成绩单里最多放两场（没做完的在前）：面过五场就是五行，成绩单撑高会把左边的标题挤下去；全部的在「我的投递」里
+  const shownInterviews = [...data.interviews.filter(isLive), ...data.interviews.filter((v) => !isLive(v))].slice(0, IV_SHOWN)
+
   const listProps = {
     wide, expanded, active, onToggle: toggle, onHover: setPeek,
     onLocate: openSheet,
@@ -180,18 +188,18 @@ function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Res
           <div className="cta fade d3">
             {passed ? (
               <>
-                <MagneticButton className="accent lg" onClick={() => navigate(`/app/apply/${data.id}/interview`)}>进入模拟面试 <span className="arrow">→</span></MagneticButton>
+                <MagneticButton className="accent lg" onClick={() => navigate(toInterview)}>{live ? '继续面试' : '进入模拟面试'} <span className="arrow">→</span></MagneticButton>
                 <MagneticButton className="outline lg" onClick={() => navigate('/app')}>再投一个</MagneticButton>
               </>
             ) : (
               <>
                 <MagneticButton className="accent lg" onClick={() => navigate(`/app?job=${data.job_id}`)}>改完简历，再投这个岗位 <span className="arrow">→</span></MagneticButton>
-                <MagneticButton className="outline lg" onClick={() => navigate(`/app/apply/${data.id}/interview`)}>以练习模式面试</MagneticButton>
+                <MagneticButton className="outline lg" onClick={() => navigate(toInterview)}>{live ? '继续练习' : '以练习模式面试'}</MagneticButton>
               </>
             )}
           </div>
         </div>
-        <div className="rv-score fade d2">
+        <div className={`rv-score fade d2${data.interviews.length ? ' has-iv' : ''}`}>
           <div className="score-ring" role="img" aria-label={`匹配度 ${overall ?? '无'}，初筛线 ${gate.threshold}`}>
             <svg viewBox="0 0 120 120" aria-hidden="true">
               <circle className="arc-track" cx="60" cy="60" r="50" />
@@ -207,6 +215,16 @@ function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Res
               </div>
             ))}
           </div>
+          {data.interviews.length > 0 && (
+            // 这次投递面过的场次，和分数放在一起（样稿：docs/design/结果页面试场次预览.html）
+            <div className="rv-iv">
+              <div className="k">
+                <span>面试记录</span>
+                {data.interviews.length > IV_SHOWN && <Link className="more" to="/app/applies">全部 {data.interviews.length} 场 →</Link>}
+              </div>
+              <div className="pills">{shownInterviews.map((v) => <InterviewPill key={v.id} v={v} />)}</div>
+            </div>
+          )}
         </div>
       </div>
 

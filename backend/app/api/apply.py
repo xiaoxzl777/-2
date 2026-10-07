@@ -80,4 +80,5 @@ def get_apply(apply_id: int, user: User = Depends(get_current_user), db: Session
         dimension_scores=report.dimension_scores,
         resume_score=float(diagnosis.overall_score) if diagnosis and diagnosis.overall_score is not None else None,
         gaps=apply_service.gap_items(report) if done else [],
-        resume_issues=[FindingOut.model_validate(f) for f in apply_service.resume_issues(db, report)] if done else []))
+        resume_issues=[FindingOut.model_validate(f) for f in apply_service.resume_issues(db, report)] if done else [],
+        interviews=[interview_service.brief(s) for s in apply_service.interviews_of(db, [report.id])[report.id]]))

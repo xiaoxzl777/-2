@@ -676,6 +676,13 @@ button { cursor: pointer; }
 .rv-score .score-ring { width: 96px; height: 96px; }
 .rv-score .score-ring .num { font-size: 30px; }
 .rv-score .dims { max-width: none; gap: 12px 28px; }
+/* 成绩单里的面试记录：分数下面隔一条虚线；标签一列、胶囊一列，折行后胶囊上下对齐。样稿：docs/design/结果页面试场次预览.html */
+.rv-score.has-iv { flex-wrap: wrap; row-gap: 18px; }
+.rv-iv { flex-basis: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; align-items: start; padding-top: 16px; border-top: 1px dashed var(--line); }
+.rv-iv .k { display: flex; flex-direction: column; gap: 8px; font-size: 12px; font-weight: 700; line-height: 34px; letter-spacing: 1px; color: var(--color-ink-3); white-space: nowrap; }
+.rv-iv .more { letter-spacing: 0; font-weight: 600; color: var(--color-accent-ink); text-decoration: none; } /* 和第二颗胶囊对齐 */
+.rv-iv .more:hover { text-decoration: underline; }
+.rv-iv .pills { display: flex; flex-wrap: wrap; gap: 8px; }
 /* 左右两列都先是一行同样高的标题，下面的清单和原文卡从同一高度开始 */
 .rv-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 28px; margin: 0 0 12px; }
 .rv-h h3 { display: flex; align-items: baseline; gap: 10px; min-width: 0; margin: 0; font-size: 18px; font-weight: 800; white-space: nowrap; }
@@ -696,6 +703,8 @@ button { cursor: pointer; }
 .rv-msg.hint { border-color: var(--line); color: var(--color-ink-3); }
 @media (max-width: 1000px) { /* 放不下两栏：一列，原文从右侧滑出（断点和 ApplyResult 里的 useMedia 一致） */
   .rv-band, .rv-body { grid-template-columns: minmax(0, 1fr); row-gap: 22px; }
+  .rv-iv { grid-template-columns: minmax(0, 1fr); row-gap: 8px; } /* 单栏：「面试记录 · 全部 N 场」放到胶囊上面一行 */
+  .rv-iv .k { flex-direction: row; gap: 12px; line-height: 1.4; }
 }
 @media (max-width: 640px) {
   .rv { padding-top: 24px; }
@@ -885,7 +894,7 @@ button { cursor: pointer; }
 .ap-iv { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 20px; padding: 12px 0 16px 68px; border-top: 1px dashed var(--line); }
 .ap-iv .k { margin-right: 4px; font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--color-ink-3); }
 .ap-iv .none { font-size: 13px; color: var(--color-ink-3); }
-.ap-pill { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px 0 10px; border-radius: 999px; background: var(--color-field); box-shadow: inset 0 0 0 1.5px var(--line); font-size: 13px; color: var(--color-ink-2); text-decoration: none; transition: box-shadow 0.2s, transform 0.3s var(--spring); }
+.ap-pill { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px 0 10px; border-radius: 999px; background: var(--color-field); box-shadow: inset 0 0 0 1.5px var(--line); font-size: 13px; color: var(--color-ink-2); text-decoration: none; white-space: nowrap; transition: box-shadow 0.2s, transform 0.3s var(--spring); }
 .ap-pill:hover { box-shadow: inset 0 0 0 1.5px var(--color-ink-3); transform: translateY(-1px); }
 .ap-pill .m { height: 20px; padding: 0 7px; border-radius: 999px; background: var(--color-bg-2); font-size: 11px; font-weight: 700; display: inline-grid; place-items: center; }
 .ap-pill .m.prac { background: rgba(var(--accent-rgb), 0.1); color: var(--color-accent-ink); }

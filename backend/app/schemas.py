@@ -304,6 +304,17 @@ class GateOut(BaseModel):
     threshold: float
 
 
+class ApplyInterviewBrief(BaseModel):
+    id: int
+    mode: str                   # normal / practice
+    status: str                 # planned / in_progress / completed / abandoned
+    topic_count: int
+    current_topic: int          # 进行中：正在问第几个话题（从 1 起）；其他状态为 0
+    overall: int | None         # 结束后报告里的总分
+    verdict: str | None         # 结束后：pass / fail / incomplete（没聊完）/ practice（练习不下结论）
+    created_at: datetime
+
+
 class ApplyOut(BaseModel):
     id: int
     resume_id: int
@@ -317,17 +328,7 @@ class ApplyOut(BaseModel):
     resume_score: float | None  # 简历诊断总分
     gaps: list[MatchItemOut]            # 哪里不符合岗位要求：未满足 / 部分满足的要求，重要的在前
     resume_issues: list[FindingOut]     # 简历自身最该先改的问题
-
-
-class ApplyInterviewBrief(BaseModel):
-    id: int
-    mode: str                   # normal / practice
-    status: str                 # planned / in_progress / completed / abandoned
-    topic_count: int
-    current_topic: int          # 进行中：正在问第几个话题（从 1 起）；其他状态为 0
-    overall: int | None         # 结束后报告里的总分
-    verdict: str | None         # 结束后：pass / fail / incomplete（没聊完）/ practice（练习不下结论）
-    created_at: datetime
+    interviews: list[ApplyInterviewBrief]   # 这次投递下面的面试，新的在前（结果页的成绩单里显示）
 
 
 class ApplyBrief(BaseModel):

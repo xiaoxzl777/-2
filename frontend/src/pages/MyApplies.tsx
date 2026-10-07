@@ -2,11 +2,12 @@
 // 有还在分析的投递时每 3 秒刷新一次列表。样稿：docs/design/我的投递预览.html
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { applyApi, isRunning, type ApplyBrief, type ApplyInterview } from '../api/apply'
+import { applyApi, isRunning, type ApplyBrief } from '../api/apply'
 import { ApiError } from '../api/client'
 import { AppShell } from '../components/AppShell'
 import { MagneticButton } from '../components/effects'
 import { Headline, Mark } from '../components/Headline'
+import { InterviewPill, when } from '../components/InterviewPill'
 import { Tabs } from '../components/Tabs'
 import { useDomains } from '../store/domains'
 
@@ -21,12 +22,6 @@ const FILTERS: [Filter, string, (a: ApplyBrief) => boolean][] = [
 ]
 
 const icOf = (t: string) => t.replace(/\s/g, '').slice(0, 2) // 同工作台：图标取标题前两个字
-
-function when(iso: string, withTime = true): string {
-  const d = new Date(iso), now = new Date()
-  const day = d.toDateString() === now.toDateString() ? '今天' : `${d.getMonth() + 1} 月 ${d.getDate()} 日`
-  return withTime ? `${day} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : day
-}
 
 export default function MyApplies() {
   const [data, setData] = useState<{ items: ApplyBrief[]; total: number } | null>(null)
@@ -148,29 +143,5 @@ function ApplyCard({ a, index }: { a: ApplyBrief; index: number }) {
       </Link>
       {foot && <div className="ap-iv">{foot}</div>}
     </article>
-  )
-}
-
-const VERDICT = { pass: ['v-ok', '通过'], fail: ['v-no', '没过'], incomplete: ['v-mid', '没做完'], practice: ['v-mid', '练习不下结论'] } as const
-
-function InterviewPill({ v }: { v: ApplyInterview }) {
-  const mode = v.mode === 'practice' ? <span className="m prac">练习</span> : <span className="m">模拟面试</span>
-  if (v.status === 'planned' || v.status === 'in_progress') {
-    return (
-      <Link className="ap-pill live" to={`/app/interview/${v.id}`}>
-        {mode}
-        {v.status === 'planned' ? '还没开始' : `进行中 · 第 ${v.current_topic} / ${v.topic_count} 个话题`}
-        <span className="act">{v.status === 'planned' ? '开始' : '继续'} →</span>
-      </Link>
-    )
-  }
-  const verdict = v.verdict ? VERDICT[v.verdict] : null
-  return (
-    <Link className="ap-pill" to={`/app/interview/${v.id}/report`}>
-      {mode}{when(v.created_at, false)}
-      {v.overall != null && <b>{v.overall} 分</b>}
-      {verdict && <span className={verdict[0]}>{verdict[1]}</span>}
-      <span className="act">报告 →</span>
-    </Link>
   )
 }

@@ -169,6 +169,9 @@ def test_list_shows_my_applies_newest_first_with_their_interviews(client, auth_h
     assert [(i["mode"], i["status"], i["current_topic"], i["topic_count"], i["overall"], i["verdict"])
             for i in done["interviews"]] == [("normal", "in_progress", 3, 5, None, None),      # 新的在前；话题从 1 数
                                              ("practice", "completed", 0, 5, 65, "practice")]
+    detail = client.get(f"{API}/{done_id}", headers=auth_headers).json()["data"]          # 结果页的成绩单里也有
+    assert detail["interviews"] == done["interviews"]
+    assert client.get(f"{API}/{failed_id}", headers=auth_headers).json()["data"]["interviews"] == []
     page2 = client.get(API, headers=auth_headers, params={"page": 2, "page_size": 1}).json()["data"]
     assert (page2["total"], [a["id"] for a in page2["items"]]) == (2, [done_id])
 

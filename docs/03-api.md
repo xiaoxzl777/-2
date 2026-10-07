@@ -39,6 +39,7 @@
                        投递 id = match_report_id；简历还在解析也可以投，后台任务先等解析完成
           GET  /apply/{id}  → status / stage / gate{passed, overall_match, threshold} / dimension_scores / resume_score
                        + gaps[]（未满足与部分满足的要求，重要的在前）+ resume_issues[]（诊断里最严重的 8 条，带 finding id）
+                       + interviews[]（这次投递下面的面试，新的在前；字段同下面 GET /apply 的 interviews）
           GET  /apply  ?page=&page_size=（≤100）「我的投递」，新的在前；简历删了的不列
                        → Page[{id, status, overall_match, passed, failure, job_id, job_title, company, domain, resume_id,
                                resume_title, created_at, interviews[{id, mode, status, topic_count, current_topic, overall, verdict}]}]

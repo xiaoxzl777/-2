@@ -1,7 +1,8 @@
 """面试计划：一次模型调用定下 N 个话题，每个话题必须指向材料里真实存在的一条（经历 / 岗位要求 / 简历问题）。
 
 和 JD 解析同一个思路：模型给出的编号由代码核对，指向不存在的条目、重复的，一律丢掉；
-输出不合格（JSON 坏了、一个能用的话题都没有）就带着原因重试一次。
+输出不合格（JSON 坏了、能用的话题不够 N 个）就带着原因重试一次，两次里取能用的话题多的那次。
+原来只在一个都不剩时才重试，丢掉一个就少一个话题，本机 15 场里有 1 场只有 4 个。
 """
 from __future__ import annotations
 
@@ -53,6 +54,8 @@ def plan_interview(materials: dict, n: int, llm: LLMClient, *, model: str | None
                    ref: tuple[str, int] | None = None) -> PlanResult:
     messages = plan_messages(materials, n)
     out = PlanResult()
+    # 材料里总共没有 N 条可问的（经历 + 必须 / 加分项 + 简历问题），给多少算多少，不为凑数重试
+    enough = max(1, min(n, len(materials["requirements"]) + len(materials["experiences"]) + len(materials["findings"])))
     for attempt in range(2):
         # 不走缓存：同一次投递再面一次，应该换一批问法
         result = llm.invoke("interview_plan", messages, prompt_version=prompts.INTERVIEW_VERSION, schema=_PlanOut,
@@ -60,16 +63,26 @@ def plan_interview(materials: dict, n: int, llm: LLMClient, *, model: str | None
         out.cost += result.cost
         error = result.parse_error
         if result.parsed is not None:
-            out.topics, out.rejected = _verify(result.parsed.topics, materials, n)
-            if out.topics:
-                out.error = None
-                return out
-            error = "没有一个话题指向材料里真实存在的条目：ref 要照抄材料里每条前面的编号（如 P1、R9、F128）"
-        out.error = error
+            topics, rejected = _verify(result.parsed.topics, materials, n)
+            if len(topics) > len(out.topics):                  # 两次里取能用的话题多的那次
+                out.topics, out.rejected = topics, rejected
+            if len(out.topics) >= enough:
+                break
+            error = _short(n, topics, rejected)
         if attempt == 0:
             messages = [*messages, ("assistant", result.text[:2000]),
                         ("user", prompts.JSON_RETRY.format(error=error))]
+    out.error = None if out.topics else error
     return out
+
+
+def _short(n: int, topics: list[dict], rejected: int) -> str:
+    """能用的话题不够时，重试要告诉模型的原因"""
+    if not topics:
+        return "没有一个话题指向材料里真实存在的条目：ref 要照抄材料里每条前面的编号（如 P1、R9、F128）"
+    why = f"，另外 {rejected} 个的 ref 在材料里找不到或者重复了" if rejected else ""
+    return (f"要 {n} 个话题，能用的只有 {len(topics)} 个{why}。请输出完整的 {n} 个，"
+            f"ref 照抄材料里每条前面的编号（如 P1、R9、F128），不要重复")
 
 
 def _verify(items: list[_Topic], materials: dict, n: int) -> tuple[list[dict], int]:
