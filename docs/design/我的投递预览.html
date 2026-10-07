@@ -130,6 +130,12 @@
   /* 空状态 */
   .empty { display: grid; place-items: center; gap: 14px; padding: 64px 20px; border-radius: 28px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); text-align: center; }
   .empty b { font-size: 20px; } .empty p { margin: 0; color: var(--ink-3); font-size: 14px; line-height: 1.7; }
+  /* 只显示最近 10 条，更早的点一下再展开（新加的） */
+  .ap-more { display: flex; align-items: center; justify-content: center; gap: 8px; width: fit-content; height: 40px; margin: 6px auto 0; padding: 0 20px; border: none; border-radius: 999px;
+    background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line); font-size: 14px; font-weight: 600; color: var(--ink-2); transition: box-shadow .2s, color .2s; }
+  .ap-more:hover { color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+  .ap-more .ar { transition: transform .35s var(--spring); } .ap-more:hover .ar { transform: translateY(2px); }
+  .ap-more.up:hover .ar { transform: translateY(-2px); }
   .filter-empty { padding: 30px 16px; border-radius: 18px; background: #fff; box-shadow: inset 0 0 0 1.5px var(--line); color: var(--ink-3); font-size: 14px; text-align: center; }
 
   /* 只有样稿才有：右下角切换、点击后的提示 */
@@ -203,6 +209,11 @@ addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
 let toastTimer;
 function toast(html) { $('toast').innerHTML = html; $('toast').classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('show'), 2200); }
 document.addEventListener('click', e => { const t = e.target.closest('[data-toast]'); if (t) { e.preventDefault(); toast(t.dataset.toast); } });
+document.addEventListener('click', e => {
+  const m = e.target.closest('[data-more]'); if (!m) return;
+  expanded = m.dataset.more === '1'; renderList();
+  if (!expanded) $('bar').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' });   // 收起后回到列表顶上，不留在一片空白里
+});
 
 /* 示例数据（字段对应准备新增的 GET /apply 列表：每条投递 + 它下面的面试） */
 const DIR = { cs: '计算机', ops: '运营' };
@@ -217,6 +228,11 @@ const APPLIES = [
     interviews: [{ id: 6, mode: 'practice', status: 'completed', score: 65, at: '10 月 5 日' }] },
   { id: 8, title: '前端开发实习生', company: null, dir: 'cs', resume: '张同学_后端_2026.pdf', at: '10 月 3 日 09:15', status: 'success', score: 52, passed: false, interviews: [] },
   { id: 5, title: '测试开发实习生', company: null, dir: 'cs', resume: '扫描版简历.pdf', at: '9 月 30 日 16:48', status: 'failed', error: '简历是扫描件，读不出文字', interviews: [] },
+  // 再早的 8 条：凑够超过 10 条，看「显示更早的」
+  ...[['数据分析实习生', 'cs', 66, true], ['后端开发实习生（Python / Go）', 'cs', 57, false], ['用户运营实习生', 'ops', 72, true], ['前端开发实习生', 'cs', 44, false],
+      ['后端开发实习生', 'cs', 69, true], ['内容运营实习生（新媒体）', 'ops', 49, false], ['测试开发实习生', 'cs', 61, true], ['算法实习生（机器学习）', 'cs', 33, false]]
+    .map(([title, dir, score, passed], i) => ({ id: 4 - i, title, company: null, dir, resume: dir === 'ops' ? '运营示例简历.pdf' : '张同学_后端_2026.pdf',
+      at: `9 月 ${28 - i * 2} 日 1${i % 10}:0${i}`, status: 'success', score, passed, interviews: [] })),
 ];
 const icOf = (t) => t.replace(/\s/g, '').slice(0, 2);     // 同工作台：图标取标题前两个字
 
@@ -264,7 +280,8 @@ function row(a, i) {
 
 /* 筛选 */
 const FILTERS = [['all', '全部', () => true], ['pass', '通过', a => a.status === 'success' && a.passed], ['fail', '未通过', a => a.status === 'success' && !a.passed]];
-let filter = 'all', data = APPLIES;
+let filter = 'all', data = APPLIES, expanded = false;
+const LIMIT = 10;   // 默认只显示最近 10 条
 function renderSeg() {
   $('seg').innerHTML = '<span class="knob"></span>' + FILTERS.map(([k, t, f]) =>
     `<button class="${k === filter ? 'on' : ''}" data-f="${k}">${t}<i>${data.filter(f).length}</i></button>`).join('');
@@ -272,7 +289,7 @@ function renderSeg() {
 }
 function placeKnob() { const b = $('seg').querySelector('button.on'), k = $('seg').querySelector('.knob'); if (b) { k.style.width = b.offsetWidth + 'px'; k.style.transform = `translateX(${b.offsetLeft - 4}px)`; } }
 new ResizeObserver(placeKnob).observe($('seg'));
-$('seg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; filter = b.dataset.f; renderSeg(); renderList(); });
+$('seg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; filter = b.dataset.f; expanded = false; renderSeg(); renderList(); });
 
 function renderList() {
   if (!data.length) {
@@ -280,8 +297,13 @@ function renderList() {
       <button class="btn accent" data-toast="会跳到 <code>/app</code>（工作台）">去投第一份 <span class="arrow">→</span></button></div>`;
     return;
   }
+  // 先按「全部 / 通过 / 未通过」筛，再取最近 10 条：每个筛选下都是各自最近的 10 条
   const shown = data.filter(FILTERS.find(f => f[0] === filter)[2]);
-  $('list').innerHTML = shown.length ? shown.map(row).join('') : `<div class="filter-empty">没有${filter === 'pass' ? '通过' : '未通过'}的投递。</div>`;
+  const visible = expanded ? shown : shown.slice(0, LIMIT);
+  const more = shown.length <= LIMIT ? ''
+    : expanded ? `<button class="ap-more up" data-more="0">收起，只看最近 ${LIMIT} 条 <span class="ar">↑</span></button>`
+    : `<button class="ap-more" data-more="1">显示更早的 ${shown.length - LIMIT} 条 <span class="ar">↓</span></button>`;
+  $('list').innerHTML = shown.length ? visible.map(row).join('') + more : `<div class="filter-empty">没有${filter === 'pass' ? '通过' : '未通过'}的投递。</div>`;
   requestAnimationFrame(() => setTimeout(() => document.querySelectorAll('.ap-ring .br').forEach(c => c.style.strokeDashoffset = c.dataset.off), reduce ? 0 : 200));
 }
 function renderStats() {

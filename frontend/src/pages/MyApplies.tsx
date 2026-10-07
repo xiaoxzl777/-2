@@ -1,6 +1,7 @@
 // 我的投递：/app/applies。新的在前，点一条进初筛结果页；这次投递下面的面试挂在卡片底部，没面完的能接着面。
+// 默认只显示最近 10 条（先按「全部 / 通过 / 未通过」筛，再取 10 条），更早的点「显示更早的」再展开，不删任何记录。
 // 有还在分析的投递时每 3 秒刷新一次列表。样稿：docs/design/我的投递预览.html
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { applyApi, isRunning, type ApplyBrief } from '../api/apply'
 import { ApiError } from '../api/client'
@@ -13,6 +14,7 @@ import { useDomains } from '../store/domains'
 
 const POLL_MS = 3000
 const RING = 138.2 // 2π × r(22)
+const LIMIT = 10 // 默认显示几条
 
 type Filter = 'all' | 'pass' | 'fail'
 const FILTERS: [Filter, string, (a: ApplyBrief) => boolean][] = [
@@ -27,7 +29,16 @@ export default function MyApplies() {
   const [data, setData] = useState<{ items: ApplyBrief[]; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
+  const [expanded, setExpanded] = useState(false)
+  const barRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
+  const pick = (f: Filter) => { setFilter(f); setExpanded(false) } // 换个筛选就收回到最近 10 条
+  const toggle = () => {
+    setExpanded(!expanded)
+    if (!expanded) return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    barRef.current?.scrollIntoView({ behavior: reduce ? 'instant' : 'smooth' }) // 收起后回到列表顶上，不停在一片空白里
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -47,6 +58,7 @@ export default function MyApplies() {
 
   const items = data?.items ?? []
   const shown = items.filter(FILTERS.find((f) => f[0] === filter)![2])
+  const visible = expanded ? shown : shown.slice(0, LIMIT)
   const passed = items.filter(FILTERS[1][2]).length
   const interviews = items.reduce((n, a) => n + a.interviews.length, 0)
 
@@ -60,9 +72,17 @@ export default function MyApplies() {
       <MagneticButton className="btn accent" onClick={() => navigate('/app')}>去投第一份 <span className="arrow">→</span></MagneticButton>
     </div>
   )
-  else list = shown.length
-    ? shown.map((a, i) => <ApplyCard key={a.id} a={a} index={i} />)
-    : <div className="ap-note">没有{filter === 'pass' ? '通过' : '未通过'}的投递。</div>
+  else list = shown.length ? (
+    <>
+      {/* 展开时新出来的那些，进场动画从头排（不然第 11 条要等 0.75 秒） */}
+      {visible.map((a, i) => <ApplyCard key={a.id} a={a} index={i < LIMIT ? i : Math.min(i - LIMIT, LIMIT)} />)}
+      {shown.length > LIMIT && (
+        <button type="button" className={`ap-more${expanded ? ' up' : ''}`} onClick={toggle}>
+          {expanded ? `收起，只看最近 ${LIMIT} 条` : `显示更早的 ${shown.length - LIMIT} 条`} <span className="ar" aria-hidden="true">{expanded ? '↑' : '↓'}</span>
+        </button>
+      )}
+    </>
+  ) : <div className="ap-note">没有{filter === 'pass' ? '通过' : '未通过'}的投递。</div>
 
   return (
     <AppShell>
@@ -82,9 +102,9 @@ export default function MyApplies() {
         </header>
 
         {items.length > 0 && (
-          <div className="ap-bar fade d3">
+          <div className="ap-bar fade d3" ref={barRef}>
             <Tabs tabs={FILTERS.map(([key, label, f]) => ({ key, label: <>{label}<i>{items.filter(f).length}</i></> }))}
-              value={filter} onChange={setFilter} />
+              value={filter} onChange={pick} />
             <MagneticButton className="btn accent" onClick={() => navigate('/app')}>新的投递 <span className="arrow">→</span></MagneticButton>
           </div>
         )}
