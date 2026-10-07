@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%2710%27 fill=%27%23221d17%27/%3E%3Ctext x=%2716%27 y=%2722%27 font-size=%2716%27 text-anchor=%27middle%27 fill=%27%23f6f0e6%27%3E%E6%B1%82%3C/text%3E%3C/svg%3E" />
     <title>求职辅助</title>
+    <script>
+      // 用户选过的配色（src/store/palette.ts），在页面渲染前就设好，刷新不会先闪一下默认的领英蓝
+      try { var pal = localStorage.getItem('resume-ai.palette'); if (pal === 'red' || pal === 'green') document.documentElement.dataset.pal = pal } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>结果页排版 · 求职辅助</title>
+<style>
+  /* ═════════ 色板：三套配色，用户在导航栏「配色」里选（正式改时对应 index.css 开头的 @theme） ═════════ */
+  :root, :root[data-pal="linkedin"] {       /* 领英蓝（默认）：参考 LinkedIn，主色 #0A66C2、暖米灰底 #F4F2EE */
+    --bg: #f4f2ee; --bg-rgb: 244,242,238; --bg-2: #e9e5df; --paper: #fff; --field: #fff; --sheet: #fff;
+    --ink: #191919; --ink-rgb: 25,25,25; --ink-2: #5e5e5e; --ink-3: #8c8c8c; --on-ink: #f4f2ee; --line: rgba(0,0,0,.08);
+    --accent: #0a66c2; --accent-rgb: 10,102,194; --accent-ink: #004182; --on-accent: #fff;
+    --good: #057642; --good-rgb: 5,118,66; --warn: #b26a00; --warn-rgb: 178,106,0; --bad: #cc1016; --bad-rgb: 204,16,22; --on-solid: #fff;
+    --sh-rgb: 0,0,0; --glow-rgb: 10,102,194; --glow-a: .08; --hi: rgba(255,255,255,.9);
+    --ease: cubic-bezier(.22,1,.36,1); --spring: cubic-bezier(.34,1.56,.64,1);
+  }
+  :root[data-pal="red"] {                   /* 纯白 + 朱红：「红笔批改」 */
+    --bg: #fbfaf8; --bg-rgb: 251,250,248; --bg-2: #f0eeea; --paper: #fff; --field: #fff; --sheet: #fff;
+    --ink: #141414; --ink-rgb: 20,20,20; --ink-2: #555; --ink-3: #8d8d8d; --on-ink: #fbfaf8; --line: rgba(20,20,20,.09);
+    --accent: #d23a28; --accent-rgb: 210,58,40; --accent-ink: #ad2c1d; --on-accent: #fff;
+    --good: #1f7a55; --good-rgb: 31,122,85; --warn: #b5771a; --warn-rgb: 181,119,26; --bad: #c42f22; --bad-rgb: 196,47,34; --on-solid: #fff;
+    --sh-rgb: 20,20,20; --glow-rgb: 210,58,40; --glow-a: .07; --hi: rgba(255,255,255,.9);
+  }
+  :root[data-pal="green"] {                 /* 米白 + 墨绿：沉稳。「满足 / 通过」改用蓝色，免得和主色撞 */
+    --bg: #f2f0e9; --bg-rgb: 242,240,233; --bg-2: #e6e3d7; --paper: #fbfaf5; --field: #fff; --sheet: #fff;
+    --ink: #1b231f; --ink-rgb: 27,35,31; --ink-2: #535c56; --ink-3: #8b928c; --on-ink: #f2f0e9; --line: rgba(27,35,31,.1);
+    --accent: #2d5e4c; --accent-rgb: 45,94,76; --accent-ink: #22493b; --on-accent: #fff;
+    --good: #2a6f9a; --good-rgb: 42,111,154; --warn: #b3781e; --warn-rgb: 179,120,30; --bad: #bd4a37; --bad-rgb: 189,74,55; --on-solid: #fff;
+    --sh-rgb: 35,45,35; --glow-rgb: 90,150,115; --glow-a: .16; --hi: rgba(255,255,255,.8);
+  }
+  html.theming *, html.theming *::before, html.theming *::after {
+    transition: background-color .35s, color .35s, box-shadow .35s, stroke .35s, border-color .35s !important; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); overflow-x: hidden;
+    font-family: "PingFang SC","HarmonyOS Sans SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,sans-serif; -webkit-font-smoothing: antialiased; }
+  body.locked { overflow: hidden; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  ::selection { background: rgba(var(--accent-rgb),.2); }
+  .grain { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .35; background-image: radial-gradient(rgba(var(--ink-rgb),.08) 1px, transparent 1px); background-size: 22px 22px; }
+  .glow { position: fixed; left: 0; top: 0; width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%; pointer-events: none; z-index: 0;
+    background: radial-gradient(circle, rgba(var(--glow-rgb),var(--glow-a)) 0%, transparent 65%); }
+  .wrap { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+
+  /* ── 导航、按钮：同线上 ── */
+  nav { position: sticky; top: 0; z-index: 20; padding: 18px 0; transition: background .3s, box-shadow .3s; }
+  nav.scrolled { background: rgba(var(--bg-rgb),.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 1px 0 var(--line); }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: .5px; }
+  .logo-mark { width: 30px; height: 30px; border-radius: 10px; background: var(--ink); color: var(--on-ink); display: grid; place-items: center; font-size: 15px; }
+  .links { display: flex; gap: 4px; }
+  .links a { padding: 8px 14px; border-radius: 999px; color: var(--ink-2); text-decoration: none; font-size: 15px; }
+  .links a:hover { background: rgba(var(--ink-rgb),.06); color: var(--ink); }
+  .me { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink-2); }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+  .top-progress { position: relative; z-index: 1; height: 3px; background: var(--accent); }
+  .btn { position: relative; height: 44px; padding: 0 22px; border-radius: 999px; border: none; font-size: 15px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform .35s var(--spring), background .2s, box-shadow .3s; will-change: transform; }
+  .btn.ghost { background: transparent; height: 36px; padding: 0 14px; font-size: 14px; }
+  .btn.accent { background: var(--accent); color: var(--on-accent); } .btn.accent:hover { background: var(--accent-ink); box-shadow: 0 12px 28px rgba(var(--accent-rgb),.3); }
+  .btn.outline { background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .btn.lg { height: 56px; padding: 0 30px; font-size: 17px; }
+  .btn .arrow { transition: transform .35s var(--spring); } .btn:hover .arrow { transform: translateX(4px); }
+  .btn:active { transform: scale(.96) !important; }
+
+  .tag { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 999px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); font-size: 13px; color: var(--ink-2); }
+  .tag b { padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--on-ink); font-weight: 600; font-size: 12px; }
+  h1 { margin: 22px 0 20px; font-size: clamp(40px, 5vw, 64px); line-height: 1.14; letter-spacing: -1px; font-weight: 800; }
+  h1 .line { display: block; overflow: hidden; padding-bottom: 6px; }
+  h1 .line > span { display: inline-block; transform: translateY(110%); animation: rise .9s var(--ease) forwards; }
+  h1 .line:nth-child(2) > span { animation-delay: .1s; }
+  .mark { position: relative; white-space: nowrap; }
+  .mark svg { position: absolute; left: -4%; bottom: -8px; width: 108%; height: 20px; overflow: visible; }
+  .mark path { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 400; stroke-dashoffset: 400; animation: draw 1s .7s var(--ease) forwards; }
+  .sub { margin: 0 0 24px; max-width: 460px; font-size: 18px; line-height: 1.7; color: var(--ink-2); }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .fade { opacity: 0; transform: translateY(18px); animation: fadeUp .8s var(--ease) forwards; }
+  .d1 { animation-delay: .25s; } .d2 { animation-delay: .4s; } .d3 { animation-delay: .55s; } .d4 { animation-delay: .7s; }
+  @keyframes rise { to { transform: none; } }
+  @keyframes fadeUp { to { opacity: 1; transform: none; } }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @keyframes pop { to { opacity: 1; transform: none; } }
+
+  /* 分数环 + 四项分（两版共用，大小不同） */
+  .ring { position: relative; width: 120px; height: 120px; flex: none; }
+  .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 10; }
+  .ring .t { stroke: var(--bg-2); }
+  .ring .b { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 314.2; stroke-dashoffset: 314.2; transition: stroke-dashoffset 1.4s var(--ease); }
+  .ring .num { position: absolute; inset: 0; display: grid; place-items: center; font-size: 38px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .dims { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; flex: 1; max-width: 300px; }
+  .dim .l { font-size: 12px; color: var(--ink-3); display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .dim .l b { color: var(--ink); }
+  .dim .tk { height: 5px; border-radius: 5px; background: var(--bg-2); overflow: hidden; }
+  .dim .tk i { display: block; height: 100%; width: 0; background: var(--ink); transition: width 1.2s var(--ease); }
+
+  /* 一条问题（两版共用） */
+  .issue { border-radius: 14px; background: var(--field); box-shadow: inset 0 0 0 1px var(--line); margin-bottom: 8px; opacity: 0; transform: translateY(8px); animation: pop .5s var(--spring) forwards; transition: box-shadow .25s; }
+  .issue:hover, .issue.open { box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+  .issue-row { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 12px 14px; border: none; background: none; text-align: left; font-size: 14px; }
+  .issue-text { display: flex; flex-direction: column; min-width: 0; }
+  .issue .why { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+  .tagx { flex: none; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+  .tagx.miss { background: rgba(var(--bad-rgb),.12); color: var(--bad); }
+  .tagx.part { background: rgba(var(--warn-rgb),.15); color: var(--warn); }
+  .tagx.high { background: var(--bad); color: var(--on-solid); }
+  .tagx.med { background: var(--warn); color: var(--on-solid); }
+  .tagx.low { background: rgba(var(--ink-rgb),.08); color: var(--ink-2); }
+  .tagx.hit { background: rgba(var(--good-rgb),.14); color: var(--good); }
+  .issue-arrow { margin-left: auto; color: var(--ink-3); font-size: 18px; line-height: 20px; transition: transform .35s var(--spring); }
+  .issue.open .issue-arrow { transform: rotate(90deg); color: var(--ink); }
+  .detail { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .4s var(--ease); }
+  .detail > div { overflow: hidden; }
+  .issue.open .detail { grid-template-rows: 1fr; }
+  .detail-in { padding: 0 14px 14px; font-size: 13px; line-height: 1.7; color: var(--ink-2); }
+  .detail-in p { display: flex; gap: 10px; margin: 6px 0 0; }
+  .detail-in .k { flex: none; width: 56px; font-size: 12px; color: var(--ink-3); }
+  .detail-in .q { padding: 8px 10px; border-radius: 10px; background: var(--bg); color: var(--ink); }
+  .to-paper { margin-top: 10px; height: 32px; padding: 0 14px; border: none; border-radius: 999px; background: var(--ink); color: var(--on-ink); font-size: 13px; font-weight: 600; transition: transform .35s var(--spring), background .2s; }
+  .to-paper:hover { opacity: .88; transform: translateX(3px); }
+
+  /* 具体建议：点开才生成，边生成边显示 */
+  .advice { margin-top: 10px; padding: 12px 14px; border-radius: 14px; background: linear-gradient(180deg, rgba(var(--accent-rgb),.07), var(--field)); box-shadow: inset 0 0 0 1.5px rgba(var(--accent-rgb),.2); }
+  .advice-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; font-size: 12px; font-weight: 700; color: var(--accent-ink); }
+  .advice-head span { font-weight: 400; color: var(--ink-3); }
+  .advice p { display: flex; gap: 10px; margin: 7px 0 0; font-size: 13px; line-height: 1.75; color: var(--ink); }
+  .advice .k { flex: none; width: 64px; padding-top: 1px; font-size: 12px; color: var(--ink-3); }
+  .advice .rewrite { font-weight: 600; }
+  .advice .thinking { color: var(--ink-3); }
+  .wdots::after { content: ""; animation: wdots 1.2s steps(4) infinite; }
+  @keyframes wdots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+  .ph { padding: 0 3px; border-radius: 4px; background: rgba(var(--accent-rgb),.13); color: var(--accent-ink); font-weight: 600; }
+  .caret { display: inline-block; width: 2px; height: 1em; margin-left: 2px; background: var(--accent); vertical-align: -2px; animation: blinkc 1s steps(2) infinite; }
+  @keyframes blinkc { 50% { opacity: 0; } }
+  .advice-foot { margin-top: 8px; font-size: 11px; color: var(--ink-3); }
+
+  /* 原文纸面（两版共用） */
+  .paper-wrap { position: relative; overflow: auto; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--line); scroll-behavior: smooth; }
+  .paper .name { margin: 0 0 4px; font-size: 24px; font-weight: 800; letter-spacing: 1px; }
+  .paper .contact { margin: 0 0 6px; font-size: 13px; color: var(--ink-3); }
+  .paper h4 { margin: 20px 0 8px; padding-bottom: 5px; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 700; letter-spacing: 2px; color: var(--ink-3); }
+  .paper p { margin: 0 0 5px; font-size: 14px; line-height: 1.9; }
+  .paper p.entry { margin-top: 10px; font-weight: 700; }
+  .hl { border-radius: 3px; cursor: pointer; transition: background .3s, box-shadow .3s; }
+  .hl.good { background: rgba(var(--good-rgb),.09); box-shadow: 0 2px 0 rgba(var(--good-rgb),.45); }
+  .hl.part { background: rgba(var(--warn-rgb),.13); box-shadow: 0 2px 0 var(--warn); }
+  .hl.bad { background: rgba(var(--bad-rgb),.11); box-shadow: 0 2px 0 var(--bad); }
+  .hl:hover, .hl.peek { background: rgba(var(--accent-rgb),.18); }
+  .hl.focus { position: relative; background: rgba(var(--accent-rgb),.2); box-shadow: 0 0 0 2px var(--accent); animation: flash 1.2s var(--ease); }
+  @keyframes flash { 0% { box-shadow: 0 0 0 8px rgba(var(--accent-rgb),.35); } 100% { box-shadow: 0 0 0 2px var(--accent); } }
+  .note { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 2; width: max-content; max-width: 260px; padding: 5px 10px; border-radius: 8px;
+    background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 600; line-height: 1.5; white-space: normal; pointer-events: none;
+    animation: noteIn .45s var(--spring), noteOut .5s 2.6s forwards; }
+  .note::after { content: ""; position: absolute; left: 12px; top: 100%; border: 5px solid transparent; border-top-color: var(--accent); }
+  @keyframes noteIn { from { opacity: 0; transform: translateY(6px) scale(.9); } }
+  @keyframes noteOut { to { opacity: 0; } }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--ink-3); }
+  .legend i { display: inline-block; width: 18px; height: 10px; margin-right: 6px; border-radius: 3px; vertical-align: -1px; }
+  .legend .bad { background: rgba(var(--bad-rgb),.11); box-shadow: 0 2px 0 var(--bad); }
+  .legend .part { background: rgba(var(--warn-rgb),.13); box-shadow: 0 2px 0 var(--warn); }
+  .legend .good { background: rgba(var(--good-rgb),.09); box-shadow: 0 2px 0 rgba(var(--good-rgb),.45); }
+
+  /* ═════════ 现在：左边大标题，右边卡片（标签页 + 卡内滚动），原文从右侧滑出 ═════════ */
+  .screen { display: grid; grid-template-columns: 1fr 1.05fr; gap: 64px; align-items: center; min-height: calc(100vh - 83px); padding: 40px 0 80px; }
+  .score-hero { display: flex; align-items: center; gap: 22px; margin: 0 0 26px; }
+  .stage { position: relative; perspective: 1200px; }
+  .card { position: relative; background: var(--paper); border-radius: 28px; padding: 24px;
+    box-shadow: 0 1px 0 var(--hi) inset, 0 30px 60px -20px rgba(var(--sh-rgb),.25), 0 0 0 1px var(--line); transition: transform .6s var(--ease); }
+  .floaty { position: absolute; z-index: 3; left: -54px; top: -26px; padding: 10px 14px; border-radius: 14px; background: var(--paper); box-shadow: 0 16px 36px -12px rgba(var(--sh-rgb),.3), 0 0 0 1px var(--line); font-size: 13px; animation: bob 5s ease-in-out infinite; }
+  .floaty b { display: block; font-size: 17px; } .floaty span { color: var(--ink-3); }
+  @keyframes bob { 50% { translate: 0 -10px; } }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .tabs { position: relative; display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 4px; border-radius: 999px; background: var(--bg-2); }
+  .tabs .knob { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / 2); border-radius: 999px; background: var(--paper); box-shadow: 0 2px 8px rgba(var(--sh-rgb),.12); transform: translateX(calc(var(--i) * 100%)); transition: transform .45s var(--spring); }
+  .tabs button { position: relative; z-index: 1; height: 32px; padding: 0 14px; border: none; background: none; font-weight: 600; font-size: 13px; color: var(--ink-2); white-space: nowrap; }
+  .tabs button.on { color: var(--ink); }
+  .link { background: none; border: none; padding: 0; color: var(--accent-ink); font-size: 13px; font-weight: 600; }
+  .link:hover { text-decoration: underline; }
+  .issues { max-height: 470px; overflow: auto; margin: -2px; padding: 2px; }
+
+  .veil { position: fixed; inset: 0; z-index: 40; background: rgba(var(--ink-rgb),.26); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity .35s; }
+  .veil.open { opacity: 1; pointer-events: auto; }
+  .sheet { position: fixed; z-index: 41; top: 12px; right: 12px; bottom: 12px; width: min(640px, calc(100vw - 24px)); display: flex; flex-direction: column;
+    border-radius: 28px; background: var(--paper); box-shadow: 0 30px 80px -20px rgba(var(--sh-rgb),.45), 0 0 0 1px var(--line);
+    transform: translateX(calc(100% + 24px)); transition: transform .55s var(--ease); }
+  .sheet.open { transform: none; }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 12px 24px; }
+  .sheet-title { font-size: 18px; font-weight: 800; }
+  .sheet-title span { margin-left: 8px; font-size: 13px; font-weight: 400; color: var(--ink-3); }
+  .x { width: 38px; height: 38px; border-radius: 50%; border: none; background: rgba(var(--ink-rgb),.07); display: grid; place-items: center; transition: transform .4s var(--spring); }
+  .x:hover { transform: rotate(90deg); }
+  .focus-card { margin: 0 16px; padding: 14px 16px; border-radius: 18px; background: var(--field); box-shadow: inset 0 0 0 1.5px var(--line); max-height: 40vh; overflow: auto; }
+  .fc-top { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; font-weight: 600; }
+  .fc-top .why { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--ink-3); }
+  .fc-missing { margin: 10px 0 0; padding: 8px 12px; border-radius: 12px; border: 1.5px dashed rgba(var(--bad-rgb),.35); font-size: 13px; color: var(--bad); }
+  .sheet .paper-wrap { flex: 1; margin: 12px 16px 0; padding: 30px 34px 60px; border-radius: 18px 18px 0 0; }
+  .sheet .legend { padding: 10px 24px 14px; border-top: 1px solid var(--line); }
+
+  /* ═════════ 改后：顶部成绩单 + 左边问题清单、右边常驻原文 ═════════ */
+  /* 整页一套两列网格：成绩单、问题清单、原文都落在这两列上，左右边缘对齐 */
+  .rv { --cols: minmax(0, 1fr) minmax(0, 1.08fr); padding: 36px 0 90px; }
+  .rv-band, .rv-body { display: grid; grid-template-columns: var(--cols); column-gap: 28px; }
+  .rv-band { align-items: end; margin-bottom: 36px; }
+  .rv h1 { margin: 18px 0 10px; font-size: clamp(30px, 3.4vw, 44px); letter-spacing: -.5px; }
+  .rv h1 .line { display: inline-block; }
+  .rv .mark svg { bottom: -6px; height: 16px; }
+  .rv .mark path { stroke-width: 5; }
+  .rv-sub { margin: 0 0 22px; font-size: 16px; line-height: 1.7; color: var(--ink-2); }
+  .rv .btn.lg { height: 50px; padding: 0 24px; font-size: 16px; }
+  .rv-score { display: flex; align-items: center; gap: 28px; padding: 22px 28px; border-radius: 20px; background: var(--paper);
+    box-shadow: 0 0 0 1px var(--line), 0 24px 44px -26px rgba(var(--sh-rgb),.35); }
+  .rv-score .ring { width: 96px; height: 96px; }
+  .rv-score .ring .num { font-size: 30px; }
+  .rv-score .dims { flex: 1; max-width: none; gap: 12px 28px; }
+
+  /* 左右两列都先是一行同样高的标题，下面的清单和原文卡从同一高度开始 */
+  .rv-list { align-self: start; }
+  /* 右列不参与定行高（contain: size），行高只由左边清单决定；原文卡最高一屏、最多和清单一样高，
+     所以滚到底时两边底边平齐。清单太短时原文卡至少留 480px，宁可不齐也要看得清 */
+  .rv-col { contain: size; }
+  .rv-sec:last-child .issue:last-child { margin-bottom: 0; }   /* 最后一条不带下间距，底边才和原文卡平齐 */
+  .rv-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 28px; margin: 0 0 12px; }
+  .rv-h h3 { display: flex; align-items: baseline; gap: 10px; min-width: 0; margin: 0; font-size: 18px; font-weight: 800; white-space: nowrap; }
+  .rv-h h3 span { overflow: hidden; text-overflow: ellipsis; font-size: 13px; font-weight: 500; color: var(--ink-3); }
+  .rv-sec + .rv-sec { margin-top: 28px; }
+  .rv .issue.active { box-shadow: inset 0 0 0 2px var(--accent); }
+  .rv-side { position: sticky; top: 84px; display: flex; flex-direction: column; height: min(calc(100vh - 104px), 100%); min-height: 480px; }
+  .rv-paper { flex: 1; min-height: 0; display: flex; flex-direction: column; border-radius: 20px; background: var(--paper);
+    box-shadow: 0 0 0 1px var(--line), 0 30px 60px -28px rgba(var(--sh-rgb),.35); overflow: hidden; }
+  .rv-paper .paper-wrap { flex: 1; margin: 10px; padding: 28px 30px 60px; border-radius: 14px; }
+  .rv-msg { display: none; margin: 10px 10px 0; padding: 9px 14px; border-radius: 12px; border: 1.5px dashed rgba(var(--bad-rgb),.35); font-size: 13px; color: var(--bad); }
+  .rv-msg.show { display: block; animation: noteIn .4s var(--spring); }
+  .rv-msg.hint { border-color: var(--line); color: var(--ink-3); }
+
+  /* 配色入口：导航栏右上角，点开选三套之一，记在浏览器里 */
+  .pal { position: relative; }
+  .pal-btn { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px 0 10px; border: none; border-radius: 999px; background: transparent; font-size: 14px; color: var(--ink-2); transition: background .2s, color .2s; }
+  .pal-btn:hover, .pal.open .pal-btn { background: rgba(var(--ink-rgb),.06); color: var(--ink); }
+  .pal-btn .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px rgba(var(--accent-rgb),.35); }
+  .pal-menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; width: 248px; padding: 6px; border-radius: 16px; background: var(--paper);
+    box-shadow: 0 18px 40px rgba(var(--sh-rgb),.18), 0 0 0 1px var(--line); opacity: 0; transform: translateY(-6px) scale(.98); transform-origin: top right;
+    pointer-events: none; transition: opacity .2s, transform .3s var(--spring); }
+  .pal.open .pal-menu { opacity: 1; transform: none; pointer-events: auto; }
+  .pal-menu p { margin: 6px 10px 8px; font-size: 12px; color: var(--ink-3); }
+  .pal-opt { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 10px; border: none; border-radius: 12px; background: none; text-align: left; font-size: 14px; font-weight: 600; color: var(--ink); }
+  .pal-opt:hover { background: rgba(var(--ink-rgb),.05); }
+  .pal-opt .sw { position: relative; width: 34px; height: 24px; flex: none; border-radius: 7px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+  .pal-opt .sw i { position: absolute; right: 5px; bottom: 5px; width: 12px; height: 12px; border-radius: 50%; }
+  .pal-opt small { display: block; font-size: 11px; font-weight: 400; color: var(--ink-3); }
+  .pal-opt .ok { margin-left: auto; color: var(--accent); font-weight: 800; opacity: 0; }
+  .pal-opt.on .ok { opacity: 1; }
+
+  /* 样稿专用 */
+  .demo-flag { position: fixed; right: 16px; bottom: 16px; z-index: 60; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; padding: 8px; border-radius: 18px;
+    background: #15161a; color: #f4f4f5; font-size: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.28); }
+  .demo-flag .row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .demo-flag span { margin: 0 6px 0 4px; color: rgba(244,244,245,.55); }
+  .demo-flag button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border: none; border-radius: 999px; background: transparent; color: rgba(244,244,245,.7); font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .demo-flag button i { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(255,255,255,.35); }
+  .demo-flag button.on { background: #f4f4f5; color: #15161a; }
+
+  @media (max-width: 1000px) {
+    .rv-band, .rv-body { grid-template-columns: minmax(0, 1fr); row-gap: 22px; }
+    .rv-col { display: none; }                         /* 窄屏放不下两栏：原文还是从侧边滑出（条目里有「在原文中查看」） */
+  }
+  @media (max-width: 960px) {
+    .screen { grid-template-columns: minmax(0, 1fr); gap: 40px; } .links { display: none; } .wrap { padding: 0 16px; } .floaty { display: none; }
+    .score-hero { flex-wrap: wrap; }
+  }
+  @media (max-width: 640px) {
+    .sheet { top: 0; right: 0; bottom: 0; width: 100vw; border-radius: 0; }
+    .sheet .paper-wrap { padding: 22px 18px 60px; margin: 12px 10px 0; }
+    .focus-card { margin: 0 10px; }
+    .rv-score { flex-wrap: wrap; } .rv-score .dims { width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; } .glow { display: none; } }
+</style>
+</head>
+<body>
+<div class="grain"></div><div class="glow" id="glow"></div>
+<nav id="nav">
+  <div class="wrap">
+    <div class="logo"><span class="logo-mark">求</span>求职辅助</div>
+    <div class="links"><a href="#">新的投递</a><a href="#">我的投递</a></div>
+    <div class="me">
+      <div class="pal" id="pal">
+        <button class="pal-btn" id="palBtn" aria-haspopup="menu" aria-expanded="false" title="换配色"><span class="dot"></span>配色</button>
+        <div class="pal-menu" role="menu" aria-label="配色">
+          <p>选一套你喜欢的颜色，只影响这台设备</p>
+          <button class="pal-opt" role="menuitemradio" data-pal="linkedin"><span class="sw" style="background:#f4f2ee"><i style="background:#0a66c2"></i></span><span>领英蓝<small>默认 · 专业、清爽</small></span><span class="ok">✓</span></button>
+          <button class="pal-opt" role="menuitemradio" data-pal="red"><span class="sw" style="background:#fbfaf8"><i style="background:#d23a28"></i></span><span>朱红<small>像红笔批改过的简历</small></span><span class="ok">✓</span></button>
+          <button class="pal-opt" role="menuitemradio" data-pal="green"><span class="sw" style="background:#f2f0e9"><i style="background:#2d5e4c"></i></span><span>墨绿<small>米白底，沉稳</small></span><span class="ok">✓</span></button>
+        </div>
+      </div>
+      <span class="avatar">U</span>user<button class="btn ghost">退出</button></div>
+  </div>
+</nav>
+<div class="top-progress"></div>
+<main class="wrap" id="main"></main>
+
+<!-- 原文抽屉：「现在」一直用它；「改后」只在窄屏用 -->
+<div class="veil" id="veil"></div>
+<aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="简历原文" aria-hidden="true">
+  <div class="sheet-head">
+    <div class="sheet-title">简历原文<span id="sheetFile"></span></div>
+    <button class="x" id="close" aria-label="关闭"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg></button>
+  </div>
+  <div class="focus-card" id="focus"></div>
+  <div class="paper-wrap" id="sheetWrap"><div class="paper"></div></div>
+  <div class="legend"><span><i class="bad"></i>简历问题</span><span><i class="part"></i>部分满足的要求</span><span><i class="good"></i>满足的要求</span></div>
+</aside>
+
+<div class="demo-flag">
+  <div class="row"><span>效果预览 · 虚构简历 · 排版</span><button data-v="now">现在</button><button data-v="new">改后</button></div>
+</div>
+
+<script>
+const DATA = {"job_title": "后端开发实习生", "resume_title": "test_resume.pdf", "overall": 76.7, "threshold": 60.0, "dims": {"other": 50.0, "skill": 81.2, "education": 100.0, "experience": 25.0}, "gaps": [{"status": "miss", "req_type": "hard", "content": "了解消息队列（Kafka 或 RocketMQ）", "reason": "简历中未提及 Kafka 或 RocketMQ 等消息队列。", "matched_by": "fulltext", "evidence_quote": null, "char_start": null, "char_end": null, "advice": "【考察什么】Kafka/RocketMQ 的 topic、分区、消费者组，消息可靠投递、重复消费、积压怎么处理。\n【怎么补】你简历里订单模块最接近：如果你用 MQ 解耦过支付回调或退款通知，就写\"引入 RocketMQ 异步处理支付回调，削峰【数值】QPS\"；没做过就本地搭 Kafka 做下单异步通知小练习。\n【面试怎么答】先讲为什么用 MQ（解耦、削峰），再说怎么保证不丢不重：手动提交 offset、幂等消费、失败重试加死信队列。"}, {"status": "partial", "req_type": "hard", "content": "了解常见缓存问题", "reason": "有缓存使用经验，但未提及缓存穿透等常见问题。", "matched_by": "fulltext", "evidence_quote": "使用 Redis 缓存热门商品，商品详情接口响应从 800ms 降到 120ms。", "char_start": 186, "char_end": 227, "advice": "【考察什么】缓存穿透、击穿、雪崩的区别与应对：空值缓存、布隆过滤器、互斥锁/逻辑过期、过期时间加随机值。\n【怎么补】就用二手交易平台那条 Redis 缓存经历，如果你做过，就写成「针对热点商品缓存，用【具体手段，如空值缓存/互斥锁】处理【穿透/击穿】，缓存过期时间加【数值】随机值防雪崩」。\n【面试怎么答】先分清三者触发场景，再各说一个落地手段，最后结合自己项目说实际用了哪个、效果如何。"}, {"status": "miss", "req_type": "plus", "content": "有高并发场景经验", "reason": "项目为校园二手交易平台，未体现高并发场景经验。", "matched_by": "fulltext", "evidence_quote": null, "char_start": null, "char_end": null, "advice": "【考察什么】高并发下缓存穿透/击穿、限流降级、接口压测QPS、数据库连接池与慢查询优化，面试会问你怎么扛住流量峰值。\n【怎么补】你项目里\"Redis缓存热门商品、800ms降到120ms\"最接近。如果你做过压测，就写成\"用JMeter对商品详情接口压测，【数值】并发下QPS达【数值】，缓存命中率【数值】%\"；没做过就本地用JMeter压这个接口，记录优化前后QPS写进去。\n【面试怎么答】先讲压测数据，再说缓存扛读、限流保护、慢查询加索引，最后说瓶颈和下一步优化。"}, {"status": "partial", "req_type": "plus", "content": "有 SQL 调优经验", "reason": "提到性能优化但未明确 SQL 调优，程度不充分。", "matched_by": "fulltext", "evidence_quote": "参与了数据库设计，对系统性能进行了优化，响应速度明显提升。", "char_start": 231, "char_end": 260, "advice": "【考察什么】会问慢 SQL 怎么定位（explain、慢查询日志）、加了什么索引、为什么没走索引、优化前后耗时对比。\n【怎么补】把二手交易平台第 3 条改写：如果你做过订单/商品表查询优化，就写成\"订单列表接口慢查询用 explain 定位全表扫描，为【字段】加联合索引，耗时从【数值】降到【数值】\"；没做过就本地造百万行数据，用 explain 练一遍索引优化写进项目。\n【面试怎么答】先讲怎么发现慢 SQL（慢查询日志/explain 看 type、key、rows），再说改了什么索引或 SQL，最后给优化前后数字。"}, {"status": "partial", "req_type": "soft", "content": "良好的沟通能力与团队协作意识", "reason": "有团队项目开发经历，但未直接描述沟通协作能力。", "matched_by": "fulltext", "evidence_quote": "负责订单模块的开发，完成下单、支付回调与退款流程。", "char_start": 157, "char_end": 182, "advice": "【考察什么】面试会问：需求评审怎么对齐、接口联调冲突怎么处理、代码评审怎么给反馈、跨模块协作怎么推进。\n【怎么补】用校园二手交易平台订单模块那段：如果你和前端/测试/其他后端对接过，就写成\"与【角色】通过【方式】对齐【接口/字段】，联调解决【问题】，保证【结果】\"。\n【面试怎么答】举订单模块一次联调或需求变更：先说清分歧，再说你主动同步、定接口、跟进到上线。"}], "issues": [{"severity": "high", "source": "rule", "title": "成果缺少量化数据", "evidence_quote": "响应速度明显提升", "char_start": 251, "char_end": 259, "advice": "【问题】「参与了数据库设计」没说你设计了什么表，「响应速度明显提升」也没数字，等于没写。\n【改成】参与了数据库设计，【具体做法，如为订单表建立联合索引】，【某接口】响应从【数值】ms 降到【数值】ms。\n【为什么】后端实习看重可量化的优化结果。"}, {"severity": "high", "source": "llm", "title": "表述模糊", "evidence_quote": "负责系统的优化工作，持续改进各项功能。", "char_start": 294, "char_end": 313, "advice": "【问题】\"优化工作\"\"持续改进各项功能\"全是套话，没写优化了哪个功能、怎么优化、效果如何。\n【改成】1. 【负责 / 参与，按实际】图书管理系统的【具体功能，如借阅查询】优化，通过【具体做法，如加索引】使【指标】从【数值】降至【数值】。\n【为什么】后端实习看重具体优化手段与量化结果。"}, {"severity": "medium", "source": "rule", "title": "只有做了什么，没有结果", "evidence_quote": "负责订单模块的开发，完成下单、支付回调与退款流程", "char_start": 157, "char_end": 181, "advice": "【问题】\"完成下单、支付回调与退款流程\"只说了做啥，没提订单量、成功率或耗时等结果。\n【改成】负责订单模块开发，实现下单、支付回调与退款流程，支撑【数值】笔订单，支付回调成功率【数值】。\n【为什么】后端实习看重模块产出与稳定性数据。"}, {"severity": "medium", "source": "llm", "title": "职责边界不清", "evidence_quote": "参与了数据库设计", "char_start": 231, "char_end": 239, "advice": "【问题】「参与了数据库设计」看不出你负责哪部分表、做了哪些优化，「响应速度明显提升」也没数字。\n【改成】【负责 / 参与，按实际】数据库设计，设计【具体表，如订单表、商品表】并【具体做法，如加索引】，【某接口】响应从【数值】ms 降到【数值】ms。\n【为什么】后端实习看重你独立负责的模块与量化结果。"}, {"severity": "medium", "source": "rule", "title": "只有做了什么，没有结果", "evidence_quote": "负责系统的优化工作，持续改进各项功能", "char_start": 294, "char_end": 312, "advice": "【问题】「优化工作」「持续改进各项功能」全是空词，看不出改了哪个功能、优化了什么指标，对后端实习岗毫无信息量。\n【改成】1. 【负责 / 参与，按实际】图书管理系统的【具体模块，如借阅查询】优化，将【指标，如接口响应时间】从【数值】降至【数值】。\n【为什么】后端实习看重可量化的性能与模块产出。"}, {"severity": "medium", "source": "rule", "title": "只有做了什么，没有结果", "evidence_quote": "基于 Spring Boot 实现借阅、归还与逾期提醒接口", "char_start": 317, "char_end": 346, "advice": "【问题】「实现借阅、归还与逾期提醒接口」只说了做接口，没提接口数量、调用量或响应结果。\n【改成】基于 Spring Boot 实现借阅、归还与逾期提醒接口，【具体做法，如用定时任务扫描逾期记录】，【数值】个接口，【结果，如平均响应【数值】ms】。\n【为什么】后端实习看重接口产出与性能结果。"}, {"severity": "medium", "source": "llm", "title": "表述模糊", "evidence_quote": "基于 Spring Boot 实现借阅、归还与逾期提醒接口", "char_start": 317, "char_end": 346, "advice": "【问题】只写\"实现借阅、归还与逾期提醒接口\"，没说逾期提醒怎么触发、借还状态怎么流转，看不出你的设计。\n【改成】基于 Spring Boot 实现借阅、归还、逾期提醒接口：借还状态按【具体状态流转，如借出→归还】流转，逾期提醒通过【具体做法，如定时任务】触发。\n【为什么】后端实习看重接口设计与业务逻辑，写清触发机制才显技术含量。"}, {"severity": "medium", "source": "rule", "title": "技能「Java」在经历中没有体现", "evidence_quote": "Java", "char_start": 356, "char_end": 360, "advice": "【问题】技能栏写了 Java，但两段项目经历里都没出现 Java 相关描述。\n【改成】在「校园二手交易平台」里写：技术栈：Java、Spring Boot、MySQL、Redis，负责订单模块开发。\n【为什么】后端实习岗要看到 Java 落在项目里。"}], "hits": [{"req_type": "hard", "content": "本科及以上学历，计算机相关专业", "reason": "最高学历为本科，满足要求的本科", "matched_by": "profile", "char_start": 51, "char_end": 88}, {"req_type": "hard", "content": "熟悉 Java", "reason": "专业技能明确列出熟悉 Java。", "matched_by": "fulltext", "char_start": 353, "char_end": 391}, {"req_type": "hard", "content": "熟悉 Spring Boot", "reason": "在项目 / 工作经历中用到了这项技能", "matched_by": "dict", "char_start": 126, "char_end": 153}, {"req_type": "hard", "content": "熟悉 MyBatis", "reason": "专业技能明确列出熟悉 MyBatis。", "matched_by": "fulltext", "char_start": 353, "char_end": 391}, {"req_type": "hard", "content": "熟悉 MySQL", "reason": "在项目 / 工作经历中用到了这项技能", "matched_by": "dict", "char_start": 126, "char_end": 153}, {"req_type": "hard", "content": "有 Redis 使用经验", "reason": "在项目 / 工作经历中用到了这项技能", "matched_by": "dict", "char_start": 126, "char_end": 153}, {"req_type": "hard", "content": "熟悉 Linux 常用命令", "reason": "专业技能明确列出熟悉 Linux 常用命令。", "matched_by": "fulltext", "char_start": 415, "char_end": 433}], "full_text": "测试同学\n电话：13800001234  邮箱：test_demo@example.com\n教育背景\n示例理工大学  计算机科学与技术  本科  2022.09-2026.06\n项目经历\n校园二手交易平台  后端开发  2024.03-2024.08\n技术栈：Spring Boot、MySQL、Redis\n1. 负责订单模块的开发，完成下单、支付回调与退款流程。\n2. 使用 Redis 缓存热门商品，商品详情接口响应从 800ms 降到 120ms。\n3. 参与了数据库设计，对系统性能进行了优化，响应速度明显提升。\n图书管理系统  课程设计  2023.09-2023.12\n1. 负责系统的优化工作，持续改进各项功能。\n2. 基于 Spring Boot 实现借阅、归还与逾期提醒接口。\n专业技能\n熟悉 Java、Spring Boot、MyBatis，了解 Docker。\n熟悉 MySQL 与 Redis 的常用操作，熟悉 Linux 常用命令、Git。", "blocks": [{"i": 0, "s": 0, "e": 4}, {"i": 1, "s": 5, "e": 45}, {"i": 2, "s": 46, "e": 50}, {"i": 3, "s": 51, "e": 88}, {"i": 4, "s": 89, "e": 93}, {"i": 5, "s": 94, "e": 125}, {"i": 6, "s": 126, "e": 153}, {"i": 7, "s": 154, "e": 182}, {"i": 8, "s": 183, "e": 227}, {"i": 9, "s": 228, "e": 260}, {"i": 10, "s": 261, "e": 290}, {"i": 11, "s": 291, "e": 313}, {"i": 12, "s": 314, "e": 347}, {"i": 13, "s": 348, "e": 352}, {"i": 14, "s": 353, "e": 391}, {"i": 15, "s": 392, "e": 433}], "sections": [{"type": "basics", "block_start": 0, "block_end": 1, "matched_by": "implicit"}, {"type": "education", "block_start": 2, "block_end": 3, "matched_by": "dict"}, {"type": "projects", "block_start": 4, "block_end": 12, "matched_by": "dict"}, {"type": "skills", "block_start": 13, "block_end": 15, "matched_by": "dict"}], "entry_blocks": [3, 5, 10]};
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+
+/* 光晕、导航底色、磁吸按钮 */
+let mx = innerWidth / 2, my = innerHeight / 3, gx = mx, gy = my;
+addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+(function loop() { gx += (mx - gx) * .08; gy += (my - gy) * .08; $('glow').style.transform = `translate(${gx}px,${gy}px)`; requestAnimationFrame(loop); })();
+addEventListener('scroll', () => $('nav').classList.toggle('scrolled', scrollY > 10), { passive: true });
+function wire(root) {
+  root.querySelectorAll('.magnetic').forEach(b => {
+    b.addEventListener('mousemove', e => { if (reduce) return; const r = b.getBoundingClientRect();
+      b.style.transform = `translate(${(e.clientX - r.left - r.width/2) * .22}px, ${(e.clientY - r.top - r.height/2) * .3}px)`; });
+    b.addEventListener('mouseleave', () => b.style.transform = '');
+  });
+  root.querySelectorAll('.tilt').forEach(c => {
+    c.addEventListener('mousemove', e => { if (reduce) return; const r = c.getBoundingClientRect();
+      c.style.transform = `rotateY(${((e.clientX - r.left)/r.width - .5) * 5}deg) rotateX(${-((e.clientY - r.top)/r.height - .5) * 5}deg)`; });
+    c.addEventListener('mouseleave', () => c.style.transform = '');
+  });
+}
+
+/* ── 条目：对照岗位（差距）/ 简历本身（问题）/ 满足的要求（只在纸面上） ── */
+const REQ_TYPE = { hard: '必须项', plus: '加分项', soft: '软素质' };
+const MATCHED_BY = { dict: '规则判定（技能词典）', profile: '规则判定（学历 / 年限）', fulltext: '大模型判定' };
+const SEVERITY = { high: ['high', '严重'], medium: ['med', '中等'], low: ['low', '轻微'] };
+const located = (x) => x.start !== null && x.end !== null;
+const LISTS = {
+  gap: DATA.gaps.map((g, i) => ({
+    key: `gap-${i}`, list: 'gap', color: g.status === 'miss' ? null : 'part',
+    tag: g.status === 'miss' ? ['miss', '缺失'] : ['part', '部分'], text: g.content, why: `${REQ_TYPE[g.req_type]} · ${g.reason}`,
+    note: `部分满足：${g.content}`,
+    detail: [g.evidence_quote ? ['简历原文', `「${g.evidence_quote}」`, true] : ['简历原文', '没有找到相关的内容'],
+             ['判定方式', MATCHED_BY[g.matched_by] + (g.matched_by === 'fulltext' && g.evidence_quote ? ' · 引用已在原文中核实' : '')]],
+    start: g.char_start, end: g.char_end, advice: g.advice,
+  })),
+  self: DATA.issues.map((f, i) => ({
+    key: `self-${i}`, list: 'self', color: 'bad', tag: SEVERITY[f.severity],
+    text: f.evidence_quote ? `「${f.evidence_quote}」` : f.title, why: f.evidence_quote ? f.title : '针对整份简历', note: f.title,
+    detail: [['来源', f.source === 'rule' ? '规则检查' : '大模型审阅 · 引用已在原文中核实']],
+    start: f.char_start, end: f.char_end, advice: f.advice,
+  })),
+  hit: DATA.hits.map((h, i) => ({
+    key: `hit-${i}`, list: 'hit', color: 'good', tag: ['hit', '满足'], text: h.content, why: `${REQ_TYPE[h.req_type]} · ${h.reason}`,
+    note: `满足：${h.content}`, detail: [], start: h.char_start, end: h.char_end,
+  })),
+};
+const BY_KEY = Object.fromEntries(Object.values(LISTS).flat().map(x => [x.key, x]));
+const PRIORITY = { bad: 3, part: 2, good: 1 };
+
+function issueHtml(x, i, withLocate) {
+  const rows = x.detail.map(([k, v, q]) => `<p${q ? ' class="q"' : ''}><span class="k">${k}</span><span>${esc(v)}</span></p>`).join('');
+  const to = withLocate ? `<button class="to-paper" data-open="${x.key}">${located(x) ? '在原文中查看 →' : '打开原文，看看缺在哪 →'}</button>` : '';
+  return `<div class="issue" style="animation-delay:${(.1 + i * .05).toFixed(2)}s" data-key="${x.key}">
+    <button class="issue-row"><span class="tagx ${x.tag[0]}">${x.tag[1]}</span><span class="issue-text"><span>${esc(x.text)}</span><span class="why">${esc(x.why)}</span></span><span class="issue-arrow">›</span></button>
+    <div class="detail"><div><div class="detail-in">${rows}${x.advice ? `<div class="advice" data-advice="${x.key}"></div>` : ''}<span class="loc">${to}</span></div></div></div>
+  </div>`;
+}
+
+/* ── 具体建议：点开才生成，一个字一个字打出来（文字是用真实数据调 DeepSeek 生成的，这里按真实速度回放） ── */
+const ADV = {};
+const SECTION = /【(问题|改成|为什么|考察什么|怎么补|面试怎么答)】/;
+function placeholders(s) {
+  let out = '', buf = '', depth = 0;
+  for (const ch of s) {
+    if (ch === '【') { if (depth === 0) { out += esc(buf); buf = ''; } depth++; buf += ch; continue; }
+    buf += ch;
+    if (ch === '】' && depth > 0 && --depth === 0) { out += `<span class="ph">${esc(buf)}</span>`; buf = ''; }
+  }
+  return out + esc(buf);
+}
+function adviceHtml(key) {
+  const x = BY_KEY[key], st = ADV[key], what = x.list === 'gap' ? '条要求' : '一句';
+  const head = `<div class="advice-head">针对这${what}的建议<span>DeepSeek 生成</span></div>`;
+  if (!st || !st.shown) return head + `<p class="thinking">正在针对这${what}写建议<span class="wdots"></span></p>`;
+  const text = st.done ? x.advice : x.advice.slice(0, st.shown).replace(/【[^】]{0,5}$/, '');
+  const parts = text.split(new RegExp(SECTION.source, 'g'));
+  let rows = '';
+  for (let i = 1; i < parts.length; i += 2) {
+    const k = parts[i], v = (parts[i + 1] || '').trim(), last = i + 2 >= parts.length;
+    rows += `<p><span class="k">${k}</span><span class="${k === '改成' ? 'rewrite' : ''}">${placeholders(v)}${last && !st.done ? '<i class="caret"></i>' : ''}</span></p>`;
+  }
+  return head + rows + (st.done ? `<div class="advice-foot">【】里的内容按你的实际情况填写，别照抄</div>` : '');
+}
+function paintAdvice(key) { document.querySelectorAll(`[data-advice="${key}"]`).forEach(el => { el.innerHTML = adviceHtml(key); }); }
+function startAdvice(key) {
+  const x = BY_KEY[key];
+  if (!x || !x.advice) return;
+  if (ADV[key]) return paintAdvice(key);
+  const st = ADV[key] = { shown: 0, done: false };
+  paintAdvice(key);
+  setTimeout(function tick() {
+    st.shown += 2 + Math.floor(Math.random() * 2); st.done = st.shown >= x.advice.length;
+    paintAdvice(key); if (!st.done) setTimeout(tick, 28);
+  }, 700);
+}
+
+/* ── 纸面：按块渲染原文，高亮按字符区间切段（一段可以同时属于好几条） ── */
+function paperHtml() {
+  const ft = DATA.full_text;
+  const marks = Object.values(BY_KEY).filter(x => x.color && located(x));
+  const heading = new Set(DATA.sections.filter(s => s.matched_by !== 'implicit').map(s => s.block_start));
+  const basics = DATA.sections.find(s => s.type === 'basics');
+  const entryStarts = new Set(DATA.entry_blocks);
+  return DATA.blocks.map(b => {
+    const cuts = new Set([b.s, b.e]);
+    marks.forEach(m => { if (m.start < b.e && m.end > b.s) { cuts.add(Math.max(m.start, b.s)); cuts.add(Math.min(m.end, b.e)); } });
+    const points = [...cuts].sort((a, c) => a - c);
+    let inner = '';
+    for (let i = 0; i < points.length - 1; i++) {
+      const [a, z] = [points[i], points[i + 1]];
+      const cover = marks.filter(m => m.start < z && m.end > a);
+      const text = esc(ft.slice(a, z));
+      if (!cover.length) { inner += text; continue; }
+      const top = cover.reduce((p, m) => (PRIORITY[m.color] > PRIORITY[p.color] ? m : p));
+      inner += `<span class="hl ${top.color}" data-keys="${cover.map(m => m.key).join(' ')}">${text}</span>`;
+    }
+    if (heading.has(b.i)) return `<h4>${inner}</h4>`;
+    if (basics && b.i === basics.block_start) return `<p class="name">${inner}</p>`;
+    if (basics && b.i <= basics.block_end) return `<p class="contact">${inner}</p>`;
+    return `<p${entryStarts.has(b.i) ? ' class="entry"' : ''}>${inner}</p>`;
+  }).join('');
+}
+
+/** 在某张纸面上定位一条：闪一下、弹批注、滚到中间（只滚纸面自己，不带着整页动） */
+function pointAt(wrap, item) {
+  wrap.querySelectorAll('.hl.focus').forEach(s => s.classList.remove('focus'));
+  wrap.querySelectorAll('.note').forEach(n => n.remove());
+  if (!item || !located(item)) { wrap.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' }); return; }
+  const segs = [...wrap.querySelectorAll('.hl')].filter(s => s.dataset.keys.split(' ').includes(item.key));
+  segs.forEach(s => { void s.offsetWidth; s.classList.add('focus'); });
+  const first = segs[0];
+  if (!first) return;
+  const note = document.createElement('span');
+  note.className = 'note'; note.textContent = item.note;
+  first.appendChild(note);
+  const over = note.getBoundingClientRect().right - wrap.getBoundingClientRect().right + 12;
+  if (over > 0) note.style.left = `${-over}px`;
+  const top = first.getBoundingClientRect().top - wrap.getBoundingClientRect().top + wrap.scrollTop;
+  wrap.scrollTo({ top: Math.max(0, top - wrap.clientHeight / 2), behavior: reduce ? 'auto' : 'smooth' });
+}
+/** 纸面上点了一段：一段属于好几条时，优先简历问题，其次部分满足，最后满足 */
+const pickFromSeg = (seg) => seg.dataset.keys.split(' ').map(k => BY_KEY[k]).sort((a, b) => PRIORITY[b.color] - PRIORITY[a.color])[0];
+
+/* ── 抽屉（「现在」的原文；「改后」窄屏时也用它） ── */
+$('sheetFile').textContent = DATA.resume_title;
+$('sheetWrap').firstElementChild.innerHTML = paperHtml();
+function openSheet(key) {
+  $('sheet').classList.add('open'); $('veil').classList.add('open'); $('sheet').setAttribute('aria-hidden', 'false');
+  document.body.classList.add('locked');
+  sheetFocus(key ? BY_KEY[key] : null);
+}
+function closeSheet() {
+  $('sheet').classList.remove('open'); $('veil').classList.remove('open'); $('sheet').setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('locked');
+}
+function sheetFocus(item) {
+  if (!item) {
+    const n = (l) => LISTS[l].filter(located).length;
+    $('focus').innerHTML = `<div class="fc-top"><span>全部标注<span class="why">红色是简历本身的问题（${n('self')} 处），黄色是部分满足的岗位要求（${n('gap')} 处），绿色是已经满足的要求（${n('hit')} 条）。点任意一处看说明。</span></span></div>`;
+  } else {
+    const missing = !located(item) ? `<p class="fc-missing">${item.list === 'gap' ? '简历里没有找到能证明这条要求的内容 —— 这正是需要补上的地方。' : '这条针对整份简历，没有具体的某一句。'}</p>` : '';
+    $('focus').innerHTML = `<div class="fc-top"><span class="tagx ${item.tag[0]}">${item.tag[1]}</span><span>${esc(item.text)}<span class="why">${esc(item.why)}</span></span></div>${missing}${item.advice ? `<div class="advice" data-advice="${item.key}"></div>` : ''}`;
+    startAdvice(item.key);
+  }
+  setTimeout(() => pointAt($('sheetWrap'), item), 380);
+}
+$('close').addEventListener('click', closeSheet);
+$('veil').addEventListener('click', closeSheet);
+addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+$('sheetWrap').addEventListener('click', e => { const seg = e.target.closest('.hl'); if (seg) sheetFocus(pickFromSeg(seg)); });
+
+/* ── 两版的页面 ── */
+const MARK = (w) => `<span class="mark">${w}<svg viewBox="0 0 300 22" preserveAspectRatio="none"><path d="M4 16 C 80 4, 200 4, 296 12"/></svg></span>`;
+const O = Math.round(DATA.overall);
+const DIMS = [['skill', '技能'], ['education', '学历'], ['experience', '经验'], ['other', '其他']].filter(([k]) => DATA.dims[k] !== null)
+  .map(([k, l]) => `<div class="dim"><div class="l">${l}<b>${Math.round(DATA.dims[k])}</b></div><div class="tk"><i data-w="${DATA.dims[k]}"></i></div></div>`).join('');
+const SUB = `匹配度 ${O}，过了 ${DATA.threshold} 分的初筛线。下面还有几处可以写得更好，面试前值得先改。`;
+const RING = () => `<div class="ring"><svg viewBox="0 0 120 120"><circle class="t" cx="60" cy="60" r="50"/><circle class="b" cx="60" cy="60" r="50"/></svg><div class="num"><span data-count>0</span></div></div>`;
+let mode = 'now', tab = 'gap', active = null;
+
+function renderNow() {
+  $('main').innerHTML = `<section class="screen">
+    <div>
+      <span class="tag fade d1"><b>初筛结果</b>${esc(DATA.job_title)}</span>
+      <h1><span class="line"><span>通过初筛，</span></span><span class="line"><span>可以去${MARK('面试')}了。</span></span></h1>
+      <p class="sub fade d2">${SUB}</p>
+      <div class="score-hero fade d2">${RING()}<div class="dims">${DIMS}</div></div>
+      <div class="cta fade d3"><button class="btn accent lg magnetic">进入模拟面试 <span class="arrow">→</span></button><button class="btn outline lg magnetic">再投一个</button></div>
+    </div>
+    <div class="stage fade d4">
+      <div class="floaty"><b>${O} / ${DATA.threshold}</b><span>匹配度 / 初筛线</span></div>
+      <div class="card tilt">
+        <div class="card-head">
+          <div class="tabs" id="tabs" style="--i:${tab === 'gap' ? 0 : 1}"><span class="knob"></span><button class="${tab === 'gap' ? 'on' : ''}" data-tab="gap">对照岗位 · ${LISTS.gap.length}</button><button class="${tab === 'self' ? 'on' : ''}" data-tab="self">简历本身 · ${LISTS.self.length}</button></div>
+          <button class="link" data-open="">查看简历原文 →</button>
+        </div>
+        <div class="issues" id="issues">${LISTS[tab].map((x, i) => issueHtml(x, i, true)).join('')}</div>
+      </div>
+    </div>
+  </section>`;
+}
+
+function renderNew() {
+  $('main').innerHTML = `<section class="rv">
+    <div class="rv-band">
+      <div>
+        <span class="tag fade d1"><b>初筛结果</b>${esc(DATA.job_title)}</span>
+        <h1><span class="line"><span>通过初筛，可以去${MARK('面试')}了。</span></span></h1>
+        <p class="rv-sub fade d2">${SUB.replace('。', '。<br>')}</p>
+        <div class="cta fade d3"><button class="btn accent lg magnetic">进入模拟面试 <span class="arrow">→</span></button><button class="btn outline lg magnetic">再投一个</button></div>
+      </div>
+      <div class="rv-score fade d2">${RING()}<div class="dims">${DIMS}</div></div>
+    </div>
+    <div class="rv-body">
+      <div class="rv-list">
+        <div class="rv-sec"><div class="rv-h"><h3>对照岗位<span>${LISTS.gap.length} 条没满足或只满足一部分 · 重要的在前</span></h3></div>${LISTS.gap.map((x, i) => issueHtml(x, i, true)).join('')}</div>
+        <div class="rv-sec"><div class="rv-h"><h3>简历本身<span>${LISTS.self.length} 处可以写得更好 · 严重的在前</span></h3></div>${LISTS.self.map((x, i) => issueHtml(x, i + LISTS.gap.length, true)).join('')}</div>
+      </div>
+      <div class="rv-col"><div class="rv-side fade d3">
+        <div class="rv-h"><h3>简历原文<span>${esc(DATA.resume_title)}</span></h3>
+          <div class="legend"><span><i class="bad"></i>简历问题</span><span><i class="part"></i>部分满足</span><span><i class="good"></i>满足</span></div></div>
+        <aside class="rv-paper">
+          <div class="rv-msg hint show" id="rvMsg">点左边任意一条，这里会定位到简历里对应的那一句。</div>
+          <div class="paper-wrap" id="rvWrap"><div class="paper">${paperHtml()}</div></div>
+        </aside>
+      </div></div>
+    </div>
+  </section>`;
+}
+
+const wide = () => matchMedia('(min-width: 1001px)').matches;
+/** 「改后」宽屏时原文常驻在右边，条目里就不需要「在原文中查看」按钮 */
+function syncLocate() { document.querySelectorAll('.rv .loc').forEach(l => l.style.display = wide() ? 'none' : ''); }
+
+function render() {
+  active = null;
+  mode === 'now' ? renderNow() : renderNew();
+  wire($('main')); syncLocate();
+  document.querySelectorAll('.demo-flag [data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === mode));
+  setTimeout(() => {
+    document.querySelectorAll('.ring .b').forEach(c => c.style.strokeDashoffset = 314.2 * (1 - O / 100));
+    document.querySelectorAll('.dim .tk i').forEach(i => i.style.width = i.dataset.w + '%');
+    const t0 = performance.now();
+    (function tick(t) { const k = Math.min(1, (t - t0) / 1400); document.querySelectorAll('[data-count]').forEach(n => n.textContent = Math.round(O * (1 - Math.pow(1 - k, 3)))); if (k < 1) requestAnimationFrame(tick); })(t0);
+  }, 500);
+}
+addEventListener('resize', syncLocate);
+
+/** 「改后」：展开一条 = 右边定位到它；没有位置的条目在纸面上方说明一句 */
+function activate(issue, open) {
+  const item = BY_KEY[issue.dataset.key];
+  document.querySelectorAll('.rv .issue.active').forEach(x => x.classList.remove('active'));
+  issue.classList.add('active'); active = item;
+  if (open !== undefined) { issue.classList.toggle('open', open); if (open) startAdvice(item.key); }
+  if (!wide()) return;
+  const msg = $('rvMsg');
+  msg.classList.remove('hint');
+  msg.classList.toggle('show', !located(item));
+  if (!located(item)) msg.textContent = item.list === 'gap' ? '简历里没有找到能证明「' + item.text + '」的内容 —— 这正是需要补上的地方。' : '这条针对整份简历，没有具体的某一句。';
+  pointAt($('rvWrap'), item);
+}
+
+document.addEventListener('click', e => {
+  if (e.target.closest('#palBtn')) return openPalette(!$('pal').classList.contains('open'));
+  const pal = e.target.closest('.pal-opt');
+  if (pal) { setPalette(pal.dataset.pal, true); return openPalette(false); }
+  if (!e.target.closest('#pal')) openPalette(false);
+  const flag = e.target.closest('.demo-flag [data-v]');
+  if (flag) { mode = flag.dataset.v; store.set('rl-mode', mode); scrollTo({ top: 0 }); return render(); }
+  const tabBtn = e.target.closest('#tabs button');
+  if (tabBtn) { tab = tabBtn.dataset.tab; return render(); }
+  const open = e.target.closest('[data-open]');
+  if (open) return openSheet(open.dataset.open || null);
+  const row = e.target.closest('.issue-row');
+  if (row) {
+    const issue = row.parentElement, willOpen = !issue.classList.contains('open');
+    if (mode === 'new') return activate(issue, willOpen);
+    if (issue.classList.toggle('open')) startAdvice(issue.dataset.key);
+    return;
+  }
+  const seg = e.target.closest('#rvWrap .hl');
+  if (seg) {
+    const item = pickFromSeg(seg);
+    const issue = document.querySelector(`.rv .issue[data-key="${item.key}"]`);
+    if (!issue) { $('rvMsg').classList.remove('show', 'hint'); return pointAt($('rvWrap'), item); }     // 满足的要求只在纸面上
+    issue.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+    activate(issue, true);
+  }
+});
+/* 「改后」：鼠标停在一条上，原文里对应的句子先亮一下 */
+document.addEventListener('mouseover', e => {
+  const issue = mode === 'new' && e.target.closest('.rv .issue');
+  document.querySelectorAll('#rvWrap .hl.peek').forEach(s => s.classList.remove('peek'));
+  if (!issue) return;
+  document.querySelectorAll('#rvWrap .hl').forEach(s => { if (s.dataset.keys.split(' ').includes(issue.dataset.key)) s.classList.add('peek'); });
+});
+
+/** 换配色：只改 <html data-pal>，切换时颜色渐变过去 */
+function setPalette(name, animate) {
+  const root = document.documentElement;
+  if (animate) { root.classList.add('theming'); setTimeout(() => root.classList.remove('theming'), 420); }
+  root.dataset.pal = name; store.set('rl-pal', name);
+  document.querySelectorAll('.pal-opt').forEach(b => { b.classList.toggle('on', b.dataset.pal === name); b.setAttribute('aria-checked', b.dataset.pal === name); });
+}
+function openPalette(open) { $('pal').classList.toggle('open', open); $('palBtn').setAttribute('aria-expanded', open); }
+addEventListener('keydown', e => { if (e.key === 'Escape') openPalette(false); });
+const saved = store.get('rl-pal');
+setPalette(['linkedin', 'red', 'green'].includes(saved) ? saved : 'linkedin', false);   // 存的是下线了的配色就回到默认
+mode = store.get('rl-mode') === 'now' ? 'now' : 'new';
+render();
+</script>
+</body>
+</html>

@@ -103,7 +103,7 @@ export const applyApi = {
   /** 我的投递，新的在前。一次取最近 100 条（后端分页的上限），不做翻页 */
   list: () => request<{ items: ApplyBrief[]; total: number }>('/apply?page_size=100'),
 
-  /** 完整的逐条匹配明细（含已满足的），原文纸面上的绿色标注要用 */
+  /** 完整的逐条匹配明细（含已满足的），原文纸面上「满足」的标注要用 */
   match: (id: number) => request<{ items: MatchItem[] }>(`/match/${id}`),
 }
 

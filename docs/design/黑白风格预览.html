@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="warm">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>配色对比 · 求职辅助</title>
+<style>
+  /* ═════════ 色板：三种配色只换这里（正式改时对应 index.css 开头的 @theme） ═════════ */
+  :root {                                   /* 现在：奶油底 + 墨色 + 橙色强调 */
+    --bg: #f6f0e6; --bg-2: #efe6d7; --card: #fffaf2; --field: #fff;
+    --ink: #221d17; --ink-2: #6b6157; --ink-3: #8a7f73; --on-ink: #f6f0e6;
+    --line: rgba(34,29,23,.1); --hover: rgba(34,29,23,.06); --sh: 80,50,20; --nav-bg: rgba(246,240,230,.85);
+    --accent: #d9542b; --accent-hover: #b8431f; --accent-text: #b8431f; --accent-soft: rgba(217,84,43,.1); --accent-line: rgba(217,84,43,.45);
+    --accent-on-ink: #d9542b; --glow: rgba(242,140,90,.28); --dot: rgba(34,29,23,.08); --sel: rgba(217,84,43,.2);
+    /* 状态：徽标底色 / 徽标文字 / 普通文字 */
+    --ok-bg: rgba(47,125,79,.12); --ok-fg: #2f7d4f; --ok-text: #2f7d4f;
+    --no-bg: rgba(183,121,31,.14); --no-fg: #b7791f; --no-text: #b7791f;
+    --err-bg: rgba(194,54,43,.12); --err-fg: #c2362b; --err-ring: transparent;
+    /* 首页演示卡：要求满足 / 缺失的圆点、原文高亮 */
+    --hit: #2f7d4f; --miss: #c2362b;
+    --hl-bad-bg: rgba(194,54,43,.13); --hl-bad-line: #c2362b; --hl-good-bg: rgba(47,125,79,.12); --hl-good-line: #2f7d4f;
+    --verdict-on-ink: #8fd6a8;
+  }
+  :root[data-theme="mono"], :root[data-theme="pure"] {   /* 黑白：灰白底、纯黑字，强调色就是黑色 */
+    --bg: #fafafa; --bg-2: #f0f0f0; --card: #ffffff; --field: #fff;
+    --ink: #0a0a0a; --ink-2: #525252; --ink-3: #8a8a8a; --on-ink: #fafafa;
+    --line: rgba(0,0,0,.09); --hover: rgba(0,0,0,.05); --sh: 0,0,0; --nav-bg: rgba(250,250,250,.85);
+    --accent: #0a0a0a; --accent-hover: #2b2b2b; --accent-text: #0a0a0a; --accent-soft: rgba(0,0,0,.06); --accent-line: rgba(0,0,0,.35);
+    --accent-on-ink: #ffffff; --glow: rgba(0,0,0,.045); --dot: rgba(0,0,0,.07); --sel: rgba(0,0,0,.12);
+    /* 黑白（保留状态色）：绿 / 黄 / 红只留在小标签上，比现在更淡 */
+    --ok-bg: rgba(31,122,74,.09); --ok-fg: #1f7a4a; --ok-text: #1f7a4a;
+    --no-bg: rgba(161,98,7,.09); --no-fg: #a16207; --no-text: #a16207;
+    --err-bg: rgba(180,35,24,.08); --err-fg: #b42318; --err-ring: transparent;
+    --hit: #1f7a4a; --miss: #b42318;
+    --hl-bad-bg: rgba(180,35,24,.08); --hl-bad-line: #b42318; --hl-good-bg: rgba(31,122,74,.08); --hl-good-line: #1f7a4a;
+    --verdict-on-ink: #86d3a3;
+  }
+  :root[data-theme="pure"] {                /* 纯黑白：状态也只用深浅区分——要紧的（问题、通过）用黑，次要的用灰 */
+    --ok-bg: #0a0a0a; --ok-fg: #ffffff; --ok-text: #0a0a0a;
+    --no-bg: #ececec; --no-fg: #525252; --no-text: #6b6b6b;
+    --err-bg: #ffffff; --err-fg: #0a0a0a; --err-ring: #0a0a0a;
+    --hit: #9a9a9a; --miss: #0a0a0a;
+    --hl-bad-bg: rgba(0,0,0,.1); --hl-bad-line: #0a0a0a; --hl-good-bg: rgba(0,0,0,.035); --hl-good-line: #b5b5b5;
+    --verdict-on-ink: #ffffff;
+  }
+  :root { --ease: cubic-bezier(.22,1,.36,1); --spring: cubic-bezier(.34,1.56,.64,1); }
+  html.theming *, html.theming *::before, html.theming *::after {
+    transition: background-color .35s, color .35s, box-shadow .35s, stroke .35s, fill .35s !important; }
+
+  /* ═════════ 公共 ═════════ */
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); overflow-x: hidden;
+    font-family: "PingFang SC","HarmonyOS Sans SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,sans-serif; -webkit-font-smoothing: antialiased; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  ::selection { background: var(--sel); }
+  .glow { position: fixed; left: 0; top: 0; width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%; pointer-events: none; z-index: 0;
+    background: radial-gradient(circle, var(--glow) 0%, transparent 65%); }
+  .grain { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .35; background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 22px 22px; }
+  .wrap { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+  .pg { display: none; } .pg.on { display: block; }
+
+  nav { position: sticky; top: 0; z-index: 20; padding: 18px 0; transition: background .3s, box-shadow .3s; }
+  nav.scrolled { background: var(--nav-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 1px 0 var(--line); }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: .5px; cursor: pointer; }
+  .logo-mark { width: 30px; height: 30px; border-radius: 10px; background: var(--ink); color: var(--on-ink); display: grid; place-items: center; font-size: 15px; transition: transform .5s var(--spring); }
+  .logo:hover .logo-mark { transform: rotate(-12deg) scale(1.08); }
+  .links { display: flex; gap: 4px; }
+  .links a { padding: 8px 14px; border-radius: 999px; color: var(--ink-2); text-decoration: none; font-size: 15px; transition: background .2s, color .2s; }
+  .links a:hover { background: var(--hover); color: var(--ink); }
+  .links a.on { color: var(--ink); font-weight: 600; }
+  .actions { display: flex; gap: 8px; align-items: center; }
+  .user-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-2); }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+
+  .btn { position: relative; height: 44px; padding: 0 22px; border-radius: 999px; border: none; font-size: 15px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform .35s var(--spring), background .2s, box-shadow .3s; will-change: transform; }
+  .btn.dark { background: var(--ink); color: var(--on-ink); } .btn.dark:hover { background: #000; box-shadow: 0 10px 24px rgba(var(--sh),.22); }
+  .btn.ghost { background: transparent; color: var(--ink); } .btn.ghost:hover { background: var(--hover); }
+  .btn.accent { background: var(--accent); color: #fff; } .btn.accent:hover { background: var(--accent-hover); box-shadow: 0 12px 28px rgba(var(--sh),.25); }
+  .btn.outline { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .btn.lg { height: 56px; padding: 0 30px; font-size: 17px; }
+  .btn.sm { height: 36px; padding: 0 14px; font-size: 14px; }
+  .btn .arrow { transition: transform .35s var(--spring); } .btn:hover .arrow { transform: translateX(4px); }
+  .btn:active { transform: scale(.96) !important; }
+
+  .tag { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 999px; background: var(--card); box-shadow: 0 0 0 1px var(--line); font-size: 13px; color: var(--ink-2); }
+  .tag b { padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--on-ink); font-weight: 600; font-size: 12px; }
+  h1 { margin: 22px 0 20px; font-size: clamp(40px, 5.2vw, 68px); line-height: 1.12; letter-spacing: -1px; font-weight: 800; }
+  h1 .line { display: block; overflow: hidden; padding-bottom: 6px; }
+  h1 .line > span { display: inline-block; transform: translateY(110%); animation: rise .9s var(--ease) forwards; }
+  h1 .line:nth-child(2) > span { animation-delay: .12s; }
+  .mark { position: relative; white-space: nowrap; }
+  .mark svg { position: absolute; left: -4%; bottom: -10px; width: 108%; height: 22px; overflow: visible; }
+  .mark path { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 400; stroke-dashoffset: 400; animation: draw 1s .9s var(--ease) forwards; }
+  .sub { margin: 0 0 32px; max-width: 470px; font-size: 18px; line-height: 1.7; color: var(--ink-2); }
+  .fade { opacity: 0; transform: translateY(18px); animation: fadeUp .8s var(--ease) forwards; }
+  .d1 { animation-delay: .35s; } .d2 { animation-delay: .5s; } .d3 { animation-delay: .65s; } .d4 { animation-delay: .8s; }
+  @keyframes rise { to { transform: none; } }
+  @keyframes fadeUp { to { opacity: 1; transform: none; } }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes blink { 50% { opacity: .25; } }
+
+  /* ═════════ 首页 ═════════ */
+  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; min-height: calc(100vh - 80px); padding: 40px 0 80px; }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+  .demo { position: relative; perspective: 1200px; }
+  .demo-card { position: relative; background: var(--card); border-radius: 28px; padding: 22px;
+    box-shadow: 0 30px 60px -20px rgba(var(--sh),.22), 0 0 0 1px var(--line); transition: transform .6s var(--ease), box-shadow .3s; transform-style: preserve-3d; }
+  .demo-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 10px; }
+  .dots { display: flex; gap: 6px; } .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--bg-2); }
+  .demo-title { font-size: 13px; color: var(--ink-3); } .demo-title b { color: var(--ink-2); }
+  .run { height: 34px; padding: 0 14px; font-size: 13px; }
+  .resume { position: relative; overflow: hidden; border-radius: 16px; background: var(--field); padding: 20px 22px; box-shadow: 0 0 0 1px var(--line); font-size: 14px; line-height: 1.75; }
+  .resume h4 { margin: 0 0 2px; font-size: 13px; color: var(--ink-3); font-weight: 600; letter-spacing: 1px; }
+  .resume .proj { font-weight: 700; margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .resume .proj small { font-weight: 400; color: var(--ink-3); }
+  .resume ul { margin: 0 0 12px; padding-left: 18px; } .resume li { position: relative; }
+  .hl { border-radius: 4px; transition: background .5s, box-shadow .5s; }
+  .hl.bad { background: var(--hl-bad-bg); box-shadow: 0 2px 0 var(--hl-bad-line); }
+  .hl.good { background: var(--hl-good-bg); box-shadow: 0 2px 0 var(--hl-good-line); }
+  .note { position: absolute; right: 0; top: -30px; z-index: 2; white-space: nowrap; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; color: #fff; background: var(--miss);
+    opacity: 0; transform: translateY(6px) scale(.9); transition: opacity .35s, transform .45s var(--spring); pointer-events: none; }
+  .note.show { opacity: 1; transform: none; }
+  .scan { position: absolute; left: 0; right: 0; top: 0; height: 60px; pointer-events: none; opacity: 0;
+    background: linear-gradient(to bottom, transparent, var(--accent-soft) 85%, var(--accent) 100%); }
+  .scan.go { animation: scan 1.4s var(--ease) forwards; }
+  @keyframes scan { 0% { opacity: 1; transform: translateY(-60px); } 90% { opacity: 1; } 100% { opacity: 0; transform: translateY(290px); } }
+  .match { display: grid; grid-template-columns: 1fr 128px; gap: 16px; margin-top: 14px; }
+  .reqs { display: flex; flex-direction: column; gap: 8px; }
+  .req { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--bg); font-size: 13px; transition: background .4s, transform .45s var(--spring); }
+  .req .st { width: 20px; height: 20px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--field); box-shadow: 0 0 0 1.5px var(--line); transition: background .3s, box-shadow .3s, transform .45s var(--spring); }
+  .req .st svg { width: 12px; height: 12px; opacity: 0; transition: opacity .2s; }
+  .req.hit .st { background: var(--hit); box-shadow: none; transform: scale(1.1); }
+  .req.miss .st { background: var(--miss); box-shadow: none; transform: scale(1.1); }
+  .req.hit .st svg, .req.miss .st svg { opacity: 1; }
+  .req.pop { transform: translateX(4px); }
+  .req .why { margin-left: auto; color: var(--ink-3); font-size: 12px; opacity: 0; transition: opacity .3s; }
+  .req.hit .why, .req.miss .why { opacity: 1; }
+  .score { position: relative; display: grid; place-items: center; border-radius: 18px; background: var(--ink); color: var(--on-ink); padding: 10px; }
+  .score svg { width: 96px; height: 96px; transform: rotate(-90deg); }
+  .score circle { fill: none; stroke-width: 8; }
+  .score .track { stroke: rgba(255,255,255,.15); }
+  .score .bar { stroke: var(--accent-on-ink); stroke-linecap: round; stroke-dasharray: 251.3; stroke-dashoffset: 251.3; transition: stroke-dashoffset 1.3s var(--ease); }
+  .score .num { position: absolute; top: 34px; font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .score .lbl { font-size: 12px; opacity: .6; margin-top: 2px; }
+  .score .verdict { font-size: 12px; font-weight: 700; margin-top: 4px; height: 16px; color: var(--verdict-on-ink); opacity: 0; transform: translateY(4px); transition: opacity .3s, transform .4s var(--spring); }
+  .score .verdict.show { opacity: 1; transform: none; }
+  .floaty { position: absolute; z-index: 3; padding: 10px 14px; border-radius: 14px; background: var(--card); box-shadow: 0 16px 36px -12px rgba(var(--sh),.28), 0 0 0 1px var(--line); font-size: 13px; animation: bob 5s ease-in-out infinite; }
+  .floaty.a { left: -38px; top: 70px; } .floaty.b { right: -26px; bottom: 120px; animation-delay: -2.5s; }
+  .floaty b { display: block; font-size: 18px; } .floaty span { color: var(--ink-3); }
+  @keyframes bob { 50% { transform: translateY(-10px); } }
+  .sec { padding: 110px 0; }
+  .eyebrow { font-size: 13px; font-weight: 700; letter-spacing: 2px; color: var(--accent); }
+  h2 { margin: 12px 0 48px; font-size: clamp(30px, 3.6vw, 46px); line-height: 1.2; letter-spacing: -.5px; font-weight: 800; max-width: 720px; }
+  .reveal { opacity: 0; transform: translateY(40px); transition: opacity .9s var(--ease), transform .9s var(--ease); }
+  .reveal.in { opacity: 1; transform: none; }
+  .steps { display: flex; gap: 14px; height: 360px; }
+  .step { position: relative; flex: 1; min-width: 0; overflow: hidden; border-radius: 22px; padding: 28px; background: var(--card); box-shadow: 0 0 0 1px var(--line);
+    display: flex; flex-direction: column; justify-content: space-between; transition: flex .7s var(--ease), background .4s, color .4s; }
+  .step.active { flex: 2.4; background: var(--ink); color: var(--on-ink); }
+  .step .no { font-size: 60px; font-weight: 800; line-height: 1; color: var(--bg-2); transition: color .4s; font-variant-numeric: tabular-nums; }
+  .step.active .no { color: var(--accent-on-ink); }
+  .step h3 { margin: 0 0 10px; font-size: 24px; font-weight: 700; white-space: nowrap; }
+  .step p { margin: 0; max-width: 380px; font-size: 15px; line-height: 1.7; opacity: 0; transform: translateY(10px); transition: opacity .4s, transform .5s var(--ease); }
+  .step.active p { opacity: .75; transform: none; transition-delay: .2s; }
+  .chat-wrap { display: grid; grid-template-columns: 1fr 1.1fr; gap: 56px; align-items: center; }
+  .chat-wrap h2 { margin-bottom: 20px; } .chat-wrap .sub { margin-bottom: 0; }
+  .chat { background: var(--card); border-radius: 28px; padding: 24px; box-shadow: 0 0 0 1px var(--line), 0 30px 60px -24px rgba(var(--sh),.2); display: flex; flex-direction: column; gap: 12px; min-height: 380px; }
+  .chat-top { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--ink-3); }
+  .pill { padding: 3px 10px; border-radius: 999px; background: var(--ink); color: var(--on-ink); font-weight: 600; font-size: 12px; }
+  .msg { max-width: 82%; padding: 12px 16px; border-radius: 18px; font-size: 15px; line-height: 1.6; opacity: 0; transform: translateY(10px) scale(.97); transition: opacity .4s, transform .5s var(--spring); }
+  .msg.show { opacity: 1; transform: none; }
+  .msg.ai { background: var(--bg); border-bottom-left-radius: 6px; }
+  .msg.me { align-self: flex-end; background: var(--ink); color: var(--on-ink); border-bottom-right-radius: 6px; }
+  .msg.eval { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); font-size: 13px; color: var(--ink-2); }
+  .msg.eval b { color: var(--ok-text); }
+  .typing { display: inline-flex; gap: 4px; }
+  .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); animation: blink 1s infinite; }
+  .typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+  .end { text-align: center; padding: 120px 0 140px; } .end h2 { margin: 0 auto 28px; }
+  footer { position: relative; z-index: 1; padding: 28px 0 40px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-3); }
+
+  /* 登录：从点击位置圆形展开 */
+  .auth { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; pointer-events: none; }
+  .auth-bg { position: absolute; inset: 0; background: var(--ink); clip-path: circle(0px at var(--x, 50%) var(--y, 50%)); transition: clip-path .7s var(--ease); }
+  .auth.open { pointer-events: auto; } .auth.open .auth-bg { clip-path: circle(150vmax at var(--x, 50%) var(--y, 50%)); }
+  .panel { position: relative; width: 420px; max-width: 100%; padding: 30px; border-radius: 28px; background: var(--bg); opacity: 0; transform: translateY(30px) scale(.96); transition: opacity .3s, transform .5s var(--ease); }
+  .auth.open .panel { opacity: 1; transform: none; transition-delay: .25s; }
+  .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
+  .panel h3 { margin: 0; font-size: 26px; font-weight: 800; }
+  .x { width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--hover); display: grid; place-items: center; transition: transform .4s var(--spring); }
+  .x:hover { transform: rotate(90deg); }
+  .aseg { position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: 4px; border-radius: 999px; background: var(--bg-2); margin-bottom: 22px; }
+  .aseg .knob { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 999px; background: var(--card); box-shadow: 0 2px 8px rgba(var(--sh),.12); transition: transform .45s var(--spring); }
+  .aseg.reg .knob { transform: translateX(100%); }
+  .aseg button { position: relative; z-index: 1; height: 38px; border: none; background: none; font-weight: 600; font-size: 15px; color: var(--ink-2); }
+  .aseg button.on { color: var(--ink); }
+  .field { position: relative; margin-bottom: 12px; }
+  .field input { width: 100%; height: 58px; padding: 22px 16px 6px; border-radius: 16px; border: none; outline: none; background: var(--card); box-shadow: inset 0 0 0 1.5px var(--line); font-size: 16px; transition: box-shadow .25s; }
+  .field input:focus { box-shadow: inset 0 0 0 2px var(--ink); }
+  .field label { position: absolute; left: 17px; top: 19px; font-size: 16px; color: var(--ink-3); pointer-events: none; transition: transform .25s var(--ease), font-size .25s; transform-origin: left top; }
+  .field input:focus + label, .field input:not(:placeholder-shown) + label { transform: translateY(-11px); font-size: 12px; color: var(--ink-2); }
+  .rule { margin: 2px 4px 18px; font-size: 12px; color: var(--ink-3); }
+  .submit { width: 100%; height: 54px; font-size: 16px; }
+
+  /* ═════════ 我的投递（同 我的投递预览.html） ═════════ */
+  .pg-ap h1 { font-size: clamp(36px, 4.4vw, 56px); margin: 22px 0 16px; }
+  .pg-ap .sub { margin: 0; max-width: 520px; font-size: 17px; }
+  .ap-page { padding: 48px 0 90px; }
+  .ap-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; flex-wrap: wrap; margin-bottom: 28px; }
+  .ap-stats { display: flex; gap: 10px; }
+  .ap-stats > div { min-width: 104px; padding: 14px 18px; border-radius: 18px; background: var(--card); box-shadow: 0 0 0 1px var(--line), 0 16px 30px -18px rgba(var(--sh),.28); }
+  .ap-stats b { display: block; font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .ap-stats span { font-size: 13px; color: var(--ink-3); }
+  .ap-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tabs { position: relative; display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 4px; border-radius: 999px; background: var(--bg-2); }
+  .tabs .knob { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / 3); border-radius: 999px; background: var(--card); box-shadow: 0 2px 8px rgba(var(--sh),.12); transition: transform .45s var(--spring); }
+  .tabs button { position: relative; z-index: 1; height: 34px; padding: 0 16px; border: none; background: none; font-weight: 600; font-size: 14px; color: var(--ink-2); white-space: nowrap; }
+  .tabs button.on { color: var(--ink); }
+  .tabs button i { margin-left: 4px; font-style: normal; color: var(--ink-3); }
+  .ap-list { display: flex; flex-direction: column; gap: 12px; }
+  .ap { border-radius: 22px; background: var(--card); box-shadow: 0 0 0 1px var(--line), 0 18px 36px -24px rgba(var(--sh),.3); animation: apIn .6s var(--ease) backwards; transition: box-shadow .25s; }
+  @keyframes apIn { from { opacity: 0; transform: translateY(14px); } }
+  .ap:hover { box-shadow: 0 0 0 1.5px var(--ink-3), 0 22px 40px -22px rgba(var(--sh),.35); }
+  .ap-main { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto 24px; align-items: center; gap: 16px; width: 100%; padding: 18px 20px; border: none; background: none; text-align: left; border-radius: 22px; }
+  .ap-ic { width: 52px; height: 52px; border-radius: 15px; background: var(--bg-2); display: grid; place-items: center; font-weight: 800; font-size: 14px; color: var(--ink-2); }
+  .ap.pass .ap-ic { background: var(--ink); color: var(--on-ink); }
+  .ap-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 800; font-size: 17px; }
+  .ap-title .co { font-weight: 600; font-size: 14px; color: var(--ink-3); }
+  .ap-dir { height: 22px; padding: 0 9px; border-radius: 999px; background: var(--bg-2); font-size: 12px; font-weight: 700; color: var(--ink-2); display: inline-grid; place-items: center; }
+  .ap-meta { margin-top: 4px; font-size: 13px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ap-meta b { font-weight: 600; color: var(--ink-2); }
+  .ap-go { color: var(--ink-3); font-size: 20px; transition: transform .35s var(--spring), color .2s; }
+  .ap-main:hover .ap-go { transform: translateX(4px); color: var(--ink); }
+  .ap-res { display: flex; align-items: center; gap: 12px; }
+  .ap-res .why { font-size: 12px; color: var(--ink-3); max-width: 200px; text-align: right; line-height: 1.5; }
+  .ap-ring { position: relative; width: 52px; height: 52px; flex: none; }
+  .ap-ring svg { transform: rotate(-90deg); }
+  .ap-ring circle { fill: none; stroke-width: 5; }
+  .ap-ring .tr { stroke: var(--bg-2); }
+  .ap-ring .br { stroke: var(--ink-3); stroke-linecap: round; stroke-dasharray: 138.2; animation: apRing 1.2s .2s var(--ease) backwards; }
+  .ap.pass .ap-ring .br { stroke: var(--accent); }
+  @keyframes apRing { from { stroke-dashoffset: 138.2; } }
+  .ap-ring b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .ap-badge { height: 26px; padding: 0 11px; border-radius: 999px; font-size: 13px; font-weight: 700; display: inline-grid; place-items: center; white-space: nowrap; }
+  .ap-badge.ok { background: var(--ok-bg); color: var(--ok-fg); }
+  .ap-badge.no { background: var(--no-bg); color: var(--no-fg); }
+  .ap-badge.err { background: var(--err-bg); color: var(--err-fg); box-shadow: inset 0 0 0 1.5px var(--err-ring); }
+  .ap-badge.run { background: var(--accent-soft); color: var(--accent-text); }
+  .ap-spin { width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid var(--accent-soft); border-top-color: var(--accent); animation: spin .8s linear infinite; flex: none; }
+  .ap-iv { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 20px; padding: 12px 0 16px 68px; border-top: 1px dashed var(--line); }
+  .ap-iv .k { font-size: 12px; font-weight: 700; color: var(--ink-3); letter-spacing: 1px; margin-right: 4px; }
+  .ap-iv .none { font-size: 13px; color: var(--ink-3); }
+  .ap-pill { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px 0 10px; border: none; border-radius: 999px; background: var(--field); box-shadow: inset 0 0 0 1.5px var(--line);
+    font-size: 13px; color: var(--ink-2); transition: box-shadow .2s, transform .3s var(--spring); }
+  .ap-pill:hover { box-shadow: inset 0 0 0 1.5px var(--ink-3); transform: translateY(-1px); }
+  .ap-pill .m { height: 20px; padding: 0 7px; border-radius: 999px; background: var(--bg-2); font-size: 11px; font-weight: 700; display: inline-grid; place-items: center; }
+  .ap-pill .m.prac { background: var(--accent-soft); color: var(--accent-text); }
+  .ap-pill b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .ap-pill .v-ok { color: var(--ok-text); font-weight: 700; } .ap-pill .v-no { color: var(--no-text); font-weight: 700; } .ap-pill .v-mid { color: var(--ink-3); }
+  .ap-pill .act { color: var(--accent-text); font-weight: 700; }
+  .ap-pill.live { box-shadow: inset 0 0 0 1.5px var(--accent-line); }
+  .ap-pill.live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: blink 1.4s ease-in-out infinite; }
+  .ap-next { border: none; background: none; padding: 0 4px; font-size: 13px; font-weight: 700; color: var(--accent-text); }
+  .ap-next:hover { text-decoration: underline; }
+
+  /* ═════════ 样稿专用：右下角切换、点击提示 ═════════ */
+  .switch { position: fixed; right: 16px; bottom: 16px; z-index: 60; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; max-width: calc(100% - 32px);
+    padding: 5px; border-radius: 18px; background: #111; color: #fafafa; font-size: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.25); }
+  .switch span { padding: 0 6px 0 8px; color: rgba(250,250,250,.55); }
+  .switch .grp { display: flex; gap: 2px; padding: 2px; border-radius: 999px; background: rgba(255,255,255,.08); }
+  .switch button { height: 28px; padding: 0 11px; border: none; border-radius: 999px; background: transparent; color: rgba(250,250,250,.65); font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .switch button.on { background: #fafafa; color: #111; }
+  .toast { position: fixed; left: 50%; bottom: 76px; z-index: 70; transform: translate(-50%, 20px); opacity: 0; padding: 10px 16px; border-radius: 14px; background: #111; color: #fafafa; font-size: 13px;
+    transition: opacity .25s, transform .4s var(--spring); pointer-events: none; max-width: calc(100% - 32px); }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 960px) {
+    .hero, .chat-wrap { grid-template-columns: 1fr; } .pg-home .links { display: none; }
+    .steps { flex-direction: column; height: auto; } .step { min-height: 120px; } .step p { opacity: .75; transform: none; }
+    .floaty { display: none; } .wrap { padding: 0 16px; }
+  }
+  @media (max-width: 760px) {
+    .links a { padding: 8px 10px; font-size: 14px; } .user-chip .uname { display: none; }
+    .ap-page { padding-top: 28px; } .ap-head { gap: 20px; } .ap-stats { width: 100%; } .ap-stats > div { flex: 1; min-width: 0; }
+    .ap-main { grid-template-columns: 44px minmax(0, 1fr) 16px; gap: 12px; padding: 16px; }
+    .ap-ic { width: 44px; height: 44px; font-size: 13px; }
+    .ap-res { grid-column: 2 / 4; grid-row: 2; } .ap-go { grid-column: 3; grid-row: 1; }
+    .ap-res .why { text-align: left; max-width: none; }
+    .ap-iv { margin: 0 16px; padding-left: 0; }
+  }
+  @media (max-width: 520px) { .match { grid-template-columns: 1fr; } .pg-home .actions .ghost { display: none; } }
+  @media (max-width: 420px) { .logo { font-size: 0; gap: 0; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; } .glow { display: none; } }
+</style>
+</head>
+<body>
+<div class="grain"></div><div class="glow" id="glow"></div>
+
+<!-- ═════════ 首页 ═════════ -->
+<div class="pg pg-home on" data-page="home">
+  <nav>
+    <div class="wrap">
+      <div class="logo" data-go="home"><span class="logo-mark">求</span>求职辅助</div>
+      <div class="links"><a href="#demo">试一试</a><a href="#steps">怎么用</a><a href="#interview">模拟面试</a></div>
+      <div class="actions">
+        <button class="btn ghost magnetic" data-auth="login">登录</button>
+        <button class="btn dark magnetic" data-auth="register">注册</button>
+      </div>
+    </div>
+  </nav>
+  <main>
+    <div class="wrap">
+      <div class="hero" id="demo">
+        <div>
+          <span class="tag fade"><b>毕设作品</b>简历诊断 · 岗位初筛 · 模拟面试</span>
+          <h1>
+            <span class="line"><span>投之前，先让简历</span></span>
+            <span class="line"><span><span class="mark">过一遍初筛<svg viewBox="0 0 300 22" preserveAspectRatio="none" aria-hidden="true"><path d="M4 16 C 80 4, 200 4, 296 12"/></svg></span>。</span></span>
+          </h1>
+          <p class="sub fade d2">贴上想投的岗位，看看简历哪里不符合要求、哪句话写得太虚，再按这个岗位练一场模拟面试。</p>
+          <div class="cta fade d3">
+            <button class="btn accent lg magnetic" data-auth="register">开始使用 <span class="arrow">→</span></button>
+            <button class="btn outline lg magnetic" id="play2">先看演示</button>
+          </div>
+        </div>
+        <div class="demo fade d4">
+          <div class="floaty a"><b>7 条</b><span>写作规则检查</span></div>
+          <div class="floaty b"><b>≥ 60 分</b><span>即通过初筛</span></div>
+          <div class="demo-card" id="card">
+            <div class="demo-head">
+              <div class="dots"><i></i><i></i><i></i></div>
+              <span class="demo-title"><b>示例数据</b> · 点右边按钮</span>
+              <button class="btn dark run" id="play">▶ 开始演示</button>
+            </div>
+            <div class="resume">
+              <div class="scan" id="scan"></div>
+              <h4>项目经历</h4>
+              <div class="proj">校园二手交易平台 · 后端开发 <small>2023.09 – 2024.01</small></div>
+              <ul>
+                <li><span class="note" id="n1">缺少结果：做到了什么程度？</span><span class="hl" id="h1">负责订单模块的开发</span>，完成下单、支付回调与退款流程</li>
+                <li>使用 <span class="hl" id="h2">Redis 缓存热门商品</span>，接口响应从 800ms 降到 120ms</li>
+                <li><span class="note" id="n3">「参与」太弱，写清你具体做了什么</span><span class="hl" id="h3">参与了数据库设计</span></li>
+              </ul>
+              <h4>专业技能</h4>
+              <div><span class="hl" id="h4">Java、Spring Boot</span>、MySQL、Redis、Git</div>
+            </div>
+            <div class="match">
+              <div class="reqs">
+                <div class="req" data-s="hit"><span class="st"><svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5l2.2 2.2L9.5 3.8"/></svg></span>熟悉 Java / Spring Boot<span class="why">项目经历</span></div>
+                <div class="req" data-s="hit"><span class="st"><svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5l2.2 2.2L9.5 3.8"/></svg></span>有 Redis 使用经验<span class="why">800ms → 120ms</span></div>
+                <div class="req" data-s="miss"><span class="st"><svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l5 5M8.5 3.5l-5 5"/></svg></span>了解消息队列<span class="why">简历未提及</span></div>
+                <div class="req" data-s="hit"><span class="st"><svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5l2.2 2.2L9.5 3.8"/></svg></span>本科及以上学历<span class="why">教育经历</span></div>
+              </div>
+              <div class="score">
+                <svg viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="40"/><circle class="bar" id="bar" cx="48" cy="48" r="40"/></svg>
+                <span class="num" id="num">0</span><span class="lbl">匹配度</span><span class="verdict" id="verdict">通过初筛</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec" id="steps">
+      <div class="wrap">
+        <div class="reveal"><div class="eyebrow">怎么用</div><h2>三步，从一份简历走到一场面试。</h2></div>
+        <div class="steps reveal">
+          <div class="step active"><span class="no">01</span><div><h3>上传简历</h3><p>上传 PDF 简历。两栏排版也能按正确顺序读出来，之后所有的问题和依据都能在原文里找到出处。</p></div></div>
+          <div class="step"><span class="no">02</span><div><h3>贴 JD，看初筛</h3><p>把岗位要求拆成一条条，逐条对照简历：满足、部分满足还是缺失，每条都附简历里的原话作依据。</p></div></div>
+          <div class="step"><span class="no">03</span><div><h3>模拟面试</h3><p>按岗位方向出题（计算机、运营……），题目围绕你的简历和这个岗位；答完一题会追问，结束后给一份完整的面试报告。</p></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec" id="interview">
+      <div class="wrap chat-wrap">
+        <div class="reveal">
+          <div class="eyebrow">模拟面试</div>
+          <h2>面试官会顺着你的简历追问。</h2>
+          <p class="sub">问题从你的项目和岗位要求里来，不是题库随机抽。每题的评分都会引用你回答里的原话，说清楚好在哪、差在哪。</p>
+        </div>
+        <div class="chat reveal" id="chat">
+          <div class="chat-top"><span class="pill">技术面</span>第 2 题 · 后端开发 · 示例</div>
+          <div class="msg ai">你提到用 Redis 把接口从 800ms 降到 120ms。缓存和数据库的数据不一致时，你是怎么处理的？</div>
+          <div class="msg me">先更新数据库，再删除缓存；删除失败的话放进重试队列……</div>
+          <div class="msg eval">评分 <b>4 / 5</b> · 依据：「先更新数据库，再删除缓存」—— 思路正确，可以补充延迟双删的取舍。</div>
+          <div class="msg ai"><span class="typing"><i></i><i></i><i></i></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap end reveal">
+      <h2>下一次投递之前，先来这里过一遍。</h2>
+      <button class="btn accent lg magnetic" data-auth="register">免费注册 <span class="arrow">→</span></button>
+    </div>
+  </main>
+  <footer><div class="wrap">求职辅助 · 本科毕业设计</div></footer>
+</div>
+
+<!-- ═════════ 我的投递 ═════════ -->
+<div class="pg pg-ap" data-page="applies">
+  <nav>
+    <div class="wrap">
+      <div class="logo" data-go="home"><span class="logo-mark">求</span>求职辅助</div>
+      <div class="links"><a href="#" data-toast="会跳到工作台（新的投递）">新的投递</a><a href="#" class="on">我的投递</a></div>
+      <div class="actions"><span class="user-chip"><span class="avatar">U</span><span class="uname">user</span></span><button class="btn ghost sm">退出</button></div>
+    </div>
+  </nav>
+  <main class="wrap ap-page">
+    <header class="ap-head">
+      <div>
+        <span class="tag fade"><b>记录</b>我的投递</span>
+        <h1>
+          <span class="line"><span>投过的岗位，</span></span>
+          <span class="line"><span>都在<span class="mark">这里<svg viewBox="0 0 300 22" preserveAspectRatio="none" aria-hidden="true"><path d="M4 16 C 80 4, 200 4, 296 12"/></svg></span>。</span></span>
+        </h1>
+        <p class="sub fade d2">点一条看初筛结果和修改建议。这次投递面过的模拟面试也挂在下面，没面完的可以接着面。</p>
+      </div>
+      <div class="ap-stats fade d3"><div><b>6</b><span>次投递</span></div><div><b>2</b><span>初筛通过</span></div><div><b>4</b><span>场面试</span></div></div>
+    </header>
+    <div class="ap-bar fade d3">
+      <div class="tabs"><span class="knob"></span><button class="on">全部<i>6</i></button><button>通过<i>2</i></button><button>未通过<i>2</i></button></div>
+      <button class="btn accent magnetic" data-toast="会跳到工作台（新的投递）">新的投递 <span class="arrow">→</span></button>
+    </div>
+    <div class="ap-list" id="list"></div>
+  </main>
+</div>
+
+<!-- 登录 / 注册 -->
+<div class="auth" id="auth" aria-hidden="true">
+  <div class="auth-bg" id="authBg"></div>
+  <form class="panel" id="form" role="dialog" aria-modal="true" aria-labelledby="authTitle" novalidate>
+    <div class="panel-head">
+      <h3 id="authTitle">欢迎回来</h3>
+      <button type="button" class="x" id="close" aria-label="关闭"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg></button>
+    </div>
+    <div class="aseg" id="aseg"><span class="knob"></span><button type="button" data-tab="login">登录</button><button type="button" data-tab="register">注册</button></div>
+    <div class="field"><input id="u" placeholder=" " autocomplete="off"><label for="u">用户名</label></div>
+    <div class="field"><input id="p" type="password" placeholder=" " autocomplete="off"><label for="p">密码</label></div>
+    <p class="rule">用户名 3–50 位，可用中英文、数字、下划线；密码至少 6 位</p>
+    <button type="button" class="btn dark submit" id="submit">登录</button>
+  </form>
+</div>
+
+<div class="switch">
+  <span>页面</span><div class="grp" id="pages"><button data-page="home" class="on">首页</button><button data-page="applies">我的投递</button></div>
+  <span>配色</span><div class="grp" id="themes"><button data-theme="warm" class="on">现在</button><button data-theme="mono">黑白</button><button data-theme="pure">纯黑白</button></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+
+/* 光晕 */
+let mx = innerWidth/2, my = innerHeight/3, gx = mx, gy = my;
+addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+(function loop(){ gx += (mx-gx)*.08; gy += (my-gy)*.08; $('glow').style.transform = `translate(${gx}px,${gy}px)`; requestAnimationFrame(loop); })();
+
+/* 磁吸按钮、演示卡倾斜、导航滚动后加底色 */
+document.querySelectorAll('.magnetic').forEach(b => {
+  b.addEventListener('mousemove', e => { if (reduce) return; const r = b.getBoundingClientRect();
+    b.style.transform = `translate(${(e.clientX - r.left - r.width/2) * .22}px, ${(e.clientY - r.top - r.height/2) * .3}px)`; });
+  b.addEventListener('mouseleave', () => b.style.transform = '');
+});
+const card = $('card');
+card.addEventListener('mousemove', e => { if (reduce) return; const r = card.getBoundingClientRect();
+  card.style.transform = `rotateY(${((e.clientX - r.left)/r.width - .5) * 6}deg) rotateX(${-((e.clientY - r.top)/r.height - .5) * 6}deg)`; });
+card.addEventListener('mouseleave', () => card.style.transform = '');
+addEventListener('scroll', () => document.querySelectorAll('nav').forEach(n => n.classList.toggle('scrolled', scrollY > 10)), { passive: true });
+
+/* 提示：样稿里点了只说会跳到哪 */
+let tt;
+function toast(t) { $('toast').textContent = t; $('toast').classList.add('show'); clearTimeout(tt); tt = setTimeout(() => $('toast').classList.remove('show'), 2000); }
+document.addEventListener('click', e => { const t = e.target.closest('[data-toast]'); if (t) { e.preventDefault(); toast(t.dataset.toast); } });
+
+/* ── 切页面 / 切配色（记住上次的选择） ── */
+function showPage(p) {
+  document.querySelectorAll('.pg').forEach(x => x.classList.toggle('on', x.dataset.page === p));
+  document.querySelectorAll('#pages button').forEach(b => b.classList.toggle('on', b.dataset.page === p));
+  scrollTo({ top: 0 }); store.set('bw-page', p);
+}
+function setTheme(t, animate = true) {
+  const root = document.documentElement;
+  if (animate) { root.classList.add('theming'); setTimeout(() => root.classList.remove('theming'), 420); }
+  root.dataset.theme = t;
+  document.querySelectorAll('#themes button').forEach(b => b.classList.toggle('on', b.dataset.theme === t));
+  store.set('bw-theme', t);
+}
+document.querySelectorAll('#pages button').forEach(b => b.addEventListener('click', () => showPage(b.dataset.page)));
+document.querySelectorAll('#themes button').forEach(b => b.addEventListener('click', () => setTheme(b.dataset.theme)));
+document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showPage(b.dataset.go)));
+setTheme(store.get('bw-theme') || 'warm', false);
+showPage(store.get('bw-page') || 'home');
+
+/* ── 首页：滚动出现、流程悬停展开、对话逐条出现、演示动画 ── */
+const io = new IntersectionObserver(es => es.forEach(en => {
+  if (!en.isIntersecting) return;
+  en.target.classList.add('in'); io.unobserve(en.target);
+  if (en.target.id === 'chat') (async () => { for (const m of en.target.querySelectorAll('.msg')) { await sleep(reduce ? 0 : 650); m.classList.add('show'); } })();
+}), { threshold: .2 });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+document.querySelectorAll('.step').forEach(s => s.addEventListener('mouseenter', () => document.querySelectorAll('.step').forEach(x => x.classList.toggle('active', x === s))));
+
+let running = false;
+async function runDemo() {
+  if (running) return; running = true; $('play').textContent = '分析中…';
+  ['h1','h2','h3','h4'].forEach(id => $(id).className = 'hl'); ['n1','n3'].forEach(id => $(id).classList.remove('show'));
+  document.querySelectorAll('.req').forEach(r => r.className = 'req');
+  $('bar').style.strokeDashoffset = 251.3; $('num').textContent = '0'; $('verdict').classList.remove('show');
+  $('scan').classList.remove('go'); void $('scan').offsetWidth; $('scan').classList.add('go');
+  await sleep(700); $('h1').classList.add('bad'); await sleep(250); $('n1').classList.add('show');
+  await sleep(500); $('h2').classList.add('good'); $('h4').classList.add('good');
+  await sleep(450); $('h3').classList.add('bad'); await sleep(250); $('n3').classList.add('show');
+  await sleep(600);
+  for (const r of document.querySelectorAll('.req')) { r.classList.add(r.dataset.s, 'pop'); setTimeout(() => r.classList.remove('pop'), 350); await sleep(380); }
+  $('bar').style.strokeDashoffset = 251.3 * (1 - .72);
+  const t0 = performance.now();
+  await new Promise(done => (function tick(t) { const k = Math.min(1, (t - t0) / 1300); $('num').textContent = Math.round(72 * (1 - Math.pow(1 - k, 3))); k < 1 ? requestAnimationFrame(tick) : done(); })(t0));
+  $('verdict').classList.add('show'); $('play').textContent = '↻ 再来一次'; running = false;
+}
+$('play').addEventListener('click', runDemo);
+$('play2').addEventListener('click', () => { $('demo').scrollIntoView({ behavior: 'smooth' }); setTimeout(runDemo, 300); });
+
+/* 登录框 */
+function setMode(m) {
+  $('aseg').classList.toggle('reg', m !== 'login');
+  document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === m));
+  $('authTitle').textContent = m === 'login' ? '欢迎回来' : '创建账号'; $('submit').textContent = m === 'login' ? '登录' : '注册并进入';
+}
+function openAuth(m, e) {
+  $('auth').style.setProperty('--x', (e ? e.clientX : innerWidth/2) + 'px'); $('auth').style.setProperty('--y', (e ? e.clientY : innerHeight/2) + 'px');
+  setMode(m); $('auth').classList.add('open'); document.body.style.overflow = 'hidden';
+}
+function closeAuth() { $('auth').classList.remove('open'); document.body.style.overflow = ''; }
+document.querySelectorAll('[data-auth]').forEach(b => b.addEventListener('click', e => openAuth(b.dataset.auth, e)));
+document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.tab)));
+$('close').addEventListener('click', closeAuth); $('authBg').addEventListener('click', closeAuth);
+$('submit').addEventListener('click', () => { closeAuth(); showPage('applies'); });
+addEventListener('keydown', e => { if (e.key === 'Escape') closeAuth(); });
+
+/* ── 我的投递（示例数据同 我的投递预览.html） ── */
+const APPLIES = [
+  { id: 21, title: '用户运营实习生', dir: '运营', resume: '运营示例简历.pdf', at: '今天 13:05', status: 'running', iv: [] },
+  { id: 19, title: '内容运营实习生（新媒体）', dir: '运营', resume: '运营示例简历.pdf', at: '今天 11:20', status: 'success', score: 81, passed: true,
+    iv: [{ mode: 'normal', live: '进行中 · 第 3 / 5 个话题' }] },
+  { id: 12, title: '后端开发实习生', company: '示例科技', dir: '计算机', resume: '张同学_后端_2026.pdf', at: '10 月 6 日 20:41', status: 'success', score: 74, passed: true,
+    iv: [{ mode: 'normal', at: '10 月 6 日', score: 78, v: ['v-ok', '通过'] }, { mode: 'normal', at: '10 月 6 日', v: ['v-mid', '没做完'] }] },
+  { id: 10, title: '算法实习生（机器学习）', dir: '计算机', resume: '张同学_后端_2026.pdf', at: '10 月 5 日 11:02', status: 'success', score: 38, passed: false,
+    iv: [{ mode: 'practice', at: '10 月 5 日', score: 65, v: ['v-mid', '练习不下结论'] }] },
+  { id: 8, title: '前端开发实习生', dir: '计算机', resume: '张同学_后端_2026.pdf', at: '10 月 3 日 09:15', status: 'success', score: 52, passed: false, iv: [] },
+  { id: 5, title: '测试开发实习生', dir: '计算机', resume: '扫描版简历.pdf', at: '9 月 30 日 16:48', status: 'failed', error: '这份 PDF 是扫描件或图片，没有可提取的文字', iv: [] },
+];
+const modeChip = v => v.mode === 'practice' ? '<span class="m prac">练习</span>' : '<span class="m">模拟面试</span>';
+function pill(v) {
+  if (v.live) return `<button class="ap-pill live" data-toast="会跳到面试页，接着上次的题面">${modeChip(v)}${v.live}<span class="act">继续 →</span></button>`;
+  return `<button class="ap-pill" data-toast="会跳到面试报告">${modeChip(v)}${v.at}${v.score != null ? ` <b>${v.score} 分</b>` : ''} <span class="${v.v[0]}">${v.v[1]}</span><span class="act">报告 →</span></button>`;
+}
+$('list').innerHTML = APPLIES.map((a, i) => {
+  const pass = a.status === 'success' && a.passed;
+  let res;
+  if (a.status === 'running') res = '<span class="ap-spin"></span><span class="ap-badge run">分析中</span>';
+  else if (a.status === 'failed') res = `<span class="why">${a.error}</span><span class="ap-badge err">分析失败</span>`;
+  else res = `<span class="ap-ring"><svg width="52" height="52"><circle class="tr" cx="26" cy="26" r="22"/><circle class="br" cx="26" cy="26" r="22" style="stroke-dashoffset:${(138.2 * (1 - a.score / 100)).toFixed(1)}"/></svg><b>${a.score}</b></span>`
+    + `<span class="ap-badge ${pass ? 'ok' : 'no'}">${pass ? '初筛通过' : '未通过'}</span>`;
+  let foot = '';
+  if (a.iv.length) foot = '<span class="k">面试</span>' + a.iv.map(pill).join('');
+  else if (a.status === 'success') foot = `<span class="none">还没面试</span><button class="ap-next" data-toast="会跳到面试准备页">${pass ? '进入模拟面试' : '以练习模式面试'} →</button>`;
+  else if (a.status === 'failed') foot = '<button class="ap-next" data-toast="会跳到工作台，岗位带过去">重新投递 →</button>';
+  return `<article class="ap${pass ? ' pass' : ''}" style="animation-delay:${i * 60 + 150}ms">
+    <button class="ap-main" data-toast="会跳到这次投递的初筛结果页">
+      <span class="ap-ic">${a.title.slice(0, 2)}</span>
+      <div style="min-width:0"><div class="ap-title">${a.title}${a.company ? `<span class="co">${a.company}</span>` : ''}<span class="ap-dir">${a.dir}</span></div>
+        <div class="ap-meta"><b>${a.resume}</b> · ${a.at}</div></div>
+      <div class="ap-res">${res}</div><span class="ap-go">›</span>
+    </button>${foot ? `<div class="ap-iv">${foot}</div>` : ''}</article>`;
+}).join('');
+</script>
+</body>
+</html>

@@ -72,7 +72,7 @@ export function ResumePicker({ selected, onPick }: { selected: Resume | null; on
       onDrop={(e) => { dragEnd(e); void send(e.dataTransfer.files[0]) }}>
       <label className="drop">
         <input type="file" accept=".pdf,application/pdf" hidden onChange={(e) => { void send(e.target.files?.[0]); e.target.value = '' }} />
-        <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#d9542b" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M12 15V3M7 8l5-5 5 5" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
         </svg>
         <b>拖进来，或点这里选文件</b>

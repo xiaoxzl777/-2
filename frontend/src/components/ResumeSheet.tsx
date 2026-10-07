@@ -194,8 +194,8 @@ export function ResumeSheet({ open, title, doc, loadError, items, focusKey, onFo
             <div className="fc-in">
               <div className="fc-top"><span>全部标注</span></div>
               <p className="fc-fix">
-                红色是简历本身的问题（{count('self')} 处），橙色是部分满足的岗位要求（{count('gap')} 处），
-                绿色是已经满足的要求（{count('hit')} 条）。点任意一处看说明。
+                原文里标出了简历本身的问题（{count('self')} 处）、部分满足的岗位要求（{count('gap')} 处）和已经满足的要求（{count('hit')} 条），
+                各自的颜色见最下面的图例（配色可以换，所以这里不写颜色名）。点任意一处看说明。
               </p>
               <div className="fc-nav"><span>{title}</span><button type="button" onClick={() => step(1)}>从第一条问题开始 →</button></div>
             </div>

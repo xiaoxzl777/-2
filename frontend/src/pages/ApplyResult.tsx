@@ -73,7 +73,7 @@ function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Res
     return () => window.clearTimeout(t)
   }, [])
 
-  // 原文纸面：第一次打开时才去取原文、结构和完整匹配明细（绿色的"满足"要用）
+  // 原文纸面：第一次打开时才去取原文、结构和完整匹配明细（「满足」的标注要用）
   const [sheet, setSheet] = useState<{ open: boolean; focus: string | null }>({ open: false, focus: null })
   const [doc, setDoc] = useState<SheetDoc | null>(null)
   const [docError, setDocError] = useState<string | null>(null)
