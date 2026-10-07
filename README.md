@@ -1,6 +1,6 @@
 # 智能求职辅助系统：简历诊断与模拟面试
 
-本科毕业设计。求职者先定目标岗位（粘贴 JD 或选内置模板）→ 上传简历（版面感知解析）→ 一键投递：规则⊕LLM 混合诊断（证据可溯源）与岗位匹配并行，给出模拟初筛结果 → 技术面模拟面试 → 面试报告与改写建议。
+本科毕业设计。求职者先选求职方向（计算机 / 运营）、定目标岗位（粘贴 JD 或选内置模板）→ 上传简历（版面感知解析）→ 一键投递：规则⊕LLM 混合诊断（证据可溯源）与岗位匹配并行，给出模拟初筛结果 → 按方向模拟面试（技术面 / 运营面）→ 面试报告与改写建议。
 
 设计文档在 [docs/](docs/)。文档与代码冲突时以代码为准（回头改文档）；文档之间冲突时以 [06-workflows](docs/06-workflows.md) 为准。
 
@@ -58,7 +58,7 @@ docker compose up -d --build       # mysql + redis + backend + nginx，http://lo
 ## 目录
 
 ```
-backend/app/     api · services · parser · diagnose · matching · rewrite · interview · retrieval · graphs · llm · cache
+backend/app/     api · services · parser · diagnose · matching · rewrite · interview · retrieval · graphs · llm · cache · domains
 backend/sql/     schema.sql（建库建表）· seed.sql（技能词典 + 岗位模板）—— 均由脚本生成，在 MySQL 中手动执行
 backend/scripts/ dump_schema · dump_seed · build_job_templates · gen_layout_set / eval_layout（版面合成集与打分）· gen_eval_set / run_eval（诊断降质集与跑批）· interview_answers（面试评分评测的三档回答）
 backend/tests/

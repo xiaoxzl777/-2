@@ -39,6 +39,7 @@ class RuleContext:
     ats_signals: dict = field(default_factory=dict)
     page_count: int | None = None
     today: date = field(default_factory=date.today)
+    disabled: frozenset[str] = frozenset()      # 这个求职方向关掉的规则（app/domains 的 disabled_rules）
     units: list[ReviewUnit] = field(init=False)
 
     def __post_init__(self) -> None:
@@ -61,7 +62,7 @@ def rule(code: str) -> Callable[[Rule], Rule]:
 
 
 def run_rules(ctx: RuleContext) -> list[Finding]:
-    return [finding for fn in RULES.values() for finding in fn(ctx)]
+    return [finding for code, fn in RULES.items() if code not in ctx.disabled for finding in fn(ctx)]
 
 
 # ───────────────────────── 取证据的小工具 ─────────────────────────

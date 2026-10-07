@@ -11,6 +11,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.domains import fill, get_domain
 from app.interview import rubric
 from app.interview.materials import find_source
 from app.llm import prompts
@@ -97,7 +98,7 @@ def _summarize(llm: LLMClient, materials: dict, plan: list[dict], history: list[
                      f"得分 {ev.get('score')}；好在：{ev.get('good') or '无'}；不足：{ev.get('bad') or '无'}")
     links = "\n".join(f"{c['key']}  {'简历问题' if c['kind'] == 'finding' else '岗位要求'}：{c['label']}"
                       for c in candidates) or "（无）"
-    messages = [("system", prompts.INTERVIEW_REPORT_SYSTEM),
+    messages = [("system", fill(prompts.INTERVIEW_REPORT_SYSTEM, get_domain(materials.get("domain")))),
                 ("user", prompts.INTERVIEW_REPORT_USER.format(job_title=materials["job_title"], topics=topics,
                                                               turns="\n\n".join(turns), links=links))]
     result = llm.invoke("interview_report", messages, prompt_version=prompts.INTERVIEW_VERSION, schema=_SummaryOut,

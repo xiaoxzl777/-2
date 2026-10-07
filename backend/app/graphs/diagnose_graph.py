@@ -21,6 +21,7 @@ from app.diagnose.llm_review import review_unit
 from app.diagnose.rules import RuleContext, run_rules
 from app.diagnose.scorer import score
 from app.diagnose.types import Finding, iter_units, severity_key
+from app.domains import get_domain
 from app.graphs.state import DiagnoseState, ReviewUnitInput
 from app.llm.client import LLMClient
 
@@ -31,7 +32,8 @@ DUPLICATE_OVERLAP = 0.5     # 两条 finding 的证据区间重叠超过较短�
 def _rule_scan(state: DiagnoseState) -> dict:
     if state["mode"] == "llm_only":
         return {"rule_findings": []}
-    ctx = RuleContext(state["structure"], state["full_text"], state.get("ats_signals") or {}, state.get("page_count"))
+    ctx = RuleContext(state["structure"], state["full_text"], state.get("ats_signals") or {}, state.get("page_count"),
+                      disabled=get_domain(state.get("domain")).disabled_rules)
     return {"rule_findings": run_rules(ctx)}
 
 
@@ -59,7 +61,7 @@ def _dispatch(state: DiagnoseState) -> list[Send] | str:
         Send("review_unit", ReviewUnitInput(
             unit=u, rule_summary="\n".join(f"- {t}" for t in by_unit.get(u.unit_id, [])),
             full_text=state["full_text"], masked_text=state["masked_text"], job_title=state.get("job_title"),
-            model=state.get("model"), diagnosis_id=state.get("diagnosis_id")))
+            domain=state.get("domain"), model=state.get("model"), diagnosis_id=state.get("diagnosis_id")))
         for u in units
     ]
 
@@ -98,7 +100,7 @@ def build_diagnose_graph(llm: LLMClient):
         ref = ("diagnosis", payload["diagnosis_id"]) if payload.get("diagnosis_id") else None
         r = review_unit(payload["unit"], payload["full_text"], payload["masked_text"], llm,
                         job_title=payload.get("job_title"), rule_summary=payload["rule_summary"],
-                        model=payload.get("model"), ref=ref)
+                        model=payload.get("model"), ref=ref, domain=get_domain(payload.get("domain")))
         return {"llm_findings": r.verified, "rejected_findings": r.rejected,
                 "schema_errors": r.schema_errors, "cost": r.cost}
 
@@ -121,9 +123,9 @@ def build_diagnose_graph(llm: LLMClient):
 def initial_state(*, structure: dict, full_text: str, masked_text: str, mode: str = "hybrid",
                   ats_signals: dict | None = None, page_count: int | None = None, job_title: str | None = None,
                   model: str | None = None, diagnosis_id: int | None = None,
-                  cost_limit: float | None = None) -> DiagnoseState:
+                  cost_limit: float | None = None, domain: str | None = None) -> DiagnoseState:
     return DiagnoseState(
-        diagnosis_id=diagnosis_id, mode=mode, model=model, job_title=job_title, full_text=full_text,
+        diagnosis_id=diagnosis_id, mode=mode, model=model, job_title=job_title, domain=domain, full_text=full_text,
         masked_text=masked_text, structure=structure, ats_signals=ats_signals or {}, page_count=page_count,
         cost_limit=settings.DIAGNOSE_COST_LIMIT if cost_limit is None else cost_limit,
         llm_findings=[], rejected_findings=[], schema_errors=0, cost=0.0,

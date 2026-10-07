@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>岗位方向 · 求职辅助</title>
+<style>
+  :root {
+    --cream: #f6f0e6; --cream-2: #efe6d7; --paper: #fffaf2;
+    --ink: #221d17; --ink-2: #6b6157; --ink-3: #8a7f73;
+    --line: rgba(34,29,23,.1);
+    --accent: #d9542b; --accent-ink: #b8431f;
+    --good: #2f7d4f; --warn: #b7791f; --bad: #c2362b;
+    --ease: cubic-bezier(.22,1,.36,1); --spring: cubic-bezier(.34,1.56,.64,1);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--cream); color: var(--ink); overflow-x: hidden;
+    font-family: "PingFang SC","HarmonyOS Sans SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,sans-serif; -webkit-font-smoothing: antialiased; }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  ::selection { background: rgba(217,84,43,.2); }
+  .grain { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .35; background-image: radial-gradient(rgba(34,29,23,.08) 1px, transparent 1px); background-size: 22px 22px; }
+  .glow { position: fixed; left: 0; top: 0; width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%; pointer-events: none; z-index: 0;
+    background: radial-gradient(circle, rgba(242,140,90,.28) 0%, rgba(242,140,90,0) 65%); }
+  .wrap { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+
+  /* ── 导航（同首页） ── */
+  nav { position: sticky; top: 0; z-index: 20; padding: 18px 0; }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: .5px; }
+  .logo-mark { width: 30px; height: 30px; border-radius: 10px; background: var(--ink); color: var(--cream); display: grid; place-items: center; font-size: 15px; transition: transform .5s var(--spring); }
+  .logo:hover .logo-mark { transform: rotate(-12deg) scale(1.08); }
+  .links { display: flex; gap: 4px; }
+  .links a { padding: 8px 14px; border-radius: 999px; color: var(--ink-2); text-decoration: none; font-size: 15px; transition: background .2s, color .2s; }
+  .links a:hover { background: rgba(34,29,23,.06); color: var(--ink); }
+  .links a.on { color: var(--ink); font-weight: 600; }
+  .me { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink-2); }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+
+  /* ── 按钮（同首页） ── */
+  .btn { position: relative; height: 44px; padding: 0 22px; border-radius: 999px; border: none; font-size: 15px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform .35s var(--spring), background .2s, box-shadow .3s, opacity .2s; will-change: transform; }
+  .btn.dark { background: var(--ink); color: var(--cream); } .btn.dark:hover { background: #000; box-shadow: 0 10px 24px rgba(34,29,23,.22); }
+  .btn.ghost { background: transparent; } .btn.ghost:hover { background: rgba(34,29,23,.06); }
+  .btn.accent { background: var(--accent); color: #fff; } .btn.accent:hover { background: var(--accent-ink); box-shadow: 0 12px 28px rgba(217,84,43,.3); }
+  .btn.outline { background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .btn.lg { height: 56px; padding: 0 30px; font-size: 17px; }
+  .btn.sm { height: 34px; padding: 0 14px; font-size: 13px; }
+  .btn .arrow { transition: transform .35s var(--spring); } .btn:hover:not(:disabled) .arrow { transform: translateX(4px); }
+  .btn:active { transform: scale(.96) !important; }
+  .btn:disabled { opacity: .35; cursor: default; box-shadow: none; }
+  /* 还没做好的功能：按钮留位置，置灰并标「即将开放」 */
+  .btn.soon:disabled { opacity: 1; background: var(--cream-2); color: var(--ink-3); box-shadow: inset 0 0 0 1.5px var(--line); }
+  .btn.soon small { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--paper); color: var(--ink-2); }
+
+  /* ── 进度：细线 + 第几步 ── */
+  .progress { position: relative; z-index: 1; height: 3px; background: rgba(34,29,23,.06); }
+  .progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .8s var(--ease); }
+
+  /* ── 每一步一屏 ── */
+  .screens { position: relative; }
+  .screen { display: none; }
+  .screen.on { display: grid; }
+  .screen { grid-template-columns: 1fr 1.05fr; gap: 64px; align-items: center; min-height: calc(100vh - 83px); padding: 40px 0 80px; }
+  .tag { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 999px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); font-size: 13px; color: var(--ink-2); }
+  .tag b { padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--cream); font-weight: 600; font-size: 12px; }
+  h1 { margin: 22px 0 20px; font-size: clamp(40px, 5vw, 64px); line-height: 1.14; letter-spacing: -1px; font-weight: 800; }
+  h1 .line { display: block; overflow: hidden; padding-bottom: 6px; }
+  h1 .line > span { display: inline-block; transform: translateY(110%); }
+  .screen.on h1 .line > span { animation: rise .9s var(--ease) forwards; }
+  .screen.on h1 .line:nth-child(2) > span { animation-delay: .1s; }
+  .mark { position: relative; white-space: nowrap; }
+  .mark svg { position: absolute; left: -4%; bottom: -8px; width: 108%; height: 20px; overflow: visible; }
+  .mark path { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 400; stroke-dashoffset: 400; }
+  .screen.on .mark path { animation: draw 1s .7s var(--ease) forwards; }
+  .sub { margin: 0 0 32px; max-width: 460px; font-size: 18px; line-height: 1.7; color: var(--ink-2); }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .fade { opacity: 0; transform: translateY(18px); }
+  .screen.on .fade { animation: fadeUp .8s var(--ease) forwards; }
+  .screen.on .d1 { animation-delay: .25s; } .screen.on .d2 { animation-delay: .4s; } .screen.on .d3 { animation-delay: .55s; } .screen.on .d4 { animation-delay: .7s; }
+  @keyframes rise { to { transform: none; } }
+  @keyframes fadeUp { to { opacity: 1; transform: none; } }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  .back { background: none; border: none; color: var(--ink-3); font-size: 14px; padding: 0; margin-bottom: 4px; transition: color .2s; }
+  .back:hover { color: var(--ink); }
+
+  /* ── 右侧操作卡（同首页演示卡：可倾斜、周围漂浮小卡） ── */
+  .stage { position: relative; perspective: 1200px; }
+  .card { position: relative; background: var(--paper); border-radius: 28px; padding: 24px;
+    box-shadow: 0 1px 0 rgba(255,255,255,.8) inset, 0 30px 60px -20px rgba(80,50,20,.25), 0 0 0 1px var(--line);
+    transition: transform .6s var(--ease), box-shadow .3s; }
+  .card.over { box-shadow: 0 0 0 3px var(--accent), 0 30px 60px -20px rgba(80,50,20,.3); }
+  .floaty { position: absolute; z-index: 3; padding: 10px 14px; border-radius: 14px; background: var(--paper); box-shadow: 0 16px 36px -12px rgba(80,50,20,.3), 0 0 0 1px var(--line);
+    font-size: 13px; animation: bob 5s ease-in-out infinite; opacity: 0; transform: scale(.9); transition: opacity .4s, transform .5s var(--spring); pointer-events: none; }
+  .floaty.show { opacity: 1; transform: none; }
+  .floaty b { display: block; font-size: 17px; }
+  .floaty span { color: var(--ink-3); }
+  .floaty.tl { left: -54px; top: -26px; } .floaty.br { right: -40px; bottom: -64px; animation-delay: -2.5s; } .floaty.tr { right: -34px; top: 40px; animation-delay: -1.2s; }
+  @keyframes bob { 50% { translate: 0 -10px; } }
+
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .dots { display: flex; gap: 6px; } .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--cream-2); }
+  .seg { position: relative; display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 4px; border-radius: 999px; background: var(--cream-2); }
+  .seg .knob { position: absolute; top: 4px; bottom: 4px; left: 4px; border-radius: 999px; background: var(--paper); box-shadow: 0 2px 8px rgba(80,50,20,.12); transition: transform .45s var(--spring), width .3s; }
+  .seg button { position: relative; z-index: 1; height: 32px; padding: 0 14px; border: none; background: none; font-weight: 600; font-size: 13px; color: var(--ink-2); white-space: nowrap; }
+  .seg button.on { color: var(--ink); }
+
+  /* ── 选方向（这次新增）：单独一屏，大号下拉 ── */
+  .dsel-label { display: block; margin: 0 0 10px 4px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+  .dsel { position: relative; }
+  .dsel-btn { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 76px; padding: 12px 20px 12px 14px; border: none; border-radius: 20px; background: #fff; text-align: left;
+    box-shadow: inset 0 0 0 1.5px var(--line); transition: box-shadow .25s; }
+  .dsel-btn:hover, .dsel.open .dsel-btn { box-shadow: inset 0 0 0 2px var(--ink); }
+  .dsel-btn .ic, .dsel-opt .ic { width: 48px; height: 48px; border-radius: 14px; background: var(--cream-2); display: grid; place-items: center; flex: none; font-weight: 800; font-size: 14px; color: var(--ink-2); transition: background .25s, color .25s; }
+  .dsel-btn.has .ic { background: var(--ink); color: var(--cream); }
+  .dsel-btn .t { font-weight: 800; font-size: 20px; } .dsel-btn .s { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+  .dsel-btn .ph { font-size: 18px; font-weight: 600; color: var(--ink-3); }
+  .dsel-btn .caret { margin-left: auto; width: 18px; height: 18px; flex: none; color: var(--ink-2); transition: transform .35s var(--spring); }
+  .dsel.open .dsel-btn .caret { transform: rotate(180deg); }
+  .dsel-menu { position: absolute; left: 0; right: 0; top: calc(100% + 8px); z-index: 30; max-height: 300px; overflow-y: auto; padding: 6px; border-radius: 20px; background: var(--paper);
+    box-shadow: 0 18px 40px rgba(60,40,20,.18), inset 0 0 0 1px var(--line);
+    opacity: 0; transform: translateY(-6px) scale(.98); transform-origin: top center; pointer-events: none; transition: opacity .2s, transform .35s var(--spring); }
+  .dsel.open .dsel-menu { opacity: 1; transform: none; pointer-events: auto; }
+  .dsel-opt { display: flex; align-items: center; gap: 14px; width: 100%; padding: 10px 12px; border: none; border-radius: 14px; background: none; text-align: left; transition: background .2s; }
+  .dsel-opt:hover { background: var(--cream); }
+  .dsel-opt .ic { width: 40px; height: 40px; border-radius: 12px; font-size: 12px; }
+  .dsel-opt.on .ic { background: var(--ink); color: var(--cream); }
+  .dsel-opt .t { font-weight: 700; font-size: 16px; } .dsel-opt .s { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+  .dsel-opt .ok { margin-left: auto; opacity: 0; color: var(--accent); font-weight: 800; }
+  .dsel-opt.on .ok { opacity: 1; }
+  .dir-info { margin-top: 16px; padding: 16px 18px; border-radius: 18px; background: var(--cream); font-size: 14px; color: var(--ink-2); line-height: 1.8; }
+  .dir-info b { color: var(--ink); }
+  .dir-info ul { margin: 6px 0 0; padding-left: 18px; }
+  .dirs-note { margin: 14px 4px 0; font-size: 13px; color: var(--ink-3); }
+
+  /* 第一屏上下排版：标题 → 下拉卡片 → 下一步，居中（左下角开关可切回左右排版对比） */
+  .screen.stack.on { grid-template-columns: minmax(0, 600px); justify-content: center; justify-items: center; align-content: center; gap: 0; text-align: center; }
+  .screen.stack > div:first-child { display: contents; }
+  .screen.stack h1 { margin: 20px 0 14px; }
+  .screen.stack h1 .line { display: inline-block; }
+  .screen.stack .sub { margin: 0 auto 30px; max-width: 520px; }
+  .screen.stack .stage { order: 1; width: 100%; text-align: left; }
+  .screen.stack .cta { order: 2; justify-content: center; margin-top: 30px; }
+  .screen.stack .floaty { display: none; }                 /* 下拉框本身就显示着选了什么，浮标多余 */
+  .demo-layout { position: fixed; left: 16px; bottom: 16px; z-index: 30; display: flex; align-items: center; gap: 4px; font-size: 12px; padding: 4px 4px 4px 12px; border-radius: 999px; background: var(--ink); color: var(--cream); }
+  .demo-layout span { margin-right: 6px; }
+  .demo-layout button { height: 26px; padding: 0 10px; border: none; border-radius: 999px; background: transparent; color: rgba(246,240,230,.6); font-size: 12px; font-weight: 600; }
+  .demo-layout button.on { background: var(--cream); color: var(--ink); }
+  .dir-chip { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border: none; border-radius: 999px; background: var(--cream-2); font-size: 13px; font-weight: 700; color: var(--ink-2); transition: box-shadow .2s; }
+  .dir-chip:hover { box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+  .dir-chip .chg { color: var(--accent-ink); }
+  /* 返回按钮做明显：原来是一行淡灰小字，很难发现（所有步骤一起改） */
+  .back { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px 0 12px; margin-bottom: 14px; border: none; border-radius: 999px; background: var(--paper);
+    box-shadow: inset 0 0 0 1.5px var(--line); color: var(--ink-2); font-size: 14px; font-weight: 600; transition: box-shadow .2s, color .2s, transform .3s var(--spring); }
+  .back:hover { color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink-3); transform: translateX(-2px); }
+  .list-empty { padding: 26px 16px; border-radius: 16px; background: #fff; box-shadow: inset 0 0 0 1.5px var(--line); color: var(--ink-3); font-size: 14px; text-align: center; line-height: 1.7; }
+
+  .field { position: relative; margin-bottom: 10px; }
+  .field input, .field textarea { width: 100%; border: none; outline: none; background: #fff; box-shadow: inset 0 0 0 1.5px var(--line); border-radius: 16px; font-size: 15px; transition: box-shadow .25s; }
+  .field input { height: 54px; padding: 22px 16px 6px; }
+  .field textarea { height: 170px; padding: 28px 16px 12px; resize: none; line-height: 1.7; }
+  .field input:focus, .field textarea:focus { box-shadow: inset 0 0 0 2px var(--ink); }
+  .field label { position: absolute; left: 17px; top: 17px; color: var(--ink-3); pointer-events: none; transition: transform .25s var(--ease), font-size .25s; transform-origin: left top; }
+  .field input:focus + label, .field input:not(:placeholder-shown) + label,
+  .field textarea:focus + label, .field textarea:not(:placeholder-shown) + label { transform: translateY(-10px); font-size: 12px; color: var(--ink-2); }
+  .row2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px; }
+  .card-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
+  .link { background: none; border: none; color: var(--accent-ink); font-size: 14px; font-weight: 600; padding: 0; }
+  .link:hover { text-decoration: underline; }
+
+  .reqs { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
+  .reqs-head { font-size: 13px; color: var(--ink-2); margin-bottom: 10px; }
+  .reqs-head b { color: var(--ink); font-size: 15px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; padding: 6px 11px; border-radius: 999px; font-size: 13px; background: var(--cream); box-shadow: inset 0 0 0 1px var(--line);
+    opacity: 0; transform: translateY(8px) scale(.94); animation: pop .5s var(--spring) forwards; }
+  .chip.hard { background: var(--ink); color: var(--cream); box-shadow: none; }
+  .chip.soft { background: transparent; }
+  @keyframes pop { to { opacity: 1; transform: none; } }
+  .skeleton { height: 30px; border-radius: 999px; background: linear-gradient(90deg, var(--cream-2) 0%, #f8f2e8 50%, var(--cream-2) 100%); background-size: 200% 100%; animation: shimmer 1.2s infinite; margin-bottom: 8px; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .item { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 16px; background: #fff; border: none; text-align: left; box-shadow: inset 0 0 0 1.5px var(--line);
+    transition: box-shadow .25s, transform .35s var(--spring), background .25s; }
+  .item:hover { transform: translateX(4px); box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+  .item.sel { box-shadow: inset 0 0 0 2px var(--ink); }
+  .item .ic { width: 40px; height: 40px; border-radius: 12px; background: var(--cream-2); display: grid; place-items: center; flex: none; font-weight: 800; font-size: 12px; color: var(--ink-2); transition: background .25s, color .25s; }
+  .item.sel .ic { background: var(--ink); color: var(--cream); }
+  .item .t { font-weight: 700; font-size: 15px; } .item .s { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+  .item .radio { margin-left: auto; width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--line); flex: none; transition: box-shadow .3s var(--spring); }
+  .item.sel .radio { box-shadow: inset 0 0 0 7px var(--ink); }
+
+  .drop { display: grid; place-items: center; text-align: center; gap: 8px; padding: 30px 16px; border-radius: 20px; border: 2px dashed rgba(34,29,23,.18); background: #fff;
+    cursor: pointer; margin-bottom: 16px; transition: border-color .25s, background .25s; }
+  .drop:hover, .card.over .drop { border-color: var(--accent); background: #fff7f1; }
+  .drop svg { transition: transform .5s var(--spring); } .drop:hover svg, .card.over .drop svg { transform: translateY(-6px); }
+  .drop b { font-size: 16px; } .drop span { font-size: 13px; color: var(--ink-3); }
+  .up { display: none; margin-bottom: 14px; padding: 14px 16px; border-radius: 16px; background: #fff; box-shadow: inset 0 0 0 1.5px var(--line); font-size: 14px; }
+  .up.show { display: block; }
+  .up-top { display: flex; justify-content: space-between; margin-bottom: 8px; } .up-top span { color: var(--ink-3); }
+  .up.err .up-top span { color: var(--bad); font-weight: 600; }
+  .track { height: 6px; border-radius: 6px; background: var(--cream-2); overflow: hidden; }
+  .track i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s linear; }
+  .small-h { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--ink-3); margin: 0 0 8px 2px; }
+
+  /* 第 3 步：左侧的"本次投递" */
+  .pick-sum { display: flex; flex-direction: column; gap: 10px; margin: 0 0 30px; max-width: 460px; }
+  .pick-sum div { display: flex; align-items: baseline; gap: 14px; padding-bottom: 10px; border-bottom: 1px dashed var(--line); }
+  .pick-sum span { flex: none; width: 36px; font-size: 13px; color: var(--ink-3); }
+  .pick-sum b { font-size: 19px; }
+  .pick-sum button { margin-left: auto; }
+
+  /* 流程卡 */
+  .pipe { display: flex; flex-direction: column; gap: 10px; }
+  .node { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 16px; background: #fff; box-shadow: inset 0 0 0 1.5px var(--line); transition: box-shadow .3s, background .3s, transform .45s var(--spring); }
+  .node .ring { width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--line); flex: none; display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 800; }
+  .node .n { font-weight: 700; font-size: 15px; } .node .d { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+  .node .t { margin-left: auto; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .node.run { box-shadow: inset 0 0 0 2px var(--accent); transform: translateX(4px); }
+  .node.run .ring { box-shadow: none; border: 2px solid rgba(217,84,43,.25); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+  .node.ok .ring { background: var(--good); box-shadow: none; }
+  .node.ok .ring::after { content: "✓"; }
+  .par { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; position: relative; }
+  .par-label { font-size: 11px; font-weight: 700; color: var(--ink-3); letter-spacing: 1px; margin: 4px 0 -2px 4px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .big { margin-top: 16px; }
+  .big-top { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-2); margin-bottom: 8px; }
+  .big-top b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .big .track { height: 8px; } .big .track i { background: var(--ink); transition: width .8s var(--ease); }
+
+  /* 结果 */
+  .score-hero { display: flex; align-items: center; gap: 22px; margin: 0 0 26px; }
+  .ring-big { position: relative; width: 120px; height: 120px; flex: none; }
+  .ring-big svg { transform: rotate(-90deg); }
+  .ring-big circle { fill: none; stroke-width: 10; }
+  .ring-big .tr { stroke: var(--cream-2); }
+  .ring-big .br { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 314.2; stroke-dashoffset: 314.2; transition: stroke-dashoffset 1.4s var(--ease); }
+  .ring-big .num { position: absolute; inset: 0; display: grid; place-items: center; font-size: 38px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .dims { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; flex: 1; max-width: 300px; }
+  .dim .l { font-size: 12px; color: var(--ink-3); display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .dim .l b { color: var(--ink); }
+  .dim .tk { height: 5px; border-radius: 5px; background: var(--cream-2); overflow: hidden; }
+  .dim .tk i { display: block; height: 100%; width: 0; background: var(--ink); transition: width 1.2s var(--ease); }
+  .result-sub { margin-bottom: 24px; }
+  .hint { font-size: 12px; color: var(--ink-3); }
+  /* 一条问题：点开看详情（原文、依据、建议）。原文高亮下一轮再做 */
+  .issue { border-radius: 14px; background: #fff; box-shadow: inset 0 0 0 1px var(--line); margin-bottom: 8px;
+    opacity: 0; animation: pop .5s var(--spring) forwards; transition: box-shadow .25s; }
+  .issue:hover, .issue.open { box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+  .issue-row { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 12px 14px; border: none; background: none; text-align: left; font-size: 14px; }
+  .issue .why { display: block; font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+  .tagx { flex: none; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+  .tagx.miss { background: rgba(194,54,43,.12); color: var(--bad); }
+  .tagx.part { background: rgba(183,121,31,.15); color: var(--warn); }
+  .tagx.high { background: var(--bad); color: #fff; }
+  .tagx.med { background: var(--warn); color: #fff; }
+  .tagx.low { background: rgba(34,29,23,.08); color: var(--ink-2); }
+  .issue-arrow { margin-left: auto; color: var(--ink-3); font-size: 18px; line-height: 20px; transition: transform .35s var(--spring), color .2s; }
+  .issue.open .issue-arrow { transform: rotate(90deg); color: var(--ink); }
+  .detail { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .4s var(--ease); }
+  .detail > div { overflow: hidden; }
+  .issue.open .detail { grid-template-rows: 1fr; }
+  .detail-in { padding: 0 14px 14px; font-size: 13px; line-height: 1.7; color: var(--ink-2); }
+  .detail-in p { display: flex; gap: 10px; margin: 6px 0 0; }
+  .detail-in .k { flex: none; width: 56px; font-size: 12px; color: var(--ink-3); }
+  .detail-in .q { padding: 8px 10px; border-radius: 10px; background: var(--cream); color: var(--ink); }
+
+  /* 只有预览才有：右下角切换结果演示 */
+  .demo-flag { position: fixed; right: 16px; bottom: 16px; z-index: 30; display: flex; align-items: center; gap: 4px; font-size: 12px; padding: 4px 4px 4px 12px; border-radius: 999px; background: var(--ink); color: var(--cream); }
+  .demo-flag span { margin-right: 6px; }
+  .demo-flag button { height: 26px; padding: 0 10px; border: none; border-radius: 999px; background: transparent; color: rgba(246,240,230,.6); font-size: 12px; font-weight: 600; }
+  .demo-flag button.on { background: var(--cream); color: var(--ink); }
+
+  @media (max-width: 960px) {
+    .screen, .screen.on { grid-template-columns: 1fr; gap: 40px; } .links { display: none; } .wrap { padding: 0 16px; }
+    .floaty { display: none; } .par, .row2 { grid-template-columns: 1fr; } .score-hero { flex-wrap: wrap; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; } .glow { display: none; } }
+</style>
+</head>
+<body>
+<div class="grain"></div><div class="glow" id="glow"></div>
+
+<nav>
+  <div class="wrap">
+    <div class="logo"><span class="logo-mark">求</span>求职辅助</div>
+    <div class="links"><a href="#" class="on">新的投递</a></div>
+    <div class="me"><span class="avatar">U</span>user<button class="btn ghost magnetic" style="height:36px;padding:0 14px;font-size:14px">退出</button></div>
+  </div>
+</nav>
+<div class="progress"><i id="prog"></i></div>
+
+<main class="wrap screens">
+
+  <!-- ① 方向（这次新增） -->
+  <section class="screen on stack" data-screen="0" id="dirScreen">
+    <div>
+      <span class="tag fade d1"><b>1 / 4</b>求职方向</span>
+      <h1>
+        <span class="line"><span>你想找</span></span>
+        <span class="line"><span><span class="mark">哪类<svg viewBox="0 0 300 22" preserveAspectRatio="none"><path d="M4 16 C 80 4, 200 4, 296 12"/></svg></span>工作？</span></span>
+      </h1>
+      <p class="sub fade d2">先选方向。岗位模板、简历按什么标准诊断、模拟面试问哪一类问题，都会跟着换。</p>
+      <div class="cta fade d3">
+        <button class="btn accent lg magnetic" id="nextDir" disabled>下一步：选岗位 <span class="arrow">→</span></button>
+      </div>
+    </div>
+    <div class="stage fade d4">
+      <div class="floaty tl" id="fDir"><b id="fDirN">—</b><span>已选方向</span></div>
+      <div class="card tilt">
+        <span class="dsel-label" id="dselLabel">求职方向</span>
+        <div class="dsel" id="dsel">
+          <button class="dsel-btn" id="dselBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="dselLabel">
+            <span class="ic" id="dselIc">?</span>
+            <div id="dselText"><div class="ph">点这里选择方向</div></div>
+            <svg class="caret" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5 5-5"/></svg>
+          </button>
+          <div class="dsel-menu" role="listbox" id="dselMenu"></div>
+        </div>
+        <div class="dir-info" id="dirInfo">不同方向的岗位模板、简历诊断标准、模拟面试问的问题都不一样，先选一个。</div>
+        <p class="dirs-note">选错了也没关系，下一步点「← 上一步」就能回来换。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ② 岗位 -->
+  <section class="screen" data-screen="1">
+    <div>
+      <button class="back fade d1" data-go="0">← 上一步：选方向</button><br>
+      <span class="tag fade d1"><b>2 / 4</b>目标岗位</span>
+      <h1>
+        <span class="line"><span>你想投</span></span>
+        <span class="line"><span>哪个<span class="mark">岗位<svg viewBox="0 0 300 22" preserveAspectRatio="none"><path d="M4 16 C 80 4, 200 4, 296 12"/></svg></span>？</span></span>
+      </h1>
+      <p class="sub fade d2">「<b class="dir-name">计算机</b>」方向。把招聘信息里的「岗位要求」整段贴过来，我会拆成一条条，之后逐条对照你的简历。</p>
+      <div class="cta fade d3">
+        <button class="btn accent lg magnetic" id="next0" disabled>下一步：选简历 <span class="arrow">→</span></button>
+      </div>
+    </div>
+    <div class="stage fade d4">
+      <div class="floaty tl" id="fReq"><b id="fReqN">12 条</b><span>要求已拆出</span></div>
+      <div class="floaty br" id="fJob"><b id="fJobN">后端开发实习生</b><span>已选岗位</span></div>
+      <div class="card tilt">
+        <div class="card-head">
+          <button class="dir-chip" data-go="0" title="回到上一步换方向"><span><span class="dir-name">计算机</span>方向</span><span class="chg">换</span></button>
+          <div class="seg" id="seg"><span class="knob"></span><button class="on" data-tab="paste">粘贴 JD</button><button data-tab="mine">我的岗位</button><button data-tab="tpl">模板</button></div>
+        </div>
+        <div data-view="paste">
+          <div class="row2">
+            <div class="field"><input id="title" placeholder=" "><label>岗位名称</label></div>
+            <div class="field"><input id="company" placeholder=" "><label>公司（选填）</label></div>
+          </div>
+          <div class="field"><textarea id="jd" placeholder=" "></textarea><label>岗位要求原文</label></div>
+          <div class="card-foot">
+            <button class="link" id="sample">填一份示例 JD</button>
+            <button class="btn dark sm" id="parse" disabled>解析要求</button>
+          </div>
+          <div id="reqs"></div>
+        </div>
+        <div data-view="mine" hidden>
+          <div class="list" data-pick="job" id="mineList"></div>
+        </div>
+        <div data-view="tpl" hidden>
+          <div class="list" data-pick="job" id="tplList"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ③ 简历 -->
+  <section class="screen" data-screen="2">
+    <div>
+      <button class="back fade d1" data-go="1">← 上一步：选岗位</button><br>
+      <span class="tag fade d1"><b>3 / 4</b>简历</span>
+      <h1>
+        <span class="line"><span>用哪份</span></span>
+        <span class="line"><span><span class="mark">简历<svg viewBox="0 0 300 22" preserveAspectRatio="none"><path d="M4 16 C 80 4, 200 4, 296 12"/></svg></span>去投？</span></span>
+      </h1>
+      <p class="sub fade d2">目前只收 PDF，两栏排版也认得。同一份简历可以投很多个岗位，只需上传一次。</p>
+      <div class="cta fade d3">
+        <button class="btn accent lg magnetic" id="next1" disabled>下一步：确认 <span class="arrow">→</span></button>
+      </div>
+    </div>
+    <div class="stage fade d4">
+      <div class="floaty tl show"><b id="f2Job">后端开发实习生</b><span>目标岗位</span></div>
+      <div class="floaty br" id="fRes"><b id="fResN">—</b><span>已选简历</span></div>
+      <div class="card tilt" id="dropCard">
+        <label class="drop">
+          <input type="file" accept=".pdf" hidden id="file">
+          <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#d9542b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>
+          <b>拖进来，或点这里选文件</b>
+          <span>PDF · 20MB 以内 · 扫描件读不出文字<br>Word 简历请先另存为 PDF</span>
+        </label>
+        <div class="up" id="up"><div class="up-top"><b id="upName">简历.pdf</b><span id="upState">上传中…</span></div><div class="track"><i id="upBar"></i></div></div>
+        <p class="small-h">已上传</p>
+        <div class="list" data-pick="resume" id="resList">
+          <button class="item" data-name="张同学_后端_2026.pdf"><span class="ic">PDF</span><div><div class="t">张同学_后端_2026.pdf</div><div class="s">2 页 · 已解析 · 9 月 19 日</div></div><span class="radio"></span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ③ 投递 -->
+  <section class="screen" data-screen="3">
+    <div>
+      <span class="tag fade d1"><b>4 / 4</b>投递</span>
+      <h1 id="h3">
+        <span class="line"><span>准备好了，</span></span>
+        <span class="line"><span><span class="mark">投<svg viewBox="0 0 300 22" preserveAspectRatio="none"><path d="M4 16 C 80 4, 200 4, 296 12"/></svg></span>吧。</span></span>
+      </h1>
+      <div class="pick-sum fade d2">
+        <div><span>方向</span><b id="sDir">—</b><button class="link" data-go="0">换</button></div>
+        <div><span>岗位</span><b id="sJob">—</b><button class="link" data-go="1">换</button></div>
+        <div><span>简历</span><b id="sRes">—</b><button class="link" data-go="2">换</button></div>
+      </div>
+      <div class="cta fade d3" id="applyCta">
+        <button class="btn accent lg magnetic" id="apply">投递 <span class="arrow">→</span></button>
+        <span style="font-size:13px;color:var(--ink-3)">约 20–40 秒 · 大模型会逐条审阅你的经历</span>
+      </div>
+    </div>
+    <div class="stage fade d4">
+      <div class="floaty tr" id="fDone"><b>依据已核实</b><span>模型引用都能在原文找到</span></div>
+      <div class="card tilt">
+        <div class="card-head"><div class="dots"><i></i><i></i><i></i></div><span style="font-size:13px;color:var(--ink-3)" id="pipeState">点「投递」后开始</span></div>
+        <div class="pipe">
+          <div class="node" id="nP"><span class="ring"></span><div><div class="n">解析简历</div><div class="d">版面 → 章节 → 结构化</div></div><span class="t" id="tP"></span></div>
+          <div class="par-label">同时进行</div>
+          <div class="par">
+            <div class="node" id="nD"><span class="ring"></span><div><div class="n">诊断简历</div><div class="d">规则 + 大模型</div></div></div>
+            <div class="node" id="nM"><span class="ring"></span><div><div class="n">对照岗位</div><div class="d">逐条判定要求</div></div></div>
+          </div>
+          <div class="node" id="nG"><span class="ring"></span><div><div class="n">初筛判定</div><div class="d">匹配度 ≥ 60 即通过</div></div></div>
+        </div>
+        <div class="big"><div class="big-top"><span id="stageText">等待开始</span><b id="pct">0%</b></div><div class="track"><i id="bar"></i></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 结果：通过 / 未通过两种，内容由下面脚本里的示例数据生成（字段对应 GET /apply/{id}） -->
+  <section class="screen" data-screen="4" id="result"></section>
+</main>
+
+<div class="demo-layout"><span>第一屏排版</span><button class="on" data-layout="stack">上下</button><button data-layout="side">左右</button></div>
+<div class="demo-flag"><span>效果预览 · 示例数据 · 结果演示</span><button class="on" data-variant="pass">通过</button><button data-variant="fail">未通过</button></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* 光晕 */
+let mx = innerWidth/2, my = innerHeight/3, gx = mx, gy = my;
+addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+(function loop(){ gx += (mx-gx)*.08; gy += (my-gy)*.08; $('glow').style.transform = `translate(${gx}px,${gy}px)`; requestAnimationFrame(loop); })();
+
+/* 磁吸按钮、卡片倾斜（结果页是动态生成的，生成后再调一次） */
+function wire(root) {
+  root.querySelectorAll('.magnetic').forEach(b => {
+    b.addEventListener('mousemove', e => { if (b.disabled || reduce) return; const r = b.getBoundingClientRect();
+      b.style.transform = `translate(${(e.clientX - r.left - r.width/2) * .22}px, ${(e.clientY - r.top - r.height/2) * .3}px)`; });
+    b.addEventListener('mouseleave', () => b.style.transform = '');
+  });
+  root.querySelectorAll('.tilt').forEach(c => {
+    c.addEventListener('mousemove', e => { if (reduce) return; const r = c.getBoundingClientRect();
+      c.style.transform = `rotateY(${((e.clientX - r.left)/r.width - .5) * 5}deg) rotateX(${-((e.clientY - r.top)/r.height - .5) * 5}deg)`; });
+    c.addEventListener('mouseleave', () => c.style.transform = '');
+  });
+}
+wire(document);
+
+/* 切屏 */
+const state = { job: null, n: 0, resume: null, dir: null };
+function show(i) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', +s.dataset.screen === i));
+  $('prog').style.width = [12, 34, 56, 78, 100][i] + '%';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (i === 2) $('f2Job').textContent = state.job;
+  if (i === 3) { $('sDir').textContent = DIRS[state.dir].name; $('sJob').textContent = state.job; $('sRes').textContent = state.resume; }
+}
+document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => show(+b.dataset.go)));
+$('nextDir').addEventListener('click', () => show(1));
+$('next0').addEventListener('click', () => show(2));
+$('next1').addEventListener('click', () => show(3));
+show(0);
+
+/* 分段 */
+function seg(el, attr, viewAttr) {
+  const knob = el.querySelector('.knob'), btns = [...el.querySelectorAll('button')];
+  const place = b => { knob.style.width = b.offsetWidth + 'px'; knob.style.transform = `translateX(${b.offsetLeft - 4}px)`; };
+  btns.forEach(b => b.addEventListener('click', () => {
+    btns.forEach(x => x.classList.toggle('on', x === b)); place(b);
+    document.querySelectorAll(`[${viewAttr}]`).forEach(v => v.hidden = v.getAttribute(viewAttr) !== b.getAttribute(attr));
+  }));
+  new ResizeObserver(() => place(el.querySelector('button.on'))).observe(el);
+}
+seg($('seg'), 'data-tab', 'data-view');
+
+/* 选择 */
+function pickJob(name, n) {
+  state.job = name; state.n = n; $('next0').disabled = false;
+  $('fJobN').textContent = name; $('fJob').classList.add('show');
+  $('fReqN').textContent = n + ' 条'; $('fReq').classList.add('show');
+}
+function pickRes(name) { state.resume = name; $('next1').disabled = false; $('fResN').textContent = name; $('fRes').classList.add('show'); }
+document.querySelectorAll('[data-pick]').forEach(list => list.addEventListener('click', e => {
+  const it = e.target.closest('.item'); if (!it) return;
+  document.querySelectorAll(`[data-pick="${list.dataset.pick}"] .item`).forEach(x => x.classList.toggle('sel', x === it));
+  list.dataset.pick === 'job' ? pickJob(it.dataset.name, +it.dataset.n) : pickRes(it.dataset.name);
+}));
+
+/* 粘贴 JD → 解析 */
+const SAMPLE = `任职要求：
+1. 本科及以上学历，计算机相关专业；
+2. 熟悉 Java，熟悉 Spring Boot、MyBatis 等常用框架；
+3. 熟悉 MySQL，有 SQL 调优经验者优先；
+4. 有 Redis 使用经验，了解常见缓存问题；
+5. 了解消息队列（Kafka / RocketMQ）；
+6. 有高并发场景经验者优先；熟悉 Linux 常用命令；
+7. 良好的沟通能力与团队协作意识。`;
+const REQS = [['hard', ['本科及以上', '熟悉 Java', 'Spring Boot', 'MyBatis', 'MySQL', 'Redis', '消息队列']], ['', ['SQL 调优', '高并发经验', 'Linux 命令']], ['soft', ['沟通能力', '团队协作']]];
+const canParse = () => $('parse').disabled = $('jd').value.trim().length < 30 || !$('title').value.trim();   // 后端要求 JD 至少 30 字
+['jd', 'title'].forEach(id => $(id).addEventListener('input', canParse));
+$('sample').addEventListener('click', () => { const x = DIRS[state.dir].sample; $('title').value = x.title; $('company').value = x.company; $('jd').value = x.jd; canParse(); });
+$('parse').addEventListener('click', async () => {
+  $('parse').disabled = true; $('parse').textContent = '解析中…';
+  $('reqs').innerHTML = '<div class="reqs">' + [80, 60, 70].map(w => `<div class="skeleton" style="width:${w}%"></div>`).join('') + '</div>';
+  await sleep(1500);
+  let d = 0, total = 0;
+  const chips = DIRS[state.dir].sample.reqs.map(([cls, xs]) => { total += xs.length; return xs.map(t => `<span class="chip ${cls}" style="animation-delay:${d += 45}ms">${t}</span>`).join(''); }).join('');
+  $('reqs').innerHTML = `<div class="reqs"><div class="reqs-head">拆出 <b>${total}</b> 条要求 · 黑色为必须项，每条都能在原文找到出处</div><div class="chips">${chips}</div></div>`;
+  $('parse').textContent = '重新解析'; $('parse').disabled = false;
+  pickJob($('title').value.trim(), total);
+});
+
+/* 方向（这次新增）：决定模板、示例 JD，以及之后的诊断标准和面试官 */
+const OPS_SAMPLE = `任职要求：
+1. 本科及以上学历，市场营销、新闻传播、中文等相关专业优先；
+2. 熟悉小红书、抖音、微信公众号等平台的内容规则；
+3. 有独立策划并执行线上活动的经历，能复盘活动数据；
+4. 会用 Excel 做数据整理和透视分析，会 SQL 者优先；
+5. 文字功底好，能独立撰写推文和短视频脚本；
+6. 了解用户增长、A/B 测试者优先；
+7. 沟通能力强，执行力强。`;
+const OPS_REQS = [['hard', ['本科及以上', '平台内容规则', '活动策划执行', '活动数据复盘', 'Excel 数据分析', '文案撰写']], ['', ['SQL', '用户增长', 'A/B 测试']], ['soft', ['沟通能力', '执行力']]];
+const DIRS = {
+  cs: { name: '计算机', ic: '计算', desc: '后端 · 前端 · 算法 · 测试 · 数据', interview: '面试问技术实现、方案取舍',
+    tplHint: '后端、前端、算法、测试开发、数据分析等', rule: '技术岗的标准（比如技能栏写的技术，要在项目里用过）',
+    tpl: [['后端开发实习生（Java）', 15], ['后端开发实习生（Python / Go）', 14], ['前端开发实习生', 17], ['算法实习生（机器学习）', 15],
+          ['AI 应用开发实习生（大模型）', 16], ['测试开发实习生', 12], ['数据分析实习生', 13]],
+    mine: [['后端开发实习生', '字节跳动', 12], ['Java 开发工程师（校招）', '美团', 10]],
+    sample: { title: '后端开发实习生', company: '示例科技', jd: SAMPLE, reqs: REQS } },
+  ops: { name: '运营', ic: '运营', desc: '内容 · 新媒体 · 用户 · 活动', interview: '面试问活动策划、数据复盘',
+    tplHint: '内容运营、用户运营', rule: '运营岗的标准（比如活动、内容要写出数据结果）',
+    tpl: [['内容运营实习生（新媒体）', 12], ['用户运营实习生', 11]],
+    mine: [],
+    sample: { title: '新媒体运营实习生', company: '示例传媒', jd: OPS_SAMPLE, reqs: OPS_REQS } },
+};
+const icOf = (t) => t.replace(/\s/g, '').slice(0, 2);     // 和真实页面一样：图标取标题前两个字
+function renderDsel() {
+  $('dselMenu').innerHTML = Object.entries(DIRS).map(([k, d]) =>
+    `<button class="dsel-opt${k === state.dir ? ' on' : ''}" role="option" aria-selected="${k === state.dir}" data-dir="${k}"><span class="ic">${d.ic}</span><div><div class="t">${d.name}</div><div class="s">${d.desc}</div></div><span class="ok">✓</span></button>`).join('');
+  if (!state.dir) return;
+  const d = DIRS[state.dir];
+  $('dselBtn').classList.add('has'); $('dselIc').textContent = d.ic;
+  $('dselText').innerHTML = `<div class="t">${d.name}</div><div class="s">${d.desc}</div>`;
+  $('dirInfo').innerHTML = `选了「<b>${d.name}</b>」之后：<ul><li>岗位模板 ${d.tpl.length} 份：${d.tplHint}</li><li>简历按${d.rule}诊断</li><li>模拟${d.interview}</li></ul>`;
+}
+const openDsel = (open) => { $('dsel').classList.toggle('open', open); $('dselBtn').setAttribute('aria-expanded', open); };
+$('dselBtn').addEventListener('click', (e) => { e.stopPropagation(); openDsel(!$('dsel').classList.contains('open')); });
+$('dselMenu').addEventListener('click', (e) => { const o = e.target.closest('.dsel-opt'); if (o) { pickDir(o.dataset.dir); openDsel(false); } });
+document.addEventListener('click', (e) => { if (!$('dsel').contains(e.target)) openDsel(false); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') openDsel(false); });
+function renderLists() {
+  const d = DIRS[state.dir];
+  $('tplList').innerHTML = d.tpl.map(([t, n]) =>
+    `<button class="item" data-name="${t}" data-n="${n}"><span class="ic">${icOf(t)}</span><div><div class="t">${t}</div><div class="s">${n} 条要求</div></div><span class="radio"></span></button>`).join('');
+  $('mineList').innerHTML = d.mine.length ? d.mine.map(([t, c, n]) =>
+    `<button class="item" data-name="${t}" data-n="${n}"><span class="ic">JD</span><div><div class="t">${t}</div><div class="s">${c} · ${n} 条要求</div></div><span class="radio"></span></button>`).join('')
+    : `<div class="list-empty">「${d.name}」方向下还没有岗位。<br>在「粘贴 JD」里贴一份，解析后会保存在这里。</div>`;
+}
+function pickDir(k) {
+  $('nextDir').disabled = false; $('fDirN').textContent = DIRS[k].name; $('fDir').classList.add('show');
+  if (k === state.dir) return;
+  state.dir = k;
+  document.querySelectorAll('.dir-name').forEach(x => x.textContent = DIRS[k].name);
+  // 换了方向，之前选的岗位、解析出的要求都不算数；已经贴进去的原文留着，免得白贴
+  state.job = null; $('next0').disabled = true; $('fJob').classList.remove('show'); $('fReq').classList.remove('show');
+  $('reqs').innerHTML = ''; $('parse').textContent = '解析要求'; canParse();
+  renderDsel(); renderLists();
+}
+renderDsel();
+
+/* 左下角：第一屏排版对比（只在样稿里有） */
+document.querySelectorAll('.demo-layout button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.demo-layout button').forEach(x => x.classList.toggle('on', x === b));
+  $('dirScreen').classList.toggle('stack', b.dataset.layout === 'stack');
+}));
+
+/* 上传 */
+const card = $('dropCard');
+['dragenter', 'dragover'].forEach(ev => card.addEventListener(ev, e => { e.preventDefault(); card.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => card.addEventListener(ev, e => { e.preventDefault(); card.classList.remove('over'); }));
+card.addEventListener('drop', e => upload(e.dataTransfer.files[0]?.name));
+$('file').addEventListener('change', e => upload(e.target.files[0]?.name));
+async function upload(name = '我的简历.pdf') {
+  $('up').classList.add('show'); $('upName').textContent = name;
+  if (!/\.pdf$/i.test(name)) {        // 后端只收 PDF（41501），前端先拦一道
+    $('up').classList.add('err'); $('upState').textContent = '目前只支持 PDF'; $('upBar').style.width = '0%'; return;
+  }
+  $('up').classList.remove('err'); $('upState').textContent = '上传中…';
+  for (let p = 0; p <= 100; p += 10) { $('upBar').style.width = p + '%'; await sleep(60); }
+  $('upState').textContent = '解析中…'; await sleep(800);
+  $('up').classList.remove('show');
+  const it = document.createElement('button'); it.className = 'item'; it.dataset.name = name;
+  it.innerHTML = `<span class="ic">PDF</span><div><div class="t">${esc(name)}</div><div class="s">刚刚上传 · 已解析</div></div><span class="radio"></span>`;
+  $('resList').prepend(it); it.click();
+}
+
+/* 投递：模拟图 A 的进度事件 */
+$('apply').addEventListener('click', async () => {
+  $('applyCta').style.visibility = 'hidden';
+  document.querySelectorAll('.pick-sum .link').forEach(b => b.hidden = true);
+  const set = (p, t) => { $('bar').style.width = p + '%'; $('pct').textContent = p + '%'; $('stageText').textContent = t; };
+  const node = (id, s) => { $(id).classList.remove('run', 'ok'); $(id).classList.add(s); };
+  $('pipeState').textContent = '分析中…';
+  set(5, '正在解析简历'); node('nP', 'run'); await sleep(700); node('nP', 'ok'); $('tP').textContent = '已解析过，复用';
+  set(20, '诊断简历、对照岗位同时进行'); node('nD', 'run'); node('nM', 'run');
+  await sleep(2000); node('nM', 'ok'); set(60, '岗位匹配完成');
+  await sleep(1100); node('nD', 'ok'); set(85, '简历诊断完成');
+  node('nG', 'run'); await sleep(700); node('nG', 'ok'); set(100, '完成'); $('pipeState').textContent = '分析完成';
+  $('fDone').classList.add('show');
+  await sleep(900);
+  openResult();
+});
+
+function resetPipe() {
+  ['nP', 'nD', 'nM', 'nG'].forEach(id => $(id).classList.remove('run', 'ok'));
+  $('tP').textContent = ''; $('bar').style.width = '0%'; $('pct').textContent = '0%'; $('stageText').textContent = '等待开始';
+  $('pipeState').textContent = '点「投递」后开始'; $('fDone').classList.remove('show');
+  $('applyCta').style.visibility = ''; document.querySelectorAll('.pick-sum .link').forEach(b => b.hidden = false);
+}
+
+/* ── 结果页 ──
+   示例数据的字段与 GET /apply/{id} 一致：gate / dimension_scores / gaps[] / resume_issues[]。
+   四项分数是后端的 skill / education / experience / other；JD 里没有这类要求时为 null，不显示。 */
+const DIM_LABEL = { skill: '技能', education: '学历', experience: '经验', other: '其他' };
+const REQ_TYPE = { hard: '必须项', plus: '加分项', soft: '软素质' };
+const MATCHED_BY = { dict: '规则判定（技能词典）', profile: '规则判定（学历 / 年限）', fulltext: '大模型判定' };
+const SEVERITY = { high: ['high', '严重'], medium: ['med', '中等'], low: ['low', '轻微'] };
+const MARK_SVG = '<svg viewBox="0 0 300 22" preserveAspectRatio="none"><path d="M4 16 C 80 4, 200 4, 296 12"/></svg>';
+const soon = (text) => `<button class="btn soon lg" disabled>${text} <small>即将开放</small></button>`;
+
+const RESULTS = {
+  pass: {
+    overall: 72,
+    title: ['通过初筛，', '可以去<mark>面试</mark>了。'],
+    sub: '匹配度 72，过了 60 分的初筛线。下面还有几处可以写得更好，面试前值得先改。',
+    dims: { skill: 78, education: 100, experience: 65, other: 60 },
+    buttons: soon('进入模拟面试') + '<button class="btn outline lg magnetic" data-act="again">再投一个</button>',
+    gaps: [
+      { status: 'miss', req_type: 'hard', content: '了解消息队列（Kafka / RocketMQ）', matched_by: 'fulltext', reason: '简历里没有提到消息队列相关的内容', evidence_quote: null },
+      { status: 'partial', req_type: 'plus', content: '有高并发场景经验', matched_by: 'fulltext', reason: '只提到缓存优化，没写并发量级', evidence_quote: '使用 Redis 缓存热门商品，接口响应从 800ms 降到 120ms' },
+      { status: 'partial', req_type: 'plus', content: '熟悉 Linux 常用命令', matched_by: 'dict', reason: '只出现在技能清单里，经历中没有体现实际使用', evidence_quote: '熟悉 Linux 常用命令、Git' },
+    ],
+    issues: [
+      { severity: 'medium', source: 'rule', title: '只有做了什么，没有结果', evidence_quote: '负责订单模块的开发',
+        description: '这条描述停留在「做了某事」，没有说明带来了什么结果（STAR 中的 R）。', suggestion: '补一句结果：解决了什么问题、达到了什么效果、支撑了什么业务。' },
+      { severity: 'medium', source: 'rule', title: '技能「Docker」在经历中没有体现', evidence_quote: 'Docker',
+        description: '技能栏列出了「Docker」，但所有工作 / 项目经历的描述里都没有提到它。', suggestion: '在用到它的经历里写明怎么用的；如果确实没用过，建议从技能栏移除或降低熟练度描述。' },
+      { severity: 'low', source: 'rule', title: '以弱动词「参与」开头', evidence_quote: '参与了数据库设计',
+        description: '「参与」说明不了你具体做了什么、承担了多大责任。', suggestion: '换成能体现个人贡献的动词：设计、实现、主导、优化、重构、排查、搭建。' },
+    ],
+  },
+  fail: {
+    overall: 52,
+    title: ['差一点，', '这次没过<mark>初筛</mark>。'],
+    sub: '匹配度 52，初筛线是 60。先看「对照岗位」里的必须项，补上它们分数涨得最快；简历本身的问题也顺手改掉。',
+    dims: { skill: 50, education: 100, experience: 30, other: null },
+    buttons: '<button class="btn accent lg magnetic" data-act="resubmit">改完简历，再投这个岗位 <span class="arrow">→</span></button>' + soon('以练习模式面试'),
+    gaps: [   // 后端的排序：越重要越靠前，同等重要时「缺失」在「部分」前
+      { status: 'miss', req_type: 'hard', content: '熟悉 Kafka 等消息队列', matched_by: 'fulltext', reason: '简历里没有提到消息队列相关的内容', evidence_quote: null },
+      { status: 'miss', req_type: 'hard', content: '1 年以上后端开发实习经验', matched_by: 'profile', reason: '要求 1 年，简历中的工作与实习经历合计约 0.3 年', evidence_quote: null },
+      { status: 'partial', req_type: 'hard', content: '熟悉 MySQL 索引与 SQL 调优', matched_by: 'fulltext', reason: '只写了使用 MySQL，没有涉及索引或调优', evidence_quote: '数据存储使用 MySQL，完成了订单表的设计' },
+      { status: 'miss', req_type: 'plus', content: '了解 Docker 容器化部署', matched_by: 'fulltext', reason: '简历里没有提到容器化部署', evidence_quote: null },
+      { status: 'partial', req_type: 'plus', content: '有高并发场景经验', matched_by: 'fulltext', reason: '提到了缓存，但没写并发量级', evidence_quote: '使用 Redis 缓存热门商品' },
+    ],
+    issues: [
+      { severity: 'high', source: 'rule', title: '成果缺少量化数据', evidence_quote: '对系统性能进行了优化，响应速度明显提升',
+        description: '这条描述提到了「提升」，但没有给出任何数字，读者无法判断成果的大小。', suggestion: '补充可验证的数字：优化前后的指标、数据规模、用户量、耗时等。没有真实数据就删掉这句空话。' },
+      { severity: 'medium', source: 'llm', title: '表述模糊', evidence_quote: '负责系统的优化工作',
+        description: '没有说明优化了什么、用了什么手段。', suggestion: '写明优化对象与具体做法。' },
+      { severity: 'medium', source: 'rule', title: '只有做了什么，没有结果', evidence_quote: '负责后台管理页面的开发',
+        description: '这条描述停留在「做了某事」，没有说明带来了什么结果（STAR 中的 R）。', suggestion: '补一句结果：解决了什么问题、达到了什么效果、支撑了什么业务。' },
+      { severity: 'low', source: 'rule', title: '以弱动词「参与」开头', evidence_quote: '参与了接口联调',
+        description: '「参与」说明不了你具体做了什么、承担了多大责任。', suggestion: '换成能体现个人贡献的动词：设计、实现、主导、优化、重构、排查、搭建。' },
+    ],
+  },
+};
+
+let variant = 'pass';
+
+/* 一条可以点开的问题：tag = [样式, 文字]，rows = [[小标题, 内容, 是否原文]] */
+const issueHtml = (i, [cls, label], text, why, rows) => `
+  <div class="issue" style="animation-delay:${(.1 + i * .08).toFixed(2)}s">
+    <button class="issue-row"><span class="tagx ${cls}">${label}</span><span>${text}<span class="why">${why}</span></span><span class="issue-arrow">›</span></button>
+    <div class="detail"><div><div class="detail-in">
+      ${rows.map(([k, v, q]) => `<p${q ? ' class="q"' : ''}><span class="k">${k}</span><span>${v}</span></p>`).join('')}
+    </div></div></div>
+  </div>`;
+
+function renderResult() {
+  const r = RESULTS[variant];
+  const title = r.title.map(t => t.replace(/<mark>(.*?)<\/mark>/, `<span class="mark">$1${MARK_SVG}</span>`));
+  const dims = Object.entries(r.dims).filter(([, v]) => v !== null)
+    .map(([k, v]) => `<div class="dim"><div class="l">${DIM_LABEL[k]}<b>${v}</b></div><div class="tk"><i data-w="${v}"></i></div></div>`).join('');
+  const gaps = r.gaps.map((g, i) => issueHtml(i, g.status === 'miss' ? ['miss', '缺失'] : ['part', '部分'], g.content,
+    `${REQ_TYPE[g.req_type]} · ${g.reason}`, [
+      g.evidence_quote ? ['简历原文', `「${g.evidence_quote}」`, true] : ['简历原文', '没有找到相关的内容'],
+      ['判定方式', MATCHED_BY[g.matched_by] + (g.matched_by === 'fulltext' && g.evidence_quote ? ' · 引用已在原文中核实' : '')],
+    ])).join('');
+  const issues = r.issues.map((f, i) => issueHtml(i, SEVERITY[f.severity], `「${f.evidence_quote}」`, f.title, [
+    ['问题', f.description], ['怎么改', f.suggestion],
+    ['来源', f.source === 'rule' ? '规则检查' : '大模型审阅 · 引用已在原文中核实'],
+  ])).join('');
+
+  const el = $('result');
+  el.innerHTML = `
+    <div>
+      <span class="tag fade d1"><b>初筛结果</b>${esc(state.job || '后端开发实习生')}</span>
+      <h1><span class="line"><span>${title[0]}</span></span><span class="line"><span>${title[1]}</span></span></h1>
+      <p class="sub result-sub fade d2">${r.sub}</p>
+      <div class="score-hero fade d2">
+        <div class="ring-big">
+          <svg width="120" height="120" viewBox="0 0 120 120"><circle class="tr" cx="60" cy="60" r="50"/><circle class="br" cx="60" cy="60" r="50"/></svg>
+          <div class="num">0</div>
+        </div>
+        <div class="dims">${dims}</div>
+      </div>
+      <div class="cta fade d3">${r.buttons}</div>
+    </div>
+    <div class="stage fade d4">
+      <div class="floaty tl show"><b>${r.overall} / 60</b><span>匹配度 / 初筛线</span></div>
+      <div class="card tilt">
+        <div class="card-head">
+          <div class="seg"><span class="knob"></span><button class="on" data-tab2="gap">对照岗位 · ${r.gaps.length}</button><button data-tab2="self">简历本身 · ${r.issues.length}</button></div>
+          <span class="hint">点一条看详情</span>
+        </div>
+        <div data-view2="gap">${gaps}</div>
+        <div data-view2="self" hidden>${issues}</div>
+      </div>
+    </div>`;
+
+  seg(el.querySelector('.seg'), 'data-tab2', 'data-view2');
+  wire(el);
+  el.querySelectorAll('.issue-row').forEach(b => b.addEventListener('click', () => b.parentElement.classList.toggle('open')));
+  el.querySelector('[data-act="again"]')?.addEventListener('click', () => location.reload());
+  el.querySelector('[data-act="resubmit"]')?.addEventListener('click', () => {
+    // 岗位不变，回到第 ② 步重新上传改好的简历
+    resetPipe();
+    state.resume = null; $('next1').disabled = true; $('fRes').classList.remove('show');
+    document.querySelectorAll('[data-pick="resume"] .item').forEach(x => x.classList.remove('sel'));
+    show(2);
+  });
+
+  setTimeout(() => {
+    el.querySelector('.ring-big .br').style.strokeDashoffset = 314.2 * (1 - r.overall / 100);
+    el.querySelectorAll('.dim .tk i').forEach(i => i.style.width = i.dataset.w + '%');
+    const num = el.querySelector('.ring-big .num'), t0 = performance.now();
+    (function tick(t) { const k = Math.min(1, (t - t0) / 1400); num.textContent = Math.round(r.overall * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(tick); })(t0);
+  }, 500);
+}
+
+function openResult() { renderResult(); show(4); }
+
+/* 右下角：切换「通过 / 未通过」。在结果页时直接重画，否则等投递完再用 */
+document.querySelectorAll('.demo-flag button').forEach(b => b.addEventListener('click', () => {
+  variant = b.dataset.variant;
+  document.querySelectorAll('.demo-flag button').forEach(x => x.classList.toggle('on', x === b));
+  if ($('result').classList.contains('on')) openResult();
+}));
+</script>
+</body>
+</html>

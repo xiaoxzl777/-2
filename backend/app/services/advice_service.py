@@ -12,10 +12,12 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.deps import load_owned_report
+from app.domains import Domain, get_domain
 from app.errors import LLM_FAILED, NOT_FOUND, ApiError
 from app.llm import prompts
 from app.llm.client import LLMClient, LLMError
@@ -66,7 +68,15 @@ def finding_task(db: Session, user: User, finding_id: int) -> AdviceTask | dict:
         session.get(Finding, finding_id).rewrite = result
 
     return AdviceTask("rewrite", ("finding", finding_id),
-                      finding_prompt(row, structure, full_text, masked, diagnosis.job_title), save)
+                      finding_prompt(row, structure, full_text, masked, diagnosis.job_title,
+                                     domain=_diagnosis_domain(db, diagnosis.id)), save)
+
+
+def _diagnosis_domain(db: Session, diagnosis_id: int) -> Domain:
+    """诊断由投递流水线建，跟着那次投递的岗位走；找不到岗位（老数据、岗位被删）按默认方向。"""
+    job_id = db.scalar(select(MatchReport.job_id).where(MatchReport.diagnosis_id == diagnosis_id))
+    job = db.get(Job, job_id) if job_id else None
+    return get_domain(job.domain if job else None)
 
 
 def gap_task(db: Session, user: User, report_id: int, requirement_id: int) -> AdviceTask | dict:
@@ -88,7 +98,8 @@ def gap_task(db: Session, user: User, report_id: int, requirement_id: int) -> Ad
         row.items = [{**i, "advice": result} if i["requirement_id"] == requirement_id else i for i in row.items or []]
 
     return AdviceTask("gap", ("match_report", report_id),
-                      gap_prompt(item, requirement, full_text, masked, job.title if job else None), save)
+                      gap_prompt(item, requirement, full_text, masked, job.title if job else None,
+                                 domain=get_domain(job.domain if job else None)), save)
 
 
 def run(task: AdviceTask, llm: LLMClient, session_factory: SessionFactory) -> Iterator[Event]:

@@ -11,6 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.diagnose.evidence import locate_span
+from app.domains import DEFAULT, Domain, fill
 from app.llm import prompts
 from app.llm.client import LLMClient, invoke_json
 from app.matching.matcher import MatchItem
@@ -41,12 +42,13 @@ def requirement_query(req: dict) -> str:
 
 
 def judge_with_fulltext(reqs: list[dict], full_text: str, masked_text: str, llm: LLMClient, *,
-                        model: str | None = None, ref: tuple[str, int] | None = None) -> JudgeResult:
+                        model: str | None = None, ref: tuple[str, int] | None = None,
+                        domain: Domain = DEFAULT) -> JudgeResult:
     """一次调用判定多条要求。模型漏答的要求按 miss 处理。reqs 为空时不调模型。"""
     if not reqs:
         return JudgeResult()
     listing = "\n".join(f"{r['id']}. {requirement_query(r)}" for r in reqs)
-    messages = [("system", prompts.MATCH_SYSTEM),
+    messages = [("system", fill(prompts.MATCH_SYSTEM, domain)),
                 ("user", prompts.MATCH_USER.format(requirements=listing, resume=masked_text))]
     # 两次都不合格时 out 为 None：全部按 miss 处理，不让格式问题拖垮整次匹配
     out, cost, _ = invoke_json(llm, "match", messages, schema=_FulltextOut, prompt_version=prompts.MATCH_VERSION,

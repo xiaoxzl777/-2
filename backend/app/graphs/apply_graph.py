@@ -30,6 +30,7 @@ class ApplyState(TypedDict, total=False):
     match_mode: str
     model: str | None
     job_title: str | None
+    domain: str | None          # 岗位的求职方向
     requirements: list[dict]
     structure: dict
     full_text: str
@@ -57,13 +58,13 @@ def build_apply_graph(llm: LLMClient):
             structure=state["structure"], full_text=state["full_text"], masked_text=state["masked_text"],
             mode=state["diagnose_mode"], model=state.get("model"), job_title=state.get("job_title"),
             ats_signals=state.get("ats_signals"), page_count=state.get("page_count"),
-            diagnosis_id=state.get("diagnosis_id")))}
+            diagnosis_id=state.get("diagnosis_id"), domain=state.get("domain")))}
 
     def _match(state: ApplyState) -> dict:
         return {"match": match.invoke(match_graph.initial_state(
             requirements=state["requirements"], structure=state["structure"], full_text=state["full_text"],
             masked_text=state["masked_text"], mode=state["match_mode"], model=state.get("model"),
-            match_report_id=state.get("match_report_id")))}
+            match_report_id=state.get("match_report_id"), domain=state.get("domain")))}
 
     graph = StateGraph(ApplyState)
     graph.add_node("diagnose", _diagnose)

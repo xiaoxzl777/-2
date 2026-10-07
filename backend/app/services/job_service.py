@@ -10,6 +10,7 @@ import logging
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.domains import DEFAULT, DOMAINS
 from app.errors import BAD_REQUEST, LLM_FAILED, NOT_FOUND, ApiError
 from app.llm.client import LLMClient, LLMError
 from app.matching.jd_parser import parse_jd
@@ -25,13 +26,17 @@ def normalize_jd(raw_text: str) -> str:
     return "\n".join(clean_text(line) for line in raw_text.splitlines()).strip("\n")
 
 
-def create_job(db: Session, user: User, title: str, company: str | None, raw_text: str, llm: LLMClient) -> Job:
-    job = Job(user_id=user.id, title=title.strip(), company=(company or "").strip() or None,
+def create_job(db: Session, user: User, title: str, company: str | None, raw_text: str, llm: LLMClient,
+               domain: str = DEFAULT.key) -> Job:
+    if domain not in DOMAINS:
+        raise ApiError(BAD_REQUEST, f"未知的求职方向：{domain}（可用：{'、'.join(DOMAINS)}）")
+    job = Job(user_id=user.id, title=title.strip(), company=(company or "").strip() or None, domain=domain,
               raw_text=normalize_jd(raw_text))
     db.add(job)
     db.flush()                                        # 先拿到 id，模型调用的审计记录要引用它
     try:
-        result = parse_jd(job.title, job.raw_text, llm, load_skill_dict(db), ref=("job", job.id))
+        result = parse_jd(job.title, job.raw_text, llm, load_skill_dict(db), ref=("job", job.id),
+                          domain=DOMAINS[domain])
     except LLMError as e:
         db.rollback()
         raise ApiError(LLM_FAILED, "调用大模型解析岗位失败，请稍后重试") from e

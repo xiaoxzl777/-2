@@ -4,6 +4,7 @@
   "templates": [
     {
       "title": "后端开发实习生（Java）",
+      "domain": "cs",
       "raw_text": "岗位职责：\n1. 参与业务系统的后端开发，负责接口设计、编码实现和单元测试；\n2. 参与数据库表结构设计和 SQL 优化，协助排查线上问题；\n3. 与前端、测试同学配合，按迭代计划交付需求。\n\n任职要求：\n1. 本科及以上学历在读，计算机、软件工程等相关专业；\n2. Java 基础扎实，了解集合、多线程和 JVM 的基本原理；\n3. 熟悉 Spring Boot，用过 MyBatis 或 JPA 等持久层框架；\n4. 熟悉 MySQL，了解索引和事务，能写出规范的 SQL；\n5. 了解 Redis 的常用数据结构和缓存使用场景；\n6. 数据结构与算法基础扎实，了解计算机网络和操作系统；\n7. 会用 Git 协作开发，能在 Linux 环境下完成日常开发和部署。\n\n加分项：\n1. 了解 RabbitMQ 或 Kafka 等消息队列；\n2. 了解 Spring Cloud 等微服务框架；\n3. 有完整的后端项目经历（课程设计、开源项目或实习均可）。\n\n我们希望你：\n学习能力强，有良好的沟通能力和团队协作意识。",
       "requirements": [
         {
@@ -190,6 +191,7 @@
     },
     {
       "title": "后端开发实习生（Python / Go）",
+      "domain": "cs",
       "raw_text": "岗位职责：\n1. 参与服务端功能开发，设计并实现 RESTful API；\n2. 参与服务的容器化部署、监控和性能优化；\n3. 编写技术文档，参与代码评审。\n\n任职要求：\n1. 本科及以上学历在读，计算机相关专业；\n2. 熟练掌握 Python 或 Go 任一门语言即可；\n3. 熟悉至少一种 Web 框架，如 FastAPI、Django 或 Gin；\n4. 熟悉 MySQL，了解 Redis 的使用；\n5. 了解 HTTP 协议和 RESTful API 设计规范；\n6. 会用 Docker 打包和部署服务，熟悉 Linux 常用命令；\n7. 熟悉 Git 的日常使用。\n\n加分项：\n1. 了解异步编程、消息队列或 gRPC；\n2. 有 Kubernetes 使用经验；\n3. 在 GitHub 上有自己的开源项目或贡献。\n\n我们希望你：\n对技术有热情，做事认真负责，能主动沟通进度和问题。",
       "requirements": [
         {
@@ -364,6 +366,7 @@
     },
     {
       "title": "前端开发实习生",
+      "domain": "cs",
       "raw_text": "岗位职责：\n1. 负责 Web 页面和中后台系统的前端开发，还原设计稿并保证交互体验；\n2. 与后端同学对接接口，完成数据联调；\n3. 参与前端组件的封装和性能优化。\n\n任职要求：\n1. 本科及以上学历在读，计算机相关专业优先；\n2. 熟悉 HTML、CSS 和 JavaScript，了解 ES6 及以上语法；\n3. 熟悉 React 或 Vue 其中一种框架，理解组件化开发；\n4. 了解 TypeScript，能在项目中使用；\n5. 了解 Vite 或 Webpack 等前端构建工具；\n6. 了解 HTTP 协议和浏览器的基本工作原理；\n7. 会用 Git 协作开发。\n\n加分项：\n1. 有移动端适配或微信小程序开发经验；\n2. 用过 ECharts 等可视化库；\n3. 有个人作品、技术博客或开源项目。\n\n我们希望你：\n对界面细节和用户体验敏感，学习能力强，善于沟通。",
       "requirements": [
         {
@@ -574,6 +577,7 @@
     },
     {
       "title": "算法实习生（机器学习）",
+      "domain": "cs",
       "raw_text": "岗位职责：\n1. 参与推荐、分类、预测等业务场景的机器学习模型研发；\n2. 负责数据清洗、特征工程、模型训练和效果评估；\n3. 跟进相关领域的前沿论文，并尝试在业务中落地。\n\n任职要求：\n1. 本科或硕士在读，计算机、人工智能、数学、统计等相关专业；\n2. 熟练使用 Python，熟悉 NumPy、Pandas 等数据处理库；\n3. 掌握常见的机器学习算法，如逻辑回归、决策树、GBDT、聚类等；\n4. 理解深度学习的基本原理，会用 PyTorch 或 TensorFlow 搭建和训练模型；\n5. 会用 scikit-learn 完成常规的建模流程；\n6. 数学基础扎实，熟悉概率统计和线性代数；\n7. 有良好的编程能力和数据结构与算法基础。\n\n加分项：\n1. 在 Kaggle 等数据竞赛中取得过较好名次；\n2. 以第一作者发表过相关领域的论文；\n3. 有推荐系统、自然语言处理或计算机视觉方向的项目经验。\n\n我们希望你：\n分析和解决问题的能力强，对数据敏感，能独立推进实验。",
       "requirements": [
         {
@@ -760,6 +764,7 @@
     },
     {
       "title": "AI 应用开发实习生（大模型）",
+      "domain": "cs",
       "raw_text": "岗位职责：\n1. 参与基于大语言模型的应用开发，如智能问答、知识库助手、Agent 工作流等；\n2. 负责 Prompt 设计与调优、检索增强生成（RAG）链路搭建和效果评估；\n3. 与后端、产品同学协作，把 AI 能力接入业务系统。\n\n任职要求：\n1. 本科及以上学历在读，计算机、人工智能等相关专业；\n2. 熟练掌握 Python，有良好的工程编码习惯；\n3. 了解大语言模型的基本原理，调用过主流大模型的 API；\n4. 熟悉 LangChain 或 LangGraph 等应用开发框架；\n5. 理解 RAG 的基本流程，了解文本切分、Embedding 和向量检索；\n6. 用过 Milvus、Chroma 等向量数据库其中一种；\n7. 能用 FastAPI 或 Flask 编写后端服务。\n\n加分项：\n1. 有 Agent 或多智能体应用的开发经验；\n2. 了解模型微调，或 vLLM、Ollama 等本地部署方案；\n3. 做过完整的大模型应用项目，能说清楚效果是怎么评估的。\n\n我们希望你：\n对 AI 技术保持好奇，动手能力强，能快速上手新工具。",
       "requirements": [
         {
@@ -958,6 +963,7 @@
     },
     {
       "title": "测试开发实习生",
+      "domain": "cs",
       "raw_text": "岗位职责：\n1. 参与产品的功能测试、接口测试和性能测试，编写测试用例并跟踪缺陷；\n2. 开发和维护自动化测试脚本与测试工具，提升测试效率；\n3. 参与持续集成流程建设，保障版本质量。\n\n任职要求：\n1. 本科及以上学历在读，计算机、软件工程等相关专业；\n2. 掌握 Python 或 Java 其中一门编程语言；\n3. 熟悉软件测试的基本理论和常用的用例设计方法；\n4. 会用 pytest 或 JUnit 编写自动化测试；\n5. 了解 Selenium 等 UI 自动化工具；\n6. 会用 Postman 或 JMeter 做接口测试；\n7. 熟悉 Linux 常用命令和基本的 SQL 查询。\n\n加分项：\n1. 了解 Jenkins 等 CI/CD 工具；\n2. 做过性能测试或自动化测试平台相关的项目；\n3. 了解 Docker 的基本使用。\n\n我们希望你：\n细心、有耐心，对质量有追求，善于沟通和推动问题解决。",
       "requirements": [
         {
@@ -1108,6 +1114,7 @@
     },
     {
       "title": "数据分析实习生",
+      "domain": "cs",
       "raw_text": "岗位职责：\n1. 负责业务数据的提取、清洗和分析，搭建和维护数据报表；\n2. 围绕用户增长、留存、转化等问题做专题分析，输出分析报告和改进建议；\n3. 协助搭建指标体系，监控核心指标的异常波动。\n\n任职要求：\n1. 本科及以上学历在读，统计学、数学、计算机、经济学等相关专业；\n2. 熟练使用 SQL，能独立完成多表关联和数据提取；\n3. 熟悉 Python，会用 Pandas 做数据处理和分析；\n4. 会用 Matplotlib 或 ECharts 等工具做数据可视化；\n5. 掌握基本的统计学知识，了解假设检验和 A/B 测试；\n6. 熟练使用 Excel。\n\n加分项：\n1. 有数据分析相关的实习经历；\n2. 了解 Hive 或 Spark 等大数据工具；\n3. 了解常见的机器学习算法。\n\n我们希望你：\n逻辑清晰，对数据敏感，能把分析结论讲清楚。",
       "requirements": [
         {
@@ -1200,7 +1207,7 @@
           "category": "skill",
           "content": "了解 A/B 测试",
           "skill": "A/B 测试",
-          "skill_id": null,
+          "skill_id": 176,
           "weight": 1.0,
           "quote": "掌握基本的统计学知识，了解假设检验和 A/B 测试",
           "char_start": 241,
@@ -1212,7 +1219,7 @@
           "category": "skill",
           "content": "熟练使用 Excel",
           "skill": "Excel",
-          "skill_id": null,
+          "skill_id": 156,
           "weight": 1.0,
           "quote": "熟练使用 Excel。",
           "char_start": 271,
@@ -1265,6 +1272,308 @@
           "quote": "逻辑清晰，对数据敏感，能把分析结论讲清楚。",
           "char_start": 357,
           "char_end": 378
+        }
+      ]
+    },
+    {
+      "title": "内容运营实习生（新媒体）",
+      "domain": "ops",
+      "raw_text": "岗位职责：\n1. 负责小红书、抖音、微信公众号等平台账号的内容策划与日常发布；\n2. 跟进热点，策划选题，撰写推文和短视频脚本；\n3. 统计各平台的内容数据，定期复盘，调整内容方向。\n\n任职要求：\n1. 本科及以上学历，新闻传播、广告、中文、市场营销等相关专业优先；\n2. 熟悉小红书、抖音、微信公众号等平台的内容规则和推荐机制；\n3. 文字功底扎实，能独立撰写推文和短视频脚本；\n4. 会用剪映剪辑短视频，会用 Photoshop 或稿定设计做简单配图；\n5. 会用 Excel 整理和分析内容数据；\n6. 有自媒体账号运营经验者优先；\n7. 对热点敏感，执行力强，每周至少到岗 4 天。",
+      "requirements": [
+        {
+          "id": 1,
+          "req_type": "hard",
+          "category": "education",
+          "content": "本科及以上学历",
+          "skill": null,
+          "skill_id": null,
+          "weight": 1.0,
+          "quote": "本科及以上学历，新闻传播、广告、中文、市场营销等相关专业优先",
+          "char_start": 102,
+          "char_end": 132
+        },
+        {
+          "id": 2,
+          "req_type": "plus",
+          "category": "education",
+          "content": "新闻传播、广告、中文、市场营销等相关专业优先",
+          "skill": null,
+          "skill_id": null,
+          "weight": 0.5,
+          "quote": "新闻传播、广告、中文、市场营销等相关专业优先",
+          "char_start": 110,
+          "char_end": 132
+        },
+        {
+          "id": 3,
+          "req_type": "hard",
+          "category": "skill",
+          "content": "熟悉小红书平台的内容规则和推荐机制",
+          "skill": "小红书",
+          "skill_id": 164,
+          "weight": 1.0,
+          "quote": "熟悉小红书、抖音、微信公众号等平台的内容规则和推荐机制",
+          "char_start": 137,
+          "char_end": 164
+        },
+        {
+          "id": 4,
+          "req_type": "hard",
+          "category": "skill",
+          "content": "熟悉抖音平台的内容规则和推荐机制",
+          "skill": "抖音",
+          "skill_id": 165,
+          "weight": 1.0,
+          "quote": "熟悉小红书、抖音、微信公众号等平台的内容规则和推荐机制",
+          "char_start": 137,
+          "char_end": 164
+        },
+        {
+          "id": 5,
+          "req_type": "hard",
+          "category": "skill",
+          "content": "熟悉微信公众号平台的内容规则和推荐机制",
+          "skill": "微信公众号",
+          "skill_id": 166,
+          "weight": 1.0,
+          "quote": "熟悉小红书、抖音、微信公众号等平台的内容规则和推荐机制",
+          "char_start": 137,
+          "char_end": 164
+        },
+        {
+          "id": 6,
+          "req_type": "hard",
+          "category": "skill",
+          "content": "文字功底扎实，能独立撰写推文和短视频脚本",
+          "skill": null,
+          "skill_id": null,
+          "weight": 1.0,
+          "quote": "文字功底扎实，能独立撰写推文和短视频脚本",
+          "char_start": 169,
+          "char_end": 189
+        },
+        {
+          "id": 7,
+          "req_type": "hard",
+          "category": "skill",
+          "content": "会用剪映剪辑短视频",
+          "skill": "剪映",
+          "skill_id": 160,
+          "weight": 1.0,
+          "quote": "会用剪映剪辑短视频",
+          "char_start": 194,
+          "char_end": 203
+        },
+        {
+          "id": 8,
+          "req_type": "hard",
+          "category": "skill",
+          "content": "会用 Photoshop 或稿定设计做简单配图",
+          "skill": null,
+          "skill_id": null,
+          "weight": 1.0,
+          "quote": "会用 Photoshop 或稿定设计做简单配图",
+          "char_start": 204,
+          "char_end": 227
+        },
+        {
+          "id": 9,
+          "req_type": "hard",
+          "category": "skill",
+          "content": "会用 Excel 整理和分析内容数据",
+          "skill": "Excel",
+          "skill_id": 156,
+          "weight": 1.0,
+          "quote": "会用 Excel 整理和分析内容数据",
+          "char_start": 232,
+          "char_end": 250
+        },
+        {
+          "id": 10,
+          "req_type": "plus",
+          "category": "experience",
+          "content": "有自媒体账号运营经验者优先",
+          "skill": null,
+          "skill_id": null,
+          "weight": 0.5,
+          "quote": "有自媒体账号运营经验者优先",
+          "char_start": 255,
+          "char_end": 268
+        },
+        {
+          "id": 11,
+          "req_type": "soft",
+          "category": "other",
+          "content": "对热点敏感，执行力强",
+          "skill": null,
+          "skill_id": null,
+          "weight": 0.3,
+          "quote": "对热点敏感，执行力强",
+          "char_start": 273,
+          "char_end": 283
+        },
+        {
+          "id": 12,
+          "req_type": "hard",
+          "category": "other",
+          "content": "每周至少到岗 4 天",
+          "skill": null,
+          "skill_id": null,
+          "weight": 1.0,
+          "quote": "每周至少到岗 4 天",
+          "char_start": 284,
+          "char_end": 294
+        }
+      ]
+    },
+    {
+      "title": "用户运营实习生",
+      "domain": "ops",
+      "raw_text": "岗位职责：\n1. 负责用户社群的日常运营和维护，提升用户活跃和留存；\n2. 策划并执行拉新、促活类线上活动，跟踪活动数据并复盘；\n3. 搭建用户分层和用户画像，配合产品优化用户体验。\n\n任职要求：\n1. 本科及以上学历，市场营销、统计学、管理类等相关专业优先；\n2. 有社群运营、私域运营或校园活动组织经验；\n3. 有独立策划并执行线上活动的经历，能用数据复盘活动效果；\n4. 熟练使用 Excel 做数据整理和透视分析，会 SQL 者优先；\n5. 了解 AARRR、漏斗分析、留存分析等用户增长的常用方法；\n6. 了解 A/B 测试者优先；\n7. 沟通能力强，有同理心，执行力强。",
+      "requirements": [
+        {
+          "id": 1,
+          "req_type": "hard",
+          "category": "education",
+          "content": "本科及以上学历",
+          "skill": null,
+          "skill_id": null,
+          "weight": 1.0,
+          "quote": "本科及以上学历，市场营销、统计学、管理类等相关专业优先",
+          "char_start": 102,
+          "char_end": 129
+        },
+        {
+          "id": 2,
+          "req_type": "plus",
+          "category": "education",
+          "content": "市场营销、统计学、管理类等相关专业优先",
+          "skill": null,
+          "skill_id": null,
+          "weight": 0.5,
+          "quote": "市场营销、统计学、管理类等相关专业优先",
+          "char_start": 110,
+          "char_end": 129
+        },
+        {
+          "id": 3,
+          "req_type": "hard",
+          "category": "experience",
+          "content": "有社群运营、私域运营或校园活动组织经验",
+          "skill": null,
+          "skill_id": null,
+          "weight": 1.0,
+          "quote": "有社群运营、私域运营或校园活动组织经验",
+          "char_start": 134,
+          "char_end": 153
+        },
+        {
+          "id": 4,
+          "req_type": "hard",
+          "category": "experience",
+          "content": "有独立策划并执行线上活动的经历",
+          "skill": null,
+          "skill_id": null,
+          "weight": 1.0,
+          "quote": "有独立策划并执行线上活动的经历",
+          "char_start": 158,
+          "char_end": 173
+        },
+        {
+          "id": 5,
+          "req_type": "hard",
+          "category": "skill",
+          "content": "能用数据复盘活动效果",
+          "skill": "数据复盘",
+          "skill_id": null,
+          "weight": 1.0,
+          "quote": "能用数据复盘活动效果",
+          "char_start": 174,
+          "char_end": 184
+        },
+        {
+          "id": 6,
+          "req_type": "hard",
+          "category": "skill",
+          "content": "熟练使用 Excel 做数据整理和透视分析",
+          "skill": "Excel",
+          "skill_id": 156,
+          "weight": 1.0,
+          "quote": "熟练使用 Excel 做数据整理和透视分析",
+          "char_start": 189,
+          "char_end": 210
+        },
+        {
+          "id": 7,
+          "req_type": "plus",
+          "category": "skill",
+          "content": "会 SQL 者优先",
+          "skill": "SQL",
+          "skill_id": 14,
+          "weight": 0.5,
+          "quote": "会 SQL 者优先",
+          "char_start": 211,
+          "char_end": 220
+        },
+        {
+          "id": 8,
+          "req_type": "hard",
+          "category": "skill",
+          "content": "了解 AARRR 用户增长方法",
+          "skill": "AARRR",
+          "skill_id": 187,
+          "weight": 1.0,
+          "quote": "了解 AARRR、漏斗分析、留存分析等用户增长的常用方法",
+          "char_start": 225,
+          "char_end": 253
+        },
+        {
+          "id": 9,
+          "req_type": "hard",
+          "category": "skill",
+          "content": "了解漏斗分析",
+          "skill": "漏斗分析",
+          "skill_id": 185,
+          "weight": 1.0,
+          "quote": "了解 AARRR、漏斗分析、留存分析等用户增长的常用方法",
+          "char_start": 225,
+          "char_end": 253
+        },
+        {
+          "id": 10,
+          "req_type": "hard",
+          "category": "skill",
+          "content": "了解留存分析",
+          "skill": "留存分析",
+          "skill_id": 186,
+          "weight": 1.0,
+          "quote": "了解 AARRR、漏斗分析、留存分析等用户增长的常用方法",
+          "char_start": 225,
+          "char_end": 253
+        },
+        {
+          "id": 11,
+          "req_type": "plus",
+          "category": "skill",
+          "content": "了解 A/B 测试者优先",
+          "skill": "A/B 测试",
+          "skill_id": 176,
+          "weight": 0.5,
+          "quote": "了解 A/B 测试者优先",
+          "char_start": 258,
+          "char_end": 270
+        },
+        {
+          "id": 12,
+          "req_type": "soft",
+          "category": "other",
+          "content": "沟通能力强",
+          "skill": null,
+          "skill_id": null,
+          "weight": 0.3,
+          "quote": "沟通能力强，有同理心，执行力强",
+          "char_start": 275,
+          "char_end": 290
         }
       ]
     }

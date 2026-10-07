@@ -159,6 +159,23 @@ def test_practice_interview_end_to_end(client, auth_headers, applied, fake_llm, 
     assert client.post(f"{API}/{sid}/start", headers=auth_headers).json()["code"] == 40901
 
 
+def test_interview_follows_the_job_direction(client, auth_headers, applied, resume_and_job, fake_llm, env,
+                                              db_session_factory):
+    """岗位是运营方向：定话题、出题按运营岗面试来，开场白、接口返回的方向也跟着变。"""
+    from app.models import Job
+
+    with db_session_factory() as db:
+        db.get(Job, resume_and_job[1]).domain = "ops"
+        db.commit()
+    script(fake_llm, evals=[evaluation(["先更新数据库再删缓存"])])
+    sid = create(client, auth_headers, applied(passed=False))["data"]["id"]
+    assert "运营岗面试" in fake_llm.calls["_PlanOut"][0][0][1]
+    started = sse(client.post(f"{API}/{sid}/start", headers=auth_headers))
+    assert started[-1][1]["text"].startswith("你好，我是这次的运营面试官")
+    assert "运营面试官" in fake_llm.calls["interview_ask"][0][0][1]
+    assert client.get(f"{API}/{sid}", headers=auth_headers).json()["data"]["domain"] == "ops"
+
+
 def test_normal_mode_hides_evaluation_until_the_end(client, auth_headers, applied, fake_llm, env):
     script(fake_llm, evals=[evaluation(["先更新数据库再删缓存"], decision="next")])
     sid = create(client, auth_headers, applied(passed=True))["data"]["id"]

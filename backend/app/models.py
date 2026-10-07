@@ -281,6 +281,8 @@ class Job(Base):
     is_template: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sql_text("0"))
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     company: Mapped[str | None] = mapped_column(String(200))
+    domain: Mapped[str] = mapped_column(String(20), nullable=False, server_default="cs",
+                                        comment="求职方向（app/domains 的 key），决定诊断 / 匹配 / 面试用哪套提示词")
     raw_text: Mapped[str] = mapped_column(Text, nullable=False)
     requirements: Mapped[list[dict[str, Any]] | None] = mapped_column(
         JSON, comment="[{id, req_type, category, content, skill_id, weight}]"

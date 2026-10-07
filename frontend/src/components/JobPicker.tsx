@@ -1,24 +1,22 @@
-// 第 ① 步右侧：粘贴 JD 当场解析成要求项，或从「我的岗位」「模板」里选一个
+// 第 ② 步右侧：粘贴 JD 当场解析成要求项，或从「我的岗位」「模板」里选一个。都只列上一步选的方向，
+// 左上角的「X方向 换」回到上一步。
 import { useEffect, useState, type FormEvent } from 'react'
 import { ApiError } from '../api/client'
+import type { Domain } from '../api/domains'
 import { JD_MAX, JD_MIN, jobsApi, REQ_TYPE_LABEL, type Job, type JobBrief } from '../api/jobs'
 import { TiltCard } from './effects'
 import { Tabs } from './Tabs'
 
 type Tab = 'paste' | 'mine' | 'tpl'
 
-const SAMPLE_JD = `任职要求：
-1. 本科及以上学历，计算机相关专业；
-2. 熟悉 Java，熟悉 Spring Boot、MyBatis 等常用框架；
-3. 熟悉 MySQL，有 SQL 调优经验者优先；
-4. 有 Redis 使用经验，了解常见缓存问题；
-5. 了解消息队列（Kafka / RocketMQ）；
-6. 有高并发场景经验者优先；熟悉 Linux 常用命令；
-7. 良好的沟通能力与团队协作意识。`
-
 const REQ_ORDER = { hard: 0, plus: 1, soft: 2 }
 
-export function JobPicker({ selected, onPick }: { selected: JobBrief | null; onPick: (job: JobBrief) => void }) {
+export function JobPicker({ domain, selected, onPick, onChangeDomain }: {
+  domain: Domain
+  selected: JobBrief | null
+  onPick: (job: JobBrief) => void
+  onChangeDomain: () => void
+}) {
   const [tab, setTab] = useState<Tab>('paste')
   const [title, setTitle] = useState('')
   const [company, setCompany] = useState('')
@@ -32,6 +30,12 @@ export function JobPicker({ selected, onPick }: { selected: JobBrief | null; onP
     jobsApi.list().then(setJobs).catch(() => setJobs([]))
   }, [])
 
+  // 换了方向：上一个方向解析出的要求不算数（贴进去的原文留着，免得白贴）
+  useEffect(() => {
+    setParsed(null)
+    setError(null)
+  }, [domain.key])
+
   const jdLength = jd.trim().length
   const canParse = title.trim() !== '' && jdLength >= JD_MIN && !parsing
 
@@ -41,7 +45,7 @@ export function JobPicker({ selected, onPick }: { selected: JobBrief | null; onP
     setParsing(true)
     setError(null)
     try {
-      const job = await jobsApi.create(title.trim(), company.trim(), jd)
+      const job = await jobsApi.create(title.trim(), company.trim(), jd, domain.key)
       setParsed(job)
       setJobs((list) => [job, ...(list ?? [])])
       onPick(job)
@@ -53,18 +57,21 @@ export function JobPicker({ selected, onPick }: { selected: JobBrief | null; onP
   }
 
   const fillSample = () => {
-    setTitle('后端开发实习生')
-    setCompany('示例科技')
-    setJd(SAMPLE_JD)
+    setTitle(domain.sample_jd.title)
+    setCompany(domain.sample_jd.company)
+    setJd(domain.sample_jd.text)
   }
 
-  const mine = jobs?.filter((j) => !j.is_template) ?? null
-  const templates = jobs?.filter((j) => j.is_template) ?? null
+  const inDomain = jobs?.filter((j) => j.domain === domain.key) ?? null
+  const mine = inDomain?.filter((j) => !j.is_template) ?? null
+  const templates = inDomain?.filter((j) => j.is_template) ?? null
 
   return (
     <TiltCard>
       <div className="card-head">
-        <div className="dots" aria-hidden="true"><i /><i /><i /></div>
+        <button type="button" className="dir-chip" onClick={onChangeDomain} title="回到上一步换方向">
+          <span>{domain.name}方向</span><span className="chg">换</span>
+        </button>
         <Tabs value={tab} onChange={setTab} tabs={[
           { key: 'paste', label: '粘贴 JD' }, { key: 'mine', label: '我的岗位' }, { key: 'tpl', label: '模板' },
         ]} />
@@ -115,10 +122,10 @@ export function JobPicker({ selected, onPick }: { selected: JobBrief | null; onP
       )}
 
       {tab === 'mine' && (
-        <JobList jobs={mine} selected={selected} onPick={onPick} empty="还没有岗位。在「粘贴 JD」里贴一份，解析后会保存在这里。" />
+        <JobList jobs={mine} selected={selected} onPick={onPick} empty={`「${domain.name}」方向下还没有岗位。在「粘贴 JD」里贴一份，解析后会保存在这里。`} />
       )}
       {tab === 'tpl' && (
-        <JobList jobs={templates} selected={selected} onPick={onPick} empty="暂时没有内置模板，先用「粘贴 JD」吧。" />
+        <JobList jobs={templates} selected={selected} onPick={onPick} empty="这个方向暂时没有内置模板，先用「粘贴 JD」吧。" />
       )}
     </TiltCard>
   )

@@ -16,7 +16,7 @@ const CHIPS: Chip[] = [
   { text: '追问 · 第 2 层', kind: 'plain', x: 40, y: 6, d: 0.4 },
   { text: '本科及以上学历', kind: 'good', x: 47, y: 89, d: 0.45 },
   { text: '「参与」太弱', kind: 'bad', x: 20, y: 27, d: 0.35 },
-  { text: 'HR 面 · 职业规划', kind: 'plain', x: 85, y: 58, d: 0.35 },
+  { text: '运营面 · 活动复盘', kind: 'plain', x: 85, y: 58, d: 0.35 },
   { text: 'Spring Boot', kind: 'plain', x: 27, y: 90, d: 0.3 },
   { text: '800ms → 120ms', kind: 'good', x: 88, y: 25, d: 0.4 },
   { text: '依据已定位回原文', kind: 'plain', x: 3, y: 62, d: 0.3 },

@@ -18,6 +18,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
 from app.config import settings
+from app.domains import get_domain
 from app.graphs.state import InterviewState
 from app.interview import asker, policy, rubric
 from app.interview.planner import plan_interview
@@ -93,7 +94,8 @@ def build_interview_graph(llm: LLMClient, store: ContextStore | None, checkpoint
         else:
             evaluation, cost = rubric.evaluate(llm, job_title=state["materials"]["job_title"],
                                                topic=state["plan"][idx], question=state["question"], answer=answer,
-                                               model=state.get("model"), ref=_ref(state))
+                                               model=state.get("model"), ref=_ref(state),
+                                               domain=get_domain(state["materials"].get("domain")))
         turn = {"topic_idx": idx, "depth": state["depth"], "question": state["question"], "answer": answer,
                 "skipped": evaluation["skipped"], "evaluation": evaluation}
         return {"evaluation": evaluation, "cost": cost, "history": [turn]}

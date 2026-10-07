@@ -18,6 +18,7 @@ export type JobBrief = {
   id: number
   title: string
   company: string | null
+  domain: string // 求职方向的 key，见 api/domains.ts
   is_template: boolean
   requirement_count: number
   created_at: string
@@ -33,8 +34,8 @@ export const JD_MAX = 10000
 
 export const jobsApi = {
   /** 同步解析（约 2–4 秒）：返回时要求项已经拆好 */
-  create: (title: string, company: string, rawText: string) =>
-    request<Job>('/jobs', { method: 'POST', body: { title, company: company || null, raw_text: rawText } }),
+  create: (title: string, company: string, rawText: string, domain: string) =>
+    request<Job>('/jobs', { method: 'POST', body: { title, company: company || null, raw_text: rawText, domain } }),
 
   /** 我的岗位（新的在前）+ 内置模板（排在后面） */
   list: () => request<JobBrief[]>('/jobs?include_templates=1'),

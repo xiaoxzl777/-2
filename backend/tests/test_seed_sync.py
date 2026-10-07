@@ -1,8 +1,9 @@
 """种子数据的三处来源必须一致：
 data/skills_seed.csv、data/job_templates.json → sql/seed.sql（python scripts/dump_seed.py），
-data/job_templates/*.txt → data/job_templates.json（python scripts/build_job_templates.py）。"""
+data/job_templates/<方向>/*.txt → data/job_templates.json（python scripts/build_job_templates.py）。"""
 import pytest
 
+from app.domains import DOMAINS
 from scripts.build_job_templates import load_sources, skill_dict
 from scripts.dump_seed import SEED_PATH, load_skills, load_templates, render
 
@@ -15,15 +16,16 @@ def test_seed_sql_matches_sources():
 
 
 def test_job_templates_json_matches_txt():
-    parsed = [(t["title"], t["raw_text"]) for t in load_templates()]
-    assert parsed == [(s["title"], s["raw_text"]) for s in load_sources()], (
+    parsed = [(t["title"], t["domain"], t["raw_text"]) for t in load_templates()]
+    assert parsed == [(s["title"], s["domain"], s["raw_text"]) for s in load_sources()], (
         "data/job_templates/ 下的模板原文改过了，请运行 python scripts/build_job_templates.py 再运行 dump_seed.py"
     )
 
 
 def test_job_templates_are_valid():
     templates, skills = load_templates(), skill_dict()
-    assert 5 <= len(templates) <= 8 and len({t["title"] for t in templates}) == len(templates)
+    assert len({t["title"] for t in templates}) == len(templates)
+    assert {t["domain"] for t in templates} == set(DOMAINS), "每个求职方向都要有内置模板（工作台按方向列模板）"
     for t in templates:
         reqs = t["requirements"]
         assert [r["id"] for r in reqs] == list(range(1, len(reqs) + 1)), t["title"]

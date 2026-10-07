@@ -13,6 +13,7 @@ import { MagneticButton } from '../components/effects'
 import { placeholders, underline } from '../components/InterviewText'
 import { NotFound, notFoundText } from '../components/NotFound'
 import { useAuth } from '../store/auth'
+import { useDomain } from '../store/domains'
 
 type Entry =
   | { kind: 'q'; key: string; topicIdx: number; depth: number; text: string; streaming: boolean }
@@ -33,6 +34,9 @@ export default function Interview() {
   const navigate = useNavigate()
   const username = useAuth((s) => s.user?.username ?? '我')
   const [session, setSession] = useState<Session | null>(null)
+  const domain = useDomain(session?.domain)
+  const label = domain?.interview_label ?? '面试'
+  const interviewer = domain?.interviewer ?? '面试官'
   const [loadError, setLoadError] = useState<string | null>(null)
   const [entries, setEntries] = useState<Entry[]>([])
   const [topics, setTopics] = useState<Topic[]>([])
@@ -228,7 +232,7 @@ export default function Interview() {
     <AppShell progress={count ? (doneCount / count) * 100 : 0}>
       <section className="iv-screen">
         <aside className="iv-rail">
-          <span className="tag fade d1">{practice ? <b className="pr">练习模式</b> : <b>技术面</b>}{practice ? '技术面' : '模拟面试'}</span>
+          <span className="tag fade d1">{practice ? <b className="pr">练习模式</b> : <b>{label}</b>}{practice ? label : '模拟面试'}</span>
           <div className="iv-job fade d1">{session?.job_title ?? '…'}</div>
           <div className="iv-mode fade d1">{practice ? '每题答完马上有点评' : '答题时不打分，结束后看报告'}</div>
           <div className="iv-count fade d2">
@@ -263,7 +267,7 @@ export default function Interview() {
         <div className="card iv-chat">
           <div className="iv-head">
             <span className="dots" aria-hidden="true"><i /><i /><i /></span>
-            <span className="iv-who">{session?.company_name ? `${session.company_name} · 技术面试官` : '技术面试官'}</span>
+            <span className="iv-who">{session?.company_name ? `${session.company_name} · ${interviewer}` : interviewer}</span>
             <span className={`iv-status ${status[1]}`}><i />{status[0]}</span>
           </div>
           <div className="iv-msgs" ref={msgsRef} aria-live="polite">

@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   is_template BOOL NOT NULL DEFAULT 0, 
   title VARCHAR(200) NOT NULL, 
   company VARCHAR(200), 
+  domain VARCHAR(20) NOT NULL COMMENT '求职方向（app/domains 的 key），决定诊断 / 匹配 / 面试用哪套提示词' DEFAULT 'cs', 
   raw_text TEXT NOT NULL, 
   requirements JSON COMMENT '[{id, req_type, category, content, skill_id, weight}]', 
   parse_status ENUM('pending','success','failed') NOT NULL DEFAULT 'pending', 

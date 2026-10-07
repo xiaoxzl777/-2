@@ -10,6 +10,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.domains import fill, get_domain
 from app.interview.materials import find_source
 from app.llm import prompts
 from app.llm.client import LLMClient
@@ -41,7 +42,8 @@ def plan_messages(materials: dict, n: int) -> list[tuple[str, str]]:
     exps = "\n\n".join(f"{e['code']} {e['kind']}：{e['name']}\n{e['text']}" for e in materials["experiences"])
     finds = "\n".join(f"{f['code']} {f['title']} —— 「{f['quote']}」" for f in materials["findings"])
     context = f"\n【面经 / 公司介绍】\n{materials['context']}" if materials.get("context") else ""
-    return [("system", prompts.INTERVIEW_PLAN_SYSTEM.format(job_title=materials["job_title"], n=n)),
+    system = prompts.INTERVIEW_PLAN_SYSTEM.format(job_title=materials["job_title"], n=n)
+    return [("system", fill(system, get_domain(materials.get("domain")))),
             ("user", prompts.INTERVIEW_PLAN_USER.format(
                 job_title=materials["job_title"], requirements=reqs or "（无）", experiences=exps or "（无）",
                 findings=finds or "（无）", context=context))]

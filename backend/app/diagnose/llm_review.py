@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from app.diagnose.evidence import locate_span
 from app.diagnose.types import Finding, ReviewUnit
+from app.domains import DEFAULT, Domain, fill
 from app.llm import prompts
 from app.llm.client import LLMClient
 
@@ -30,8 +31,8 @@ MAX_FINDINGS_PER_UNIT = 3
 # risk_type → 评分维度
 CATEGORY_OF = {"depth_mismatch": "expression", "vague": "expression", "exaggeration": "expression",
                "unclear_ownership": "consistency", "incoherent": "consistency"}
-_TITLES = {"depth_mismatch": "技术深度与声明不匹配", "vague": "表述模糊", "exaggeration": "有夸大嫌疑",
-           "unclear_ownership": "职责边界不清", "incoherent": "逻辑不连贯"}
+_TITLES = {"vague": "表述模糊", "exaggeration": "有夸大嫌疑", "unclear_ownership": "职责边界不清", "incoherent": "逻辑不连贯"}
+# depth_mismatch 的标题随方向变（技术深度 / 专业深度），取领域包的 risk_depth_title
 
 
 class _LLMFinding(BaseModel):
@@ -54,10 +55,11 @@ class UnitReview:
     cost: float = 0.0
 
 
-def _to_finding(item: _LLMFinding, unit: ReviewUnit, attempt: int, full_text: str, masked_text: str) -> Finding:
+def _to_finding(item: _LLMFinding, unit: ReviewUnit, attempt: int, full_text: str, masked_text: str,
+                titles: dict[str, str]) -> Finding:
     """核实一条模型给出的问题。定位成功则证据改用原文切片（模型看到的是掩码文本）。"""
     base = dict(source="llm", risk_type=item.risk_type, category=CATEGORY_OF[item.risk_type], severity=item.severity,
-                title=_TITLES[item.risk_type], description=item.reason, suggestion=item.suggestion,
+                title=titles[item.risk_type], description=item.reason, suggestion=item.suggestion,
                 unit_id=unit.unit_id, attempt_no=attempt)
     where = locate_span(item.evidence_quote, masked_text, hint=(unit.char_start, unit.char_end))
     inside_unit = where is not None and unit.char_start <= where.start and where.end <= unit.char_end
@@ -75,11 +77,12 @@ def _same_problem(a: Finding, b: Finding) -> bool:
 
 def review_unit(unit: ReviewUnit, full_text: str, masked_text: str, llm: LLMClient, *,
                 job_title: str | None = None, rule_summary: str = "", model: str | None = None,
-                ref: tuple[str, int] | None = None) -> UnitReview:
+                ref: tuple[str, int] | None = None, domain: Domain = DEFAULT) -> UnitReview:
     user = prompts.DIAGNOSE_USER.format(
         job_title=job_title or "未指定", entry_name=unit.entry_name or "（自我评价）",
         text=masked_text[unit.char_start:unit.char_end], rule_summary=rule_summary or "无")
-    messages = [("system", prompts.DIAGNOSE_SYSTEM), ("user", user)]
+    messages = [("system", fill(prompts.DIAGNOSE_SYSTEM, domain)), ("user", user)]
+    titles = {**_TITLES, "depth_mismatch": domain.texts["risk_depth_title"]}
     review = UnitReview()
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -93,7 +96,7 @@ def review_unit(unit: ReviewUnit, full_text: str, masked_text: str, llm: LLMClie
         else:
             failed_now = []
             for item in result.parsed.findings[:MAX_FINDINGS_PER_UNIT]:
-                finding = _to_finding(item, unit, attempt, full_text, masked_text)
+                finding = _to_finding(item, unit, attempt, full_text, masked_text, titles)
                 if finding.verify_result == "failed":
                     review.rejected.append(finding)
                     failed_now.append(finding)

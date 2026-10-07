@@ -190,10 +190,24 @@ class DiagnosisOut(BaseModel):
 # ───────────── 岗位 ─────────────
 
 
+class DomainOut(BaseModel):
+    """工作台第一步「选方向」的下拉框，以及页面上对面试的称呼。"""
+    key: str
+    name: str
+    icon: str
+    desc: str
+    rule_hint: str
+    interview_hint: str
+    interview_label: str                    # 技术面 / 运营面
+    interviewer: str                        # 技术面试官 / 运营面试官
+    sample_jd: dict                         # {title, company, text}：「填一份示例 JD」
+
+
 class JobIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     company: str | None = Field(default=None, max_length=200)
     raw_text: str = Field(min_length=30, max_length=10000)    # 粘贴的 JD 原文
+    domain: str = Field(default="cs", max_length=20)          # 求职方向，取值见 GET /domains
 
 
 class RequirementOut(BaseModel):
@@ -213,6 +227,7 @@ class JobBrief(BaseModel):
     id: int
     title: str
     company: str | None
+    domain: str
     is_template: bool
     requirement_count: int
     created_at: datetime
@@ -347,6 +362,7 @@ class InterviewOut(BaseModel):
     id: int
     apply_id: int | None
     job_title: str | None
+    domain: str                             # 岗位的求职方向（老数据按默认方向）
     company_name: str | None
     mode: str
     status: str                             # planned / in_progress / completed / abandoned

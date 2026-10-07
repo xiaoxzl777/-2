@@ -190,6 +190,7 @@ CREATE TABLE jobs (
   is_template BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '内置通用岗位模板',
   title       VARCHAR(200) NOT NULL,
   company     VARCHAR(200) NULL,
+  domain      VARCHAR(20)  NOT NULL DEFAULT 'cs' COMMENT '求职方向（app/domains 的 key），决定诊断 / 匹配 / 面试用哪套提示词',
   raw_text    TEXT         NOT NULL,
   requirements JSON COMMENT '[{id, req_type:hard|plus|soft, category:skill|education|experience|other, content, skill, skill_id, weight, quote, char_start, char_end}]',
   parse_status ENUM('pending','success','failed') NOT NULL DEFAULT 'pending' COMMENT 'JD 同步解析，失败不保存，所以目前只会写 success',
@@ -247,7 +248,7 @@ CREATE TABLE skills (
 ```
 
 > 扁平词典，只回答「这个词是不是某个技能的另一种写法」。技能之间的上下位关系（Spring Boot 属于 Java 生态）不建树，交给 LLM 判定。
-> 数据来源 `data/skills_seed.csv`（手写，约 150 条），由 `scripts/dump_seed.py` 生成 `backend/sql/seed.sql`，在 MySQL 中手动执行。
+> 数据来源 `data/skills_seed.csv`（手写，191 条：计算机 155、运营 36），由 `scripts/dump_seed.py` 生成 `backend/sql/seed.sql`，在 MySQL 中手动执行。
 
 ### ⑨ interview_sessions
 
@@ -356,7 +357,7 @@ resume_units   简历经历切块      已删除：只在 06-workflows 6.2「逐
 cases          优秀描述案例      暂缓：改写本期不检索（06-workflows 6.5），有范例库后再建
 ```
 
-skills 表和岗位模板（`jobs.is_template = 1`，7 份）由 `backend/sql/seed.sql` 手动导入；`uploads/`、`chroma/`、`checkpoints.sqlite`、`.env` 进 `.gitignore`。
+skills 表和岗位模板（`jobs.is_template = 1`，9 份：计算机 7、运营 2）由 `backend/sql/seed.sql` 手动导入；`uploads/`、`chroma/`、`checkpoints.sqlite`、`.env` 进 `.gitignore`。
 
 ## 2.4 设计说明
 

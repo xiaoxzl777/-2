@@ -12,6 +12,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.diagnose.evidence import locate_span
+from app.domains import DEFAULT, Domain, fill
 from app.llm import prompts
 from app.llm.client import LLMClient
 from app.rewrite.advice import mask_new_numbers
@@ -48,9 +49,10 @@ def skipped_evaluation() -> dict:
 
 
 def evaluate(llm: LLMClient, *, job_title: str, topic: dict, question: str, answer: str,
-             model: str | None = None, ref: tuple[str, int] | None = None) -> tuple[dict, float]:
+             model: str | None = None, ref: tuple[str, int] | None = None,
+             domain: Domain = DEFAULT) -> tuple[dict, float]:
     """返回 (evaluation, 花费)。模型两次都没给出合法 JSON 时抛 ValueError，由调用方当失败处理。"""
-    messages = [("system", prompts.INTERVIEW_EVAL_SYSTEM),
+    messages = [("system", fill(prompts.INTERVIEW_EVAL_SYSTEM, domain)),
                 ("user", prompts.INTERVIEW_EVAL_USER.format(job_title=job_title, label=topic["label"],
                                                             intent=topic["intent"], question=question, answer=answer))]
     cost, parsed, evidence = 0.0, None, []

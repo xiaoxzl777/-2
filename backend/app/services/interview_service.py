@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.deps import load_owned_report
+from app.domains import get_domain
 from app.errors import BAD_REQUEST, CONFLICT, LLM_FAILED, NOT_FOUND, ApiError
 from app.graphs.checkpoint import thread_config
 from app.graphs.interview_graph import PlanError, build_interview_graph
@@ -93,7 +94,7 @@ def create_interview(db: Session, user: User, *, apply_id: int, company_name: st
         job_title=job.title, company=session.company_name, requirements=job.requirements or [],
         match_items=report.items or [], structure=structure,
         masked_text=mask_resume(structure, full_text),
-        findings=findings, context=context, context_mode=context_mode)
+        findings=findings, context=context, context_mode=context_mode, domain=job.domain)
 
     graph = build_interview_graph(llm, store, checkpointer)
     config = thread_config(session.id)
@@ -313,13 +314,15 @@ def view(db: Session, session: InterviewSession) -> dict:
     """GET /interviews/{id}：只列已经问到的话题（还没问到的不给，免得提前剧透）；
     正常模式在面试结束前不给评分，练习模式每题都给。"""
     plan = (session.plan or {}).get("topics") or []
+    materials = (session.plan or {}).get("materials") or {}
     turns = _turns(db, session.id)
     reached = max((t.topic_idx for t in turns), default=-1)
     finished = session.status in FINISHED
     show_eval = finished or session.mode == "practice"
     last = turns[-1] if turns else None
     return {
-        "id": session.id, "apply_id": session.match_report_id, "job_title": (session.plan or {}).get("materials", {}).get("job_title"),
+        "id": session.id, "apply_id": session.match_report_id, "job_title": materials.get("job_title"),
+        "domain": get_domain(materials.get("domain")).key,
         "company_name": session.company_name, "mode": session.mode, "status": session.status,
         "topic_count": len(plan),
         "topics": [{"idx": t["idx"], "label": t["label"], "source": t["source"]} for t in plan

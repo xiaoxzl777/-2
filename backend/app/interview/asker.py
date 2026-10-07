@@ -5,13 +5,15 @@
 """
 from __future__ import annotations
 
+from app.domains import fill, get_domain
 from app.interview.materials import describe_source, experience_names
 from app.llm import prompts
 
 
 def intro(materials: dict, topic_count: int) -> str:
     who = f"{materials['company']}的" if materials.get("company") else "这次的"
-    return f"你好，我是{who}技术面试官，今天大概聊 {topic_count} 个话题。\n"
+    interviewer = get_domain(materials.get("domain")).texts["interviewer"]
+    return f"你好，我是{who}{interviewer}，今天大概聊 {topic_count} 个话题。\n"
 
 
 def ask_messages(materials: dict, plan: list[dict], topic_idx: int, depth: int, history: list[dict],
@@ -35,8 +37,8 @@ def ask_messages(materials: dict, plan: list[dict], topic_idx: int, depth: int, 
         past = "\n【这个话题已经问过】\n" + "\n".join(lines)
         task = "请接住候选人上一答里的某个具体说法，追问一次。"
 
-    system = prompts.INTERVIEW_ASK_SYSTEM.format(company=materials.get("company") or "目标公司",
-                                                 job_title=materials["job_title"])
+    system = fill(prompts.INTERVIEW_ASK_SYSTEM.format(company=materials.get("company") or "目标公司",
+                                                      job_title=materials["job_title"]), get_domain(materials.get("domain")))
     user = prompts.INTERVIEW_ASK_USER.format(label=topic["label"], intent=topic["intent"], material=material,
                                              context=ctx, history=past, task=task)
     return [("system", system), ("user", user)]

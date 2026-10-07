@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from langgraph.graph import END, START, StateGraph
 
+from app.domains import get_domain
 from app.graphs.state import MatchState
 from app.llm.client import LLMClient
 from app.matching.llm_judge import judge_with_fulltext
@@ -56,7 +57,8 @@ def build_match_graph(llm: LLMClient):
     def _judge_fulltext(state: MatchState) -> dict:
         ref = ("match_report", state["match_report_id"]) if state.get("match_report_id") else None
         r = judge_with_fulltext(state["pending"], state["full_text"], state["masked_text"], llm,
-                                model=state.get("model"), ref=ref)       # pending 为空时不会调模型
+                                model=state.get("model"), ref=ref,      # pending 为空时不会调模型
+                                domain=get_domain(state.get("domain")))
         return {"judged": r.items, "llm_item_count": len(state["pending"]),
                 "hallucination_count": r.hallucinations, "cost": r.cost}
 
@@ -72,6 +74,7 @@ def build_match_graph(llm: LLMClient):
 
 
 def initial_state(*, requirements: list[dict], structure: dict, full_text: str, masked_text: str,
-                  mode: str = "hybrid", model: str | None = None, match_report_id: int | None = None) -> MatchState:
-    return MatchState(match_report_id=match_report_id, mode=mode, model=model, requirements=requirements,
+                  mode: str = "hybrid", model: str | None = None, match_report_id: int | None = None,
+                  domain: str | None = None) -> MatchState:
+    return MatchState(match_report_id=match_report_id, mode=mode, model=model, domain=domain, requirements=requirements,
                       structure=structure, full_text=full_text, masked_text=masked_text)

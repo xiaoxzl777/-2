@@ -20,9 +20,9 @@
 | 50002 | LLM 调用失败 | 500 |
 | 50003 | 简历解析失败（含扫描件） | 500 |
 
-## 3.2 接口清单（28 个；已实现 26 个，标〔未实现〕的留给后续里程碑）
+## 3.2 接口清单（29 个；已实现 27 个，标〔未实现〕的留给后续里程碑）
 
-另有 `GET /api/v1/health`（启动自检：MySQL / Redis 是否可用），不计入 28 个。
+另有 `GET /api/v1/health`（启动自检：MySQL / Redis 是否可用），不计入 29 个。
 
 ```
 认证 3    POST /auth/register   POST /auth/login   GET /auth/me
@@ -40,9 +40,13 @@
           GET  /apply/{id}  → status / stage / gate{passed, overall_match, threshold} / dimension_scores / resume_score
                        + gaps[]（未满足与部分满足的要求，重要的在前）+ resume_issues[]（诊断里最严重的 8 条，带 finding id）
 
-岗位 4    POST /jobs   {title, company?, raw_text}         同步解析（一次模型调用，约 2–4 秒）→ 岗位 + requirements[]
+方向 1    GET  /domains    不用登录 → [{key, name, icon, desc, rule_hint, interview_hint, interview_label, interviewer, sample_jd}]
+                       工作台第一步「选方向」的下拉框；顺序即下拉顺序（app/domains，目前 cs 计算机 / ops 运营）
+
+岗位 4    POST /jobs   {title, company?, raw_text, domain?}  同步解析（一次模型调用，约 2–4 秒）→ 岗位 + requirements[]
+                                                           domain 默认 cs，未知方向 40001；按方向取 JD 解析的提示词
                                                            每条要求带 JD 原文引用 quote 与 char 区间；定位不到的丢弃；失败则不保存
-          GET  /jobs   ?include_templates=1               GET /jobs/{id}        DELETE /jobs/{id}（软删除；模板不可删）
+          GET  /jobs   ?include_templates=1（每条带 domain） GET /jobs/{id}        DELETE /jobs/{id}（软删除；模板不可删）
 
 匹配 1    GET  /match/{id}     匹配由投递触发，这里只查报告（id = 投递 id）
                        → status / overall_match / passed / threshold / dimension_scores / items[]

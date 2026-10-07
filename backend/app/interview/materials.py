@@ -11,6 +11,8 @@
 """
 from __future__ import annotations
 
+from app.domains import DEFAULT
+
 REQ_TYPE = {"hard": "必须", "plus": "加分"}
 STATUS = {"hit": "满足", "partial": "部分满足", "miss": "没满足"}
 _KIND = {"projects": "项目", "work": "经历"}
@@ -19,7 +21,7 @@ MAX_FINDINGS = 6
 
 def build_materials(*, job_title: str, company: str | None, requirements: list[dict], match_items: list[dict],
                     structure: dict, masked_text: str, findings: list[dict], context: str | None,
-                    context_mode: str) -> dict:
+                    context_mode: str, domain: str = DEFAULT.key) -> dict:
     """findings 已按严重程度排好：[{id, title, description, char_start, char_end}]。"""
     judged = {i["requirement_id"]: i for i in match_items}
     reqs = []
@@ -43,7 +45,7 @@ def build_materials(*, job_title: str, company: str | None, requirements: list[d
                "quote": masked_text[f["char_start"]:f["char_end"]].strip()}
               for f in findings if f.get("char_start") is not None and f.get("char_end") is not None][:MAX_FINDINGS]
 
-    return {"job_title": job_title, "company": company, "requirements": reqs, "experiences": experiences,
+    return {"job_title": job_title, "company": company, "domain": domain, "requirements": reqs, "experiences": experiences,
             "findings": issues, "context": context if context_mode == "full" else None, "context_mode": context_mode}
 
 

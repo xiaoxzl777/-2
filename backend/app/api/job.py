@@ -18,7 +18,7 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 def create_job(body: JobIn, user: User = Depends(get_current_user), db: Session = Depends(get_db),
                llm: LLMClient = Depends(get_llm_client)):
     """提交目标岗位。同步解析（约 2–4 秒）：返回时要求项已拆好，每条都带 JD 原文的引用区间。"""
-    job = job_service.create_job(db, user, body.title, body.company, body.raw_text, llm)
+    job = job_service.create_job(db, user, body.title, body.company, body.raw_text, llm, body.domain)
     return ok(_job_out(job))
 
 
@@ -40,7 +40,7 @@ def delete_job(job_id: int, user: User = Depends(get_current_user), db: Session 
 
 
 def _job_brief(job: Job) -> JobBrief:
-    return JobBrief(id=job.id, title=job.title, company=job.company, is_template=job.is_template,
+    return JobBrief(id=job.id, title=job.title, company=job.company, domain=job.domain, is_template=job.is_template,
                     requirement_count=len(job.requirements or []), created_at=job.created_at)
 
 

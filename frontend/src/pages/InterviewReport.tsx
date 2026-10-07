@@ -8,6 +8,7 @@ import { AppShell } from '../components/AppShell'
 import { MagneticButton, TiltCard, useCountUp } from '../components/effects'
 import { Headline, Mark } from '../components/Headline'
 import { NotFound, notFoundText } from '../components/NotFound'
+import { useDomain } from '../store/domains'
 import { Tabs } from '../components/Tabs'
 import { placeholders, underline } from '../components/InterviewText'
 
@@ -41,6 +42,7 @@ export default function InterviewReport() {
 }
 
 function Report({ data }: { data: Data }) {
+  const label = useDomain(data.domain)?.interview_label ?? '面试'
   const navigate = useNavigate()
   const r = data.report
   const [tab, setTab] = useState<'sum' | 'turns'>('sum')
@@ -56,8 +58,8 @@ function Report({ data }: { data: Data }) {
   const nothing = r.answered === 0
 
   const lines: [ReactNode, ReactNode] = nothing ? ['这场面试', <>还没<Mark>开始</Mark>答。</>]
-    : r.verdict === 'pass' ? ['技术面，', <><Mark>通过</Mark>了。</>]
-    : r.verdict === 'fail' ? ['这次技术面', <><Mark>没过</Mark>。</>]
+    : r.verdict === 'pass' ? [`${label}，`, <><Mark>通过</Mark>了。</>]
+    : r.verdict === 'fail' ? [`这次${label}`, <><Mark>没过</Mark>。</>]
     : r.verdict === 'incomplete' ? ['这场面试', <>没有<Mark>做完</Mark>。</>]
     : ['这一场', <>练<Mark>完</Mark>了。</>]
   const sub = nothing ? '一道题都还没答就结束了，没有可以打分的内容。再面一次吧。'

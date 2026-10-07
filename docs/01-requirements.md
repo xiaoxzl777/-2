@@ -67,7 +67,8 @@ DOCX         → 本期只收 PDF，上传 .docx 直接 41501
 | 编号 | 需求 | 说明 | 优先级 |
 |---|---|---|---|
 | FR-E1 | JD 录入 | 粘贴原文 → LLM 拆 硬性/加分/软性 要求项，技能类回填 `skill_id`；可选公司名 | P0 |
-| FR-E2 | 内置岗位模板 | 无具体 JD 时可选的通用岗位（手写 7 份公开 JD 风格的实习岗模板），以 `jobs.is_template=1` 存 | P1 |
+| FR-E0 | 求职方向 | 工作台第一步选方向（计算机 / 运营），存在岗位上；诊断、匹配、建议、面试按方向取提示词与规则（04-design 5.10） | P1 |
+| FR-E2 | 内置岗位模板 | 无具体 JD 时可选的通用岗位（手写 9 份实习岗模板：计算机 7、运营 2，按方向列出），以 `jobs.is_template=1` 存 | P1 |
 | FR-E3 | 规则 + LLM 匹配 | ① 规则先判（同义词词典命中且经历里用过、学历、年限；确定、免费）→ ② 规则判不了的要求连同简历全文一次交给 LLM，逐条判定 hit/partial/miss 并逐字引用简历依据，经 `locate_span` 定位，定位失败按 miss；`mode ∈ {dict_only, llm_fulltext, hybrid}` 供消融。匹配不用 RAG（理由见 06-workflows 6.2） | P0 |
 | FR-E4 | 逐项匹配 | 命中/部分/缺失，每条带简历原文依据（词典命中取 `skill_mentions` 区间，模型判定取经 `locate_span` 定位的引用） | P0 |
 | FR-E5 | 匹配度评分 | 按要求项类别分四维：技能 / 学历 / 经验 / 其他（skill / education / experience / other），JD 里没有该类要求的维度为 null；总分按权重加权。学历与年限由 `degree_level()` / `experience_years()` 从 structure 算 | P0 |

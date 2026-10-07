@@ -57,7 +57,7 @@ def load_skills(path: Path = CSV_PATH) -> list[dict]:
 
 
 def load_templates(path: Path = TEMPLATES_PATH) -> list[dict]:
-    """[{title, raw_text, requirements}]"""
+    """[{title, domain, raw_text, requirements}]"""
     return json.loads(path.read_text(encoding="utf-8"))["templates"]
 
 
@@ -87,15 +87,15 @@ def _templates_sql(templates: list[dict]) -> list[str]:
         f"UPDATE jobs SET is_deleted = 1 WHERE is_template = 1 AND title NOT IN ({titles});",
     ]
     for t in templates:
-        title = _q(t["title"])
+        title, domain = _q(t["title"]), _q(t.get("domain", "cs"))
         lines += [
             "",
             f"SET @raw = {_q(t['raw_text'])};",
             f"SET @reqs = {_q(json.dumps(t['requirements'], ensure_ascii=False))};",
-            "UPDATE jobs SET raw_text = @raw, requirements = @reqs, parse_status = 'success', is_deleted = 0",
+            f"UPDATE jobs SET domain = {domain}, raw_text = @raw, requirements = @reqs, parse_status = 'success', is_deleted = 0",
             f"  WHERE is_template = 1 AND title = {title};",
-            "INSERT INTO jobs (user_id, is_template, title, raw_text, requirements, parse_status)",
-            f"  SELECT NULL, 1, {title}, @raw, @reqs, 'success' FROM DUAL",
+            "INSERT INTO jobs (user_id, is_template, title, domain, raw_text, requirements, parse_status)",
+            f"  SELECT NULL, 1, {title}, {domain}, @raw, @reqs, 'success' FROM DUAL",
             f"  WHERE NOT EXISTS (SELECT 1 FROM jobs WHERE is_template = 1 AND title = {title});",
         ]
     return lines

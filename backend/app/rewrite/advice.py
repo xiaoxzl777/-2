@@ -17,6 +17,7 @@ import re
 from dataclasses import dataclass
 
 from app.diagnose.rules import NUMBER    # 与规则引擎判断"有没有数字"同一口径（排除 Vue3、CET-6 这类名称与版本号）
+from app.domains import DEFAULT, Domain, fill
 from app.llm import prompts
 
 PLACEHOLDER = "【数值】"
@@ -46,7 +47,7 @@ def _line_at(text: str, pos: int) -> tuple[int, int]:
 
 
 def finding_prompt(finding: dict, structure: dict, full_text: str, masked_text: str,
-                   job_title: str | None) -> AdvicePrompt:
+                   job_title: str | None, *, domain: Domain = DEFAULT) -> AdvicePrompt:
     """finding：findings 表的一行（unit_id、char 区间、title、description、evidence_quote）。
     发给模型的一律是掩码文本；定位不到所属条目（技能栏、整份简历的问题）时，经历部分给全部工作 / 项目经历。"""
     m = _UNIT.fullmatch(finding.get("unit_id") or "")
@@ -72,11 +73,11 @@ def finding_prompt(finding: dict, structure: dict, full_text: str, masked_text: 
         title=finding["title"], description=finding.get("description") or "",
         evidence=_slice(masked_text, finding.get("char_start"), finding.get("char_end")) or "（针对整份简历）")
     original = "\n".join(full_text[s:e] for s, e in entry_spans) + "\n" + _slice(full_text, *sentence)
-    return AdvicePrompt([("system", prompts.ADVICE_FINDING_SYSTEM), ("user", user)], original, "改成")
+    return AdvicePrompt([("system", fill(prompts.ADVICE_FINDING_SYSTEM, domain)), ("user", user)], original, "改成")
 
 
 def gap_prompt(item: dict, requirement: dict | None, full_text: str, masked_text: str,
-               job_title: str | None) -> AdvicePrompt:
+               job_title: str | None, *, domain: Domain = DEFAULT) -> AdvicePrompt:
     """item：match_reports.items 里没满足 / 部分满足的一条；requirement：岗位里对应的要求项（取 JD 原话，可能已被删）。"""
     quote = (requirement or {}).get("quote") or item["content"]
     evidence = _slice(masked_text, item.get("char_start"), item.get("char_end"))
@@ -85,7 +86,7 @@ def gap_prompt(item: dict, requirement: dict | None, full_text: str, masked_text
         quote=quote, status="缺失" if item["status"] == "miss" else "部分满足", reason=item.get("reason") or "无",
         evidence=f"「{evidence}」" if evidence else "无", resume=masked_text)
     original = f"{full_text}\n{item['content']}\n{quote}"
-    return AdvicePrompt([("system", prompts.ADVICE_GAP_SYSTEM), ("user", user)], original, "怎么补")
+    return AdvicePrompt([("system", fill(prompts.ADVICE_GAP_SYSTEM, domain)), ("user", user)], original, "怎么补")
 
 
 def fix_numbers(text: str, section: str, original: str) -> tuple[str, int]:

@@ -35,6 +35,7 @@ export type Interview = {
   id: number
   apply_id: number | null
   job_title: string | null
+  domain: string // 岗位的求职方向，页面上按它称呼面试（技术面 / 运营面）
   company_name: string | null
   mode: 'normal' | 'practice'
   status: 'planned' | 'in_progress' | 'completed' | 'abandoned'

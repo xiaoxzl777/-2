@@ -97,7 +97,7 @@ def _run_graph(task_id: str, report: MatchReport, diagnosis: Diagnosis, resume: 
     masked_text = mask_resume(structure, full_text)
     state = {
         "diagnosis_id": diagnosis.id, "match_report_id": report.id, "diagnose_mode": diagnosis.mode,
-        "match_mode": report.mode, "model": report.model_name, "job_title": job.title,
+        "match_mode": report.mode, "model": report.model_name, "job_title": job.title, "domain": job.domain,
         "requirements": job.requirements or [], "structure": structure, "full_text": full_text,
         "masked_text": masked_text, "ats_signals": resume.ats_signals, "page_count": resume.page_count,
     }

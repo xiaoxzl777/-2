@@ -12,6 +12,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.diagnose.evidence import locate_span, normalize_for_match
+from app.domains import DEFAULT, Domain, fill
 from app.llm import prompts
 from app.llm.client import LLMClient, invoke_json
 from app.matching.skill_dict import SkillDict
@@ -41,9 +42,10 @@ class JdParseResult:
 
 
 def parse_jd(title: str, raw_text: str, llm: LLMClient, skills: SkillDict, *,
-             model: str | None = None, ref: tuple[str, int] | None = None) -> JdParseResult:
+             model: str | None = None, ref: tuple[str, int] | None = None, domain: Domain = DEFAULT) -> JdParseResult:
     """raw_text 必须是已经定稿的文本：返回的 char 区间相对它。输出不合格时带着原因重试一次。"""
-    messages = [("system", prompts.JD_SYSTEM), ("user", prompts.JD_USER.format(title=title, raw_text=raw_text))]
+    messages = [("system", fill(prompts.JD_SYSTEM, domain)),
+                ("user", prompts.JD_USER.format(title=title, raw_text=raw_text))]
     parsed, cost, error = invoke_json(llm, "jd_parse", messages, schema=_JdOut, prompt_version=prompts.JD_VERSION,
                                       ref=ref, model=model)
     out = JdParseResult(cost=cost, error=error)

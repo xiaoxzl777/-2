@@ -21,6 +21,7 @@ class DiagnoseState(TypedDict, total=False):
     mode: DiagnoseMode
     model: str | None
     job_title: str | None
+    domain: str | None          # 求职方向的 key（app/domains），决定提示词和规则开关
     full_text: str
     masked_text: str            # 与 full_text 等长的 PII 掩码版本，发给模型用
     structure: dict
@@ -50,6 +51,7 @@ class ReviewUnitInput(TypedDict):
     full_text: str
     masked_text: str
     job_title: str | None
+    domain: str | None
     model: str | None
     diagnosis_id: int | None
 
@@ -64,6 +66,7 @@ class MatchState(TypedDict, total=False):
     match_report_id: int | None
     mode: MatchMode
     model: str | None
+    domain: str | None
     requirements: list[dict]    # jobs.requirements
     structure: dict
     full_text: str

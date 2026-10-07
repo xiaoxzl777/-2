@@ -154,3 +154,39 @@ Hive,data,hive|HiveSQL
 WebSocket,cs,websocket|WS长连接
 OAuth2,cs,OAuth|OAuth 2.0|单点登录|SSO
 JWT,cs,Json Web Token|JSON Web Token|token鉴权
+Excel,ops,excel|EXCEL|数据透视表|透视表|VLOOKUP
+PPT,ops,PowerPoint|幻灯片
+Photoshop,ops,PS|photoshop
+Premiere,ops,Adobe Premiere|Premiere Pro
+剪映,ops,CapCut|剪映专业版
+稿定设计,ops,稿定|Canva|可画
+秀米,ops,秀米编辑器
+135编辑器,ops,135 编辑器
+小红书,ops,小红书运营
+抖音,ops,抖音运营|Douyin
+微信公众号,ops,公众号|公众号运营|微信公众平台
+视频号,ops,微信视频号
+微博,ops,微博运营|Weibo
+B站,ops,哔哩哔哩|bilibili|Bilibili
+知乎,ops,知乎运营
+快手,ops,快手运营
+直播运营,ops,直播带货|带货直播
+社群运营,ops,社群|微信社群
+私域运营,ops,私域|私域流量
+用户增长,ops,增长黑客|Growth Hacking|拉新
+A/B 测试,ops,A/B测试|AB测试|AB Test|A/B Test|ABTest
+SEO,ops,搜索引擎优化
+SEM,ops,搜索引擎营销|竞价推广
+活动策划,ops,活动运营|活动执行
+内容策划,ops,选题策划|内容运营
+文案写作,ops,文案撰写|新媒体写作
+短视频运营,ops,短视频|短视频脚本|短视频剪辑
+KOL 投放,ops,KOL|KOC|达人投放
+用户画像,ops,人群画像
+漏斗分析,ops,转化漏斗|漏斗模型
+留存分析,ops,用户留存|留存率
+AARRR,ops,AARRR模型|海盗模型
+RFM,ops,RFM模型
+神策数据,ops,神策|Sensors Data
+Google Analytics,ops,谷歌分析
+飞书,ops,Feishu|Lark

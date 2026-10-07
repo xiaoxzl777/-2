@@ -12,6 +12,7 @@ import { AppShell } from '../components/AppShell'
 import { MagneticButton, TiltCard } from '../components/effects'
 import { Headline, Mark } from '../components/Headline'
 import { NotFound, notFoundText } from '../components/NotFound'
+import { useDomain } from '../store/domains'
 
 const SAMPLE = `【后端一面 · 约 40 分钟】
 1. 自我介绍，挑一个最有挑战的项目讲。
@@ -29,6 +30,7 @@ export default function InterviewSetup() {
   const navigate = useNavigate()
   const [apply, setApply] = useState<ApplyResult | null>(null)
   const [job, setJob] = useState<Job | null>(null)
+  const domain = useDomain(job?.domain)
   const [resumeTitle, setResumeTitle] = useState('')
   const [loadError, setLoadError] = useState<string | null>(null)
   const [company, setCompany] = useState('')
@@ -100,7 +102,7 @@ export default function InterviewSetup() {
           <button type="button" className="back fade d1" onClick={() => navigate(`/app/apply/${applyId}`)}>← 回到初筛结果</button>
           <Headline badge={!apply?.gate ? '模拟面试' : practice ? '练习模式' : '初筛已通过'}
             label={!apply?.gate ? job?.title ?? '…' : practice ? '初筛没过也能练' : job?.title ?? '岗位'}
-            lines={['来一场', <><Mark>技术面</Mark>。</>]} />
+            lines={['来一场', <><Mark>{domain?.interview_label ?? '面试'}</Mark>。</>]} />
           <p className="sub fade d2">
             {/* 话题个数要等定完才知道（偶尔少一个），这里不写死 */}
             围绕几个话题来问，每个最多追问一次，大约 10–15 分钟。

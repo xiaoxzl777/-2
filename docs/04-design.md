@@ -264,9 +264,32 @@ verdict：练习模式 → practice；没聊完所有话题就结束 → incompl
 links（和简历问题的关联）= 得分 < 60、来源是简历问题或岗位要求的话题
 ```
 
+## 5.10 求职方向（领域包，`app/domains/`）
+
+同一套流程（解析 → 诊断 ∥ 匹配 → 初筛 → 建议 → 面试）服务不同专业：工作台第一步选方向（计算机 / 运营……），
+方向存在岗位上（`jobs.domain`），之后各环节按岗位的方向取一个「领域包」。**加一个方向 = 加一套规则和数据，流程代码不改。**
+
+```
+领域包（domains/cs.py、ops.py）
+  TEXTS          提示词里随方向变化的 25 处片段：招聘官 / 面试官角色、JD 解析的技能说明、评分的「正确性」定义、各处示例 JSON
+  DISABLED_RULES 这个方向不跑的规则（如设计类可关掉「技能要在项目里用过」）
+  页面文案       名称、图标、一行说明、诊断标准 / 面试内容提示、技术面 / 运营面、示例 JD（GET /domains 给前端）
+```
+
+- **哪些不进领域包**：简历解析（上传时还不知道投哪个岗位，章节词典、结构化抽取只能是全集）；技能词典（不同专业的词不冲突，
+  新方向的词直接加进 `skills_seed.csv`，类别写新的）。
+- **怎么换提示词**：`prompts.py` 里随方向变化的地方写成 `[[名字]]`，拼好提示词的最后一步由 `domains.fill()` 换成领域包里的文字。
+  放在 `.format()` 之后换，领域包里的示例 JSON 不用管花括号转义；缺了某个片段直接 `KeyError`，不会把标记发给模型。
+- **计算机方向逐字不变**：`cs.py` 的片段是从改造前的提示词里用脚本逐字截出来的；`tests/prompt_cases.py` 按真实调用路径生成 10 个场景的提示词，
+  `test_domains.py` 和改造前的快照逐字比对。所以提示词版本号不用升，缓存不失效，M8 的评测数字仍然对应现在的代码。
+- **加一个方向的步骤**：照 `cs.py` 写 `domains/<key>.py`（片段要和 cs 一一对应，测试会查）→ 在 `DOMAINS` 登记 → `skills_seed.csv` 加词条
+  → `data/job_templates/<key>/*.txt` 写模板 → `build_job_templates.py`（只解析新的或改过的模板）→ `dump_seed.py` → 导入 seed.sql。
+- 现状：计算机（默认）+ 运营两个方向；运营 2 份模板、36 个词条。评测数据（M8）只有计算机方向。
+
 ---
 
 # 六、后端设计
+
 
 ## 6.1 分层与目录
 
@@ -291,14 +314,15 @@ backend/app/
 ├── interview/  materials.py（面试材料与编号） planner.py（定话题） asker.py（出题 prompt） rubric.py（评分与聚合） policy.py（推进规则） report.py（报告）
 ├── retrieval/  chroma_client.py context_store.py（面经切段检索）
 ├── graphs/     state.py apply_graph.py（图 A） diagnose_graph.py match_graph.py interview_graph.py（图 B） checkpoint.py（SqliteSaver）
-├── llm/        client.py ★ registry.py prompts.py audit.py embedding.py
+├── llm/        client.py ★ registry.py prompts.py（随方向变化处写成 [[名字]]） audit.py embedding.py
+├── domains/    求职方向（领域包）：__init__.py（Domain、fill） cs.py ops.py（见 5.10）
 └── cache/      redis_client.py llm_cache.py ratelimit.py pubsub.py
 
 后台任务直接用 FastAPI BackgroundTasks，入口在 parse_service.parse_resume 与 apply_service.run_apply；解析不在图里。
 
 scripts/   dump_schema.py dump_seed.py build_job_templates.py gen_layout_set.py eval_layout.py gen_eval_set.py run_eval.py interview_answers.py
 data/      skills_seed.csv job_templates/ job_templates.json resumes/ uploads/ chroma/ checkpoints.sqlite eval_runs/ layout_set/ eval_set/
-tests/     每个模块一个 test_*.py（353 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
+tests/     每个模块一个 test_*.py（363 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
 
 frontend/src/
 ├── pages/       Home（首页 + 登录）  Workbench（新的投递：选岗位 → 选简历 → 投递）  ApplyResult（初筛结果，含"进入面试 / 练习模式"入口）
