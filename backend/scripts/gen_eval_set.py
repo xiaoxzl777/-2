@@ -1,6 +1,7 @@
-"""生成诊断评测集（程序化降质）：python scripts/gen_eval_set.py
+"""生成诊断评测集（程序化降质）：python scripts/gen_eval_set.py [--domain cs|ops]
 
-20 份虚构的"干净"底稿，每份出 3 个版本，共 60 份单页 PDF，写进 data/eval_set/（不进仓库，随时可以重新生成）：
+计算机方向 20 份虚构的"干净"底稿（运营方向 10 份，素材见 eval_set_ops.py），每份出 3 个版本，写进
+data/eval_set/（运营：data/eval_set_ops/；都不进仓库，随时可以重新生成）：
   clean     干净底稿
   rule      规则类降质 4 处：删量化数字 / 「协助」弱动词 / 技能栏多写一个经历里没用过的技能 / 两段实习之间造 7 个月空窗
   semantic  语义类注入 3 处（接在某条描述后面）：夸大 / 前后矛盾 / 职责不清——只有模型通道能检出
@@ -15,15 +16,18 @@
 """
 from __future__ import annotations
 
+import argparse
 import json
 import random
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
 
 from app.config import settings  # noqa: E402
+from scripts import eval_set_ops as ops  # noqa: E402
 from scripts.eval_layout import squash  # noqa: E402
 from scripts.gen_layout_set import (CITIES, COMPANIES, GIVEN, SCHOOLS, SURNAMES, Content, Entry, H,  # noqa: E402
                                     draw_single, make_style)
@@ -104,36 +108,84 @@ UNCLEAR = ["这部分工作由项目组共同完成，大家一起推进了上�
 SUMMARIES = ["对后端开发有浓厚兴趣，习惯先把问题拆清楚再动手，写代码注重可读性和测试。",
              "做事认真，喜欢用数据说话；在团队项目里多次负责需求梳理与进度协调。"]
 
+# 匹配评测（run_eval.py --task match）用：二选一的框架、每个项目一条"描述里有依据、但不点名技能"的要求
+FRAMEWORKS = ("Spring Boot", "Django", "Flask", "Gin")
+PROJECT_REQUIREMENTS = {
+    "校园二手交易平台": "有支付回调或订单系统的开发经验",
+    "在线考试系统": "有数据库表结构设计的经验",
+    "图书馆座位预约小程序": "有预约或排队类业务的开发经验",
+    "秒杀系统": "有高并发场景下的库存扣减或限流经验",
+    "课程推荐系统": "有推荐算法的实现经验",
+    "个人博客系统": "有持续集成（CI）流水线的搭建经验",
+}
 
-def make_base(rng: random.Random, index: int) -> dict:
+
+@dataclass(frozen=True)
+class Pool:
+    """一个求职方向的底稿素材。两个方向的底稿结构、缺陷位置完全一样，只是内容不同。"""
+    key: str
+    n_bases: int
+    out_dir: Path
+    internships: dict
+    companies: list
+    projects: list
+    unused: list               # 技能栏多写的那个技能从这里取；底稿里都没出现过
+    exaggeration: list
+    incoherent: list
+    unclear: list
+    summaries: list
+    intent: str
+    majors: list               # 第 i 份用 majors[i % len]
+    awards: list
+    stack_label: str           # 项目第 1 行「技术栈：」/「工具：」
+    skill_label: str           # 技能栏第 1 行的前缀
+    alternatives: tuple        # 匹配评测的二选一：每个项目至少用了其中一个
+    alternative_text: str
+    project_requirements: dict
+
+
+CS = Pool("cs", N_BASES, OUT_DIR, INTERNSHIPS, COMPANIES, PROJECTS, UNUSED_SKILLS, EXAGGERATION, INCOHERENT, UNCLEAR,
+          SUMMARIES, "后端开发实习", ["计算机科学与技术"], ["2023 年 校级一等奖学金", "2024 年 蓝桥杯省赛二等奖"],
+          "技术栈", "开发", FRAMEWORKS, "用过 {lack} 或 {have} 等 Web 后端框架", PROJECT_REQUIREMENTS)
+OPS = Pool("ops", 10, settings.DATA_DIR / "eval_set_ops", ops.INTERNSHIPS, ops.COMPANIES, ops.PROJECTS, ops.UNUSED,
+           ops.EXAGGERATION, ops.INCOHERENT, ops.UNCLEAR, ops.SUMMARIES, "运营实习", ops.MAJORS, ops.AWARDS,
+           "工具", "运营工具", ops.ALTERNATIVES, ops.ALTERNATIVE_TEXT, ops.PROJECT_REQUIREMENTS)
+POOLS = {p.key: p for p in (CS, OPS)}
+
+
+def make_base(rng: random.Random, index: int, pool: Pool = CS) -> dict:
     """一份干净底稿：两段衔接的实习（新的在前）、两个项目、技能栏只列项目技术栈。"""
-    roles = rng.sample(sorted(INTERNSHIPS), 2)
-    companies = rng.sample(COMPANIES, 2)
-    projects = rng.sample(PROJECTS, 2)
+    roles = rng.sample(sorted(pool.internships), 2)
+    companies = rng.sample(pool.companies, 2)
+    projects = rng.sample(pool.projects, 2)
     stack = list(dict.fromkeys(s for _, st, _ in projects for s in st))     # 去重保序
     return {
         "name": rng.choice(SURNAMES) + rng.choice(GIVEN), "city": rng.choice(CITIES),
         "school": rng.choice(SCHOOLS),
         # 两段实习：后一段 2025.03 开始，前一段 2025.02 结束，间隔 1 个月
-        "work": [{"company": companies[0], "role": roles[0], "date": "2025.03-2025.06", "bullets": INTERNSHIPS[roles[0]]},
-                 {"company": companies[1], "role": roles[1], "date": "2024.12-2025.02", "bullets": INTERNSHIPS[roles[1]]}],
+        "work": [{"company": companies[0], "role": roles[0], "date": "2025.03-2025.06",
+                  "bullets": pool.internships[roles[0]]},
+                 {"company": companies[1], "role": roles[1], "date": "2024.12-2025.02",
+                  "bullets": pool.internships[roles[1]]}],
         "projects": [{"name": n, "stack": st, "date": d, "bullets": b}
                      for (n, st, b), d in zip(projects, ["2024.09-2024.12", "2024.03-2024.06"])],
-        "skills": [f"开发：{'、'.join(stack[:3])}", f"其他：{'、'.join(stack[3:])}"] if len(stack) > 3
-        else [f"开发：{'、'.join(stack)}"],
-        "summary": SUMMARIES[index % len(SUMMARIES)],
+        "skills": [f"{pool.skill_label}：{'、'.join(stack[:3])}", f"其他：{'、'.join(stack[3:])}"] if len(stack) > 3
+        else [f"{pool.skill_label}：{'、'.join(stack)}"],
+        "summary": pool.summaries[index % len(pool.summaries)],
     }
 
 
-def to_content(base: dict, index: int) -> Content:
+def to_content(base: dict, index: int, pool: Pool = CS) -> Content:
     work = [Entry(f"{w['company']} {w['role']}", w["date"], list(w["bullets"])) for w in base["work"]]
-    projects = [Entry(p["name"], p["date"], [f"技术栈：{'、'.join(p['stack'])}", *p["bullets"]]) for p in base["projects"]]
+    projects = [Entry(p["name"], p["date"], [f"{pool.stack_label}：{'、'.join(p['stack'])}", *p["bullets"]])
+                for p in base["projects"]]
+    major = pool.majors[index % len(pool.majors)]
     return Content(
-        name=base["name"], intent="后端开发实习", phone=f"138-0000-{1000 + index:04d}",
+        name=base["name"], intent=pool.intent, phone=f"138-0000-{1000 + index:04d}",
         email=f"eval{index:02d}@example.com", city=base["city"],
-        education=[Entry(f"{base['school']} 计算机科学与技术 本科", "2022.09-2026.06", ["GPA 3.6/4.0，专业排名前 15%"])],
+        education=[Entry(f"{base['school']} {major} 本科", "2022.09-2026.06", ["GPA 3.6/4.0，专业排名前 15%"])],
         work=work, projects=projects, skills=list(base["skills"]),
-        awards=["2023 年 校级一等奖学金", "2024 年 蓝桥杯省赛二等奖"], summary=base["summary"],
+        awards=list(pool.awards), summary=base["summary"],
     )
 
 
@@ -141,7 +193,7 @@ def _text(bullet) -> str:
     return bullet if isinstance(bullet, str) else bullet[0]
 
 
-def variants(base: dict, index: int) -> dict[str, tuple[Content, list[dict]]]:
+def variants(base: dict, index: int, pool: Pool = CS) -> dict[str, tuple[Content, list[dict]]]:
     """三个版本：(要画的内容, 缺陷清单)。描述在底稿里是 (原句, 去量化说法)，画之前统一换成字符串。"""
     def plain(b: dict) -> dict:
         b = json.loads(json.dumps(b))
@@ -149,7 +201,7 @@ def variants(base: dict, index: int) -> dict[str, tuple[Content, list[dict]]]:
             e["bullets"] = [_text(x) for x in e["bullets"]]
         return b
 
-    out: dict[str, tuple[Content, list[dict]]] = {"clean": (to_content(plain(base), index), [])}
+    out: dict[str, tuple[Content, list[dict]]] = {"clean": (to_content(plain(base), index, pool), [])}
 
     # work[0] 是较近的一段实习（2025.03 起），work[1] 是较早的一段
     # 规则类：较早那段的第 1 条去量化；第一个项目第 1 条加「协助」；技能栏多写一个没用过的技能；较早那段往前挪出空窗
@@ -158,10 +210,10 @@ def variants(base: dict, index: int) -> dict[str, tuple[Content, list[dict]]]:
     rule["work"][1]["bullets"][0] = dequant
     weak = "协助" + rule["projects"][0]["bullets"][0]
     rule["projects"][0]["bullets"][0] = weak
-    unused = UNUSED_SKILLS[index % len(UNUSED_SKILLS)]
+    unused = pool.unused[index % len(pool.unused)]
     rule["skills"][0] += f"、{unused}"
     rule["work"][1]["date"] = "2024.05-2024.08"                    # 到 2025.03 空了 7 个月
-    out["rule"] = (to_content(rule, index), [
+    out["rule"] = (to_content(rule, index, pool), [
         {"type": "dequant", "expect": "NO_QUANTIFICATION", "anchor": dequant},
         {"type": "weak_verb", "expect": "WEAK_VERB", "anchor": weak},
         {"type": "skill_unused", "expect": "SKILL_PROJECT_MISMATCH", "anchor": unused},
@@ -172,21 +224,24 @@ def variants(base: dict, index: int) -> dict[str, tuple[Content, list[dict]]]:
 
     # 语义类：夸大接在较近那段实习的第 2 条后面；前后矛盾、职责不清分别接在两个项目的第 2 条后面
     sem = plain(base)
-    clauses = {"exaggeration": EXAGGERATION[index % 4], "incoherent": INCOHERENT[index % 4],
-               "unclear_ownership": UNCLEAR[index % 4]}
+    clauses = {"exaggeration": pool.exaggeration[index % 4], "incoherent": pool.incoherent[index % 4],
+               "unclear_ownership": pool.unclear[index % 4]}
     for (key, i), (kind, clause) in zip([("work", 0), ("projects", 0), ("projects", 1)], clauses.items()):
         sem[key][i]["bullets"][1] += f"，{clause}"
-    out["semantic"] = (to_content(sem, index), [
+    out["semantic"] = (to_content(sem, index, pool), [
         {"type": kind, "expect": kind, "anchor": clause} for kind, clause in clauses.items()])
     return out
 
 
 def main() -> None:
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--domain", choices=list(POOLS), default="cs")
+    pool = POOLS[parser.parse_args().domain]
+    pool.out_dir.mkdir(parents=True, exist_ok=True)
     gt: dict[str, dict] = {}
-    for i in range(N_BASES):
-        base = make_base(random.Random(SEED * 100 + i), i)
-        for variant, (content, defects) in variants(base, i).items():
+    for i in range(pool.n_bases):
+        base = make_base(random.Random(SEED * 100 + i), i, pool)
+        for variant, (content, defects) in variants(base, i, pool).items():
             rng = random.Random(SEED * 100 + i)                     # 同一份底稿的三个版本用同一套版式参数
             style = make_style(rng)
             # 版面不是这里的被测对象：字号、行距固定得紧凑一点，保证注入了句子的版本也放得下一页
@@ -196,11 +251,11 @@ def main() -> None:
             if cv.bottom > H - 36 or any(squash(d["anchor"]) not in drawn for d in defects):
                 raise RuntimeError(f"底稿 {i} 的 {variant} 版超出一页，或缺陷没画全")
             name = f"{i + 1:02d}-{variant}.pdf"
-            cv.doc.save(OUT_DIR / name)
+            cv.doc.save(pool.out_dir / name)
             cv.doc.close()
             gt[name] = {"base": i + 1, "variant": variant, "defects": defects}
-    (OUT_DIR / "gt.json").write_text(json.dumps(gt, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"生成 {len(gt)} 份 → {OUT_DIR}")
+    (pool.out_dir / "gt.json").write_text(json.dumps(gt, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"生成 {len(gt)} 份 → {pool.out_dir}")
 
 
 if __name__ == "__main__":

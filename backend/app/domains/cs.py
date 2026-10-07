@@ -2,6 +2,8 @@
 
 TEXTS 是从改造前的提示词里逐字截出来的：计算机方向生成的提示词和改造前完全一样，
 缓存不失效，M8 的评测结果也还对应现在的代码（tests/test_domains.py 用快照核对）。
+唯一有意改过的是 eval_example、report_example 两个示例：原来是双花括号（面试评分、总结的提示词不经过 .format()，
+模型收到的就是 {{ }}），interview-v2 改成了单花括号，快照随之重拍。
 """
 KEY = "cs"
 NAME = "计算机"
@@ -55,6 +57,6 @@ TEXTS = {
     'plan_example': '{"topics": [{"source": "project", "ref": "P1", "label": "二手交易平台 · 缓存", "intent": "确认缓存方案是不是本人设计的，追问一致性怎么保证、效果怎么验证"}, {"source": "requirement", "ref": "R9", "label": "消息队列", "intent": "简历里没有，确认是否了解可靠投递、重复消费这些基本问题"}]}',
     'correctness': '技术上说得对不对，有明显错误要扣分。',
     'knowledge': '技术知识',
-    'eval_example': '{{"scores": {{"correctness": 4, "depth": 2, "clarity": 4}}, "evidence": ["先更新数据库，再删掉缓存"], "good": "说出了先更新库再删缓存的常见做法", "bad": "没说为什么这么选，也没提并发下的问题", "better_answer": "……", "decision": "followup"}}',
-    'report_example': '{{"strengths": [{{"title": "定位问题有方法", "detail": "慢查询那题：用 EXPLAIN 找到全表扫描，再建联合索引，还给出了前后耗时"}}], "weaknesses": [{{"title": "说不出成果数据", "detail": "订单模块两次被问到效果，只答了“比较稳定”"}}], "links": [{{"ref": "F12", "text": "简历里这句也只写了做什么；先统计出上线后的数据，写进简历，面试时就有话说"}}]}}',
+    'eval_example': '{"scores": {"correctness": 4, "depth": 2, "clarity": 4}, "evidence": ["先更新数据库，再删掉缓存"], "good": "说出了先更新库再删缓存的常见做法", "bad": "没说为什么这么选，也没提并发下的问题", "better_answer": "……", "decision": "followup"}',
+    'report_example': '{"strengths": [{"title": "定位问题有方法", "detail": "慢查询那题：用 EXPLAIN 找到全表扫描，再建联合索引，还给出了前后耗时"}], "weaknesses": [{"title": "说不出成果数据", "detail": "订单模块两次被问到效果，只答了“比较稳定”"}], "links": [{"ref": "F12", "text": "简历里这句也只写了做什么；先统计出上线后的数据，写进简历，面试时就有话说"}]}',
 }

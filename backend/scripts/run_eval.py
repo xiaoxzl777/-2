@@ -1,5 +1,8 @@
 """诊断 / 匹配 / 面试评分评测：python scripts/run_eval.py [--task diagnose|match|interview] [--modes ...] [--repeat 1] [--limit N]
+                                                    [--set cs|ops] [--domain cs|ops]
 （先跑 scripts/gen_eval_set.py 生成评测集；需要本机 MySQL、Redis 和 .env 里的 DeepSeek key）
+--set 选评测集（计算机 / 运营的虚构简历），--domain 选诊断、匹配用哪个方向的领域包（默认和评测集同一个方向）。
+同一份运营评测集分别用运营、计算机的领域包跑，就能看出领域包有没有用。
 
 流程：每份 PDF 先走一遍和线上一样的解析（走缓存：解析不是被测对象）；再按"模式 × 重复次数"在评测批次号下跑诊断 / 匹配图
 （绕过缓存，llm_calls 里每次调用都带 run_id，事后能查）。
@@ -39,6 +42,7 @@ sys.path.insert(0, str(BACKEND))
 from app.config import settings  # noqa: E402
 from app.database import SessionLocal  # noqa: E402
 from app.diagnose.types import iter_units  # noqa: E402
+from app.domains import DOMAINS  # noqa: E402
 from app.graphs import diagnose_graph, match_graph  # noqa: E402
 from app.interview import rubric  # noqa: E402
 from app.llm.client import LLMError, current_run_id, get_llm_client  # noqa: E402
@@ -51,7 +55,7 @@ from app.parser.section_llm import classify_sections  # noqa: E402
 from app.parser.structure import extract_structure  # noqa: E402
 from app.services.skill_service import load_skill_dict  # noqa: E402
 from scripts.eval_layout import squash  # noqa: E402
-from scripts.gen_eval_set import OUT_DIR, SEED, UNUSED_SKILLS, make_base  # noqa: E402
+from scripts.gen_eval_set import CS, POOLS, SEED, Pool, make_base  # noqa: E402
 from scripts.interview_answers import JOB_TITLE, QUESTIONS, TIERS  # noqa: E402
 
 MODES = ("rule_only", "llm_only", "hybrid")
@@ -90,13 +94,13 @@ def kind(f: dict) -> str:
     return f["rule_code"] or f["risk_type"]
 
 
-def diagnose(graph, doc: dict, mode: str, run_id: str) -> dict:
+def diagnose(graph, doc: dict, mode: str, run_id: str, domain: str | None = None) -> dict:
     token = current_run_id.set(run_id)
     started = time.perf_counter()
     try:
         out = graph.invoke(diagnose_graph.initial_state(
             structure=doc["structure"], full_text=doc["full_text"], masked_text=doc["masked"], mode=mode,
-            ats_signals=doc["ats_signals"], page_count=doc["page_count"]))
+            ats_signals=doc["ats_signals"], page_count=doc["page_count"], domain=domain))
     finally:
         current_run_id.reset(token)
     return {"findings": [f.to_dict() for f in out["findings"]],
@@ -178,37 +182,27 @@ def report(scores: dict[str, list[dict]]) -> None:
 
 # ───────────────────────── 匹配消融 ─────────────────────────
 
-FRAMEWORKS = ("Spring Boot", "Django", "Flask", "Gin")
-# 每个项目一条"描述里有依据、但不点名技能"的要求：词典判不了，得读懂描述
-PROJECT_REQUIREMENTS = {
-    "校园二手交易平台": "有支付回调或订单系统的开发经验",
-    "在线考试系统": "有数据库表结构设计的经验",
-    "图书馆座位预约小程序": "有预约或排队类业务的开发经验",
-    "秒杀系统": "有高并发场景下的库存扣减或限流经验",
-    "课程推荐系统": "有推荐算法的实现经验",
-    "个人博客系统": "有持续集成（CI）流水线的搭建经验",
-}
 MATCH_KINDS = ("skill_used", "skill_listed", "skill_absent", "alternative", "project", "education", "years", "other")
 
 
-def match_requirements(index: int, skills: SkillDict) -> list[dict]:
+def match_requirements(index: int, skills: SkillDict, pool: Pool = CS) -> list[dict]:
     """第 index 份底稿（从 0 起）的 8 条岗位要求，expect 是标准答案。
 
     简历是规则类降质版：技能栏多写了一个经历里没用过的技能（listed），所以"熟悉 listed"是部分满足；
     其余几处降质（删数字、弱动词、时间空窗）不影响匹配——实习合计约半年，"3 年以上"照样不满足。
     """
-    base = make_base(random.Random(SEED * 100 + index), index)
+    base = make_base(random.Random(SEED * 100 + index), index, pool)
     stack = [s for p in base["projects"] for s in p["stack"]]
-    listed = UNUSED_SKILLS[index % len(UNUSED_SKILLS)]           # 和 gen_eval_set 加进技能栏的是同一个
-    absent = UNUSED_SKILLS[(index + 1) % len(UNUSED_SKILLS)]     # 简历里完全没有
-    have = next(f for f in FRAMEWORKS if f in stack)
-    lack = next(f for f in FRAMEWORKS if f not in stack)
+    listed = pool.unused[index % len(pool.unused)]               # 和 gen_eval_set 加进技能栏的是同一个
+    absent = pool.unused[(index + 1) % len(pool.unused)]         # 简历里完全没有
+    have = next(f for f in pool.alternatives if f in stack)
+    lack = next(f for f in pool.alternatives if f not in stack)
     rows = [
         ("skill_used", "skill", stack[0], f"熟悉 {stack[0]}", "hit"),
         ("skill_listed", "skill", listed, f"熟悉 {listed}", "partial"),
         ("skill_absent", "skill", absent, f"熟悉 {absent}", "miss"),
-        ("alternative", "skill", None, f"用过 {lack} 或 {have} 等 Web 后端框架", "hit"),   # 二选一：JD 解析不填技能
-        ("project", "experience", None, PROJECT_REQUIREMENTS[base["projects"][0]["name"]], "hit"),
+        ("alternative", "skill", None, pool.alternative_text.format(lack=lack, have=have), "hit"),  # 二选一：JD 解析不填技能
+        ("project", "experience", None, pool.project_requirements[base["projects"][0]["name"]], "hit"),
         ("education", "education", None, "本科及以上学历", "hit"),
         ("years", "experience", None, "3 年以上工作经验", "miss"),
         ("other", "other", None, "英语达到 CET-6 水平", "miss"),
@@ -218,13 +212,14 @@ def match_requirements(index: int, skills: SkillDict) -> list[dict]:
             for k, (kind, category, skill, content, expect) in enumerate(rows)]
 
 
-def match(graph, doc: dict, requirements: list[dict], mode: str, run_id: str) -> dict:
+def match(graph, doc: dict, requirements: list[dict], mode: str, run_id: str, domain: str | None = None) -> dict:
     token = current_run_id.set(run_id)
     started = time.perf_counter()
     try:
         out = graph.invoke(match_graph.initial_state(
             requirements=[{k: v for k, v in r.items() if k not in ("kind", "expect")} for r in requirements],
-            structure=doc["structure"], full_text=doc["full_text"], masked_text=doc["masked"], mode=mode))
+            structure=doc["structure"], full_text=doc["full_text"], masked_text=doc["masked"], mode=mode,
+            domain=domain))
     finally:
         current_run_id.reset(token)
     return {"items": [i.to_dict() for i in out["items"]], "cost": out.get("cost") or 0.0,
@@ -377,14 +372,18 @@ def main() -> None:
                         help="默认：diagnose 跑 rule_only / llm_only / hybrid，match 跑 dict_only / llm_fulltext / hybrid")
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--limit", type=int, default=None, help="只跑前 N 份底稿（interview：前 N 道题），试跑用")
+    parser.add_argument("--set", choices=list(POOLS), default="cs", help="评测集：计算机 / 运营的虚构简历")
+    parser.add_argument("--domain", choices=list(DOMAINS), default=None, help="诊断、匹配用哪个方向的领域包，默认同 --set")
     args = parser.parse_args()
     if args.task == "interview":
         stamp = time.strftime("%Y%m%d-%H%M%S")
         _save(args.task, stamp, args, *run_interview(args, stamp))
         return
     modes = args.modes or list(MODES if args.task == "diagnose" else MATCH_MODES)
+    pool, domain = POOLS[args.set], args.domain or args.set
+    task = args.task if (args.set, domain) == ("cs", "cs") else f"{args.task}-{args.set}set-{domain}pack"
 
-    gt = json.loads((OUT_DIR / "gt.json").read_text(encoding="utf-8"))
+    gt = json.loads((pool.out_dir / "gt.json").read_text(encoding="utf-8"))
     if args.limit:
         gt = {k: v for k, v in gt.items() if v["base"] <= args.limit}
     if args.task == "match":
@@ -394,7 +393,7 @@ def main() -> None:
         skills = load_skill_dict(db)
 
     started = time.perf_counter()
-    docs = {name: parse(OUT_DIR / name, llm, skills) for name in gt}
+    docs = {name: parse(pool.out_dir / name, llm, skills) for name in gt}
     print(f"解析 {len(docs)} 份，用时 {time.perf_counter() - started:.0f}s")
 
     stamp = time.strftime("%Y%m%d-%H%M%S")
@@ -402,23 +401,24 @@ def main() -> None:
         graph = diagnose_graph.build_diagnose_graph(llm)
     else:
         graph = match_graph.build_match_graph(llm)
-        requirements = {name: match_requirements(gt[name]["base"] - 1, skills) for name in gt}
+        requirements = {name: match_requirements(gt[name]["base"] - 1, skills, pool) for name in gt}
     raw: dict[str, dict] = defaultdict(dict)
     scores: dict[str, list[dict]] = defaultdict(list)
     for mode in modes:
         for r in range(args.repeat):
             run_id = f"{'diag' if args.task == 'diagnose' else 'match'}-{stamp}-{mode}-{r + 1}"
             if args.task == "diagnose":
-                runs = {name: diagnose(graph, doc, mode, run_id) for name, doc in docs.items()}
+                runs = {name: diagnose(graph, doc, mode, run_id, domain) for name, doc in docs.items()}
                 scores[mode].append(score_run(gt, docs, runs))
             else:
-                runs = {name: match(graph, doc, requirements[name], mode, run_id) for name, doc in docs.items()}
+                runs = {name: match(graph, doc, requirements[name], mode, run_id, domain)
+                        for name, doc in docs.items()}
                 scores[mode].append(score_match_run(requirements, runs))
             raw[mode][r + 1] = runs
             print(f"{mode} 第 {r + 1} 次完成（run_id={run_id}）")
 
     (report if args.task == "diagnose" else report_match)(scores)
-    _save(args.task, stamp, args, scores, raw)
+    _save(task, stamp, args, scores, raw)
 
 
 if __name__ == "__main__":

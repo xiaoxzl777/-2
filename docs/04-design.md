@@ -100,7 +100,7 @@ invoke_json(llm, scene, messages, schema, prompt_version, …) → (parsed | Non
 
 只有技术面：5 个话题，每个最多追问 1 次。创建 / 开始 / 作答 / 提前结束 / 放弃的流程、图 B 的节点和两份状态（MySQL 为准、SQLite 检查点续跑）只在 [06-workflows](06-workflows.md) 6.3 写；这里只放 prompt（4.10）和评分聚合（5.9）。
 
-## 4.10 面试 Prompt 骨架（全文见 `llm/prompts.py` 的 `INTERVIEW_*`，版本 interview-v1）
+## 4.10 面试 Prompt 骨架（全文见 `llm/prompts.py` 的 `INTERVIEW_*`，版本 interview-v2）
 
 ```
 [plan · temp 0.7，不走缓存]
@@ -284,7 +284,7 @@ links（和简历问题的关联）= 得分 < 60、来源是简历问题或岗�
   `test_domains.py` 和改造前的快照逐字比对。所以提示词版本号不用升，缓存不失效，M8 的评测数字仍然对应现在的代码。
 - **加一个方向的步骤**：照 `cs.py` 写 `domains/<key>.py`（片段要和 cs 一一对应，测试会查）→ 在 `DOMAINS` 登记 → `skills_seed.csv` 加词条
   → `data/job_templates/<key>/*.txt` 写模板 → `build_job_templates.py`（只解析新的或改过的模板）→ `dump_seed.py` → 导入 seed.sql。
-- 现状：计算机（默认）+ 运营两个方向；运营 2 份模板、36 个词条。评测数据（M8）只有计算机方向。
+- 现状：计算机（默认）+ 运营两个方向；运营 2 份模板、36 个词条。运营另有一套评测集（05 8.3 (7)）：同一批运营简历用两种包跑，检出率、一致率差不多，差别在说法（计算机包会说"技术含量"）。
 
 ---
 
@@ -322,7 +322,7 @@ backend/app/
 
 scripts/   dump_schema.py dump_seed.py build_job_templates.py gen_layout_set.py eval_layout.py gen_eval_set.py run_eval.py interview_answers.py
 data/      skills_seed.csv job_templates/ job_templates.json resumes/ uploads/ chroma/ checkpoints.sqlite eval_runs/ layout_set/ eval_set/
-tests/     每个模块一个 test_*.py（363 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
+tests/     每个模块一个 test_*.py（369 个用例，模型 / 向量库 / Redis / 检查点全部打桩，不联网）
 
 frontend/src/
 ├── pages/       Home（首页 + 登录）  Workbench（新的投递：选岗位 → 选简历 → 投递）  ApplyResult（初筛结果，含"进入面试 / 练习模式"入口）

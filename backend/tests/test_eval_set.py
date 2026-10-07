@@ -1,4 +1,4 @@
-"""评测脚本：诊断降质版本改对了地方；匹配要求和面试回答按设计构造；跑批脚本的定位与打分逻辑。不调模型。"""
+"""评测脚本：诊断降质版本改对了地方（计算机、运营两套素材）；匹配要求和面试回答按设计构造；跑批脚本的定位与打分逻辑。不调模型。"""
 import random
 import re
 import statistics
@@ -6,15 +6,24 @@ from collections import Counter
 
 import pytest
 
+from app.diagnose.rules import _RESULT_WORDS, _WEAK_VERBS
 from app.matching.skill_dict import SkillDict, SkillEntry
 from scripts.dump_seed import load_skills
-from scripts.gen_eval_set import PROJECTS, SEED, make_base, variants
+from scripts.gen_eval_set import POOLS, PROJECTS, SEED, make_base, variants
 from scripts.interview_answers import QUESTIONS, TIERS
 from scripts.run_eval import MATCH_KINDS, locate, match_requirements, score_interview, score_run
 
 
-def _variants(i=0):
-    return variants(make_base(random.Random(SEED * 100 + i), i), i)
+POOL_KEYS = pytest.mark.parametrize("key", list(POOLS))
+
+
+def _variants(i=0, key="cs"):
+    pool = POOLS[key]
+    return variants(make_base(random.Random(SEED * 100 + i), i, pool), i, pool)
+
+
+def _skills() -> SkillDict:
+    return SkillDict(SkillEntry(s["id"], s["canonical_name"], tuple(s["aliases"])) for s in load_skills())
 
 
 def _all_text(content) -> str:
@@ -23,10 +32,11 @@ def _all_text(content) -> str:
                      + content.skills + content.awards + [content.summary])
 
 
-def test_clean_base_is_clean_by_construction():
-    content, defects = _variants()["clean"]
+@POOL_KEYS
+def test_clean_base_is_clean_by_construction(key):
+    content, defects = _variants(key=key)["clean"]
     assert defects == []
-    stacks = " ".join(b for p in content.projects for b in p.bullets if b.startswith("技术栈："))
+    stacks = " ".join(b for p in content.projects for b in p.bullets if b.startswith(f"{POOLS[key].stack_label}："))
     for line in content.skills:                                   # 技能栏的每一项都在项目技术栈里出现过
         for skill in line.split("：", 1)[1].split("、"):
             assert skill in stacks
@@ -34,22 +44,41 @@ def test_clean_base_is_clean_by_construction():
     assert not any(b.startswith(("参与", "协助")) for e in content.work + content.projects for b in e.bullets)
 
 
-def test_each_defect_is_drawn_where_the_ground_truth_says():
+@POOL_KEYS
+def test_each_defect_is_drawn_where_the_ground_truth_says(key):
     for variant in ("rule", "semantic"):
-        content, defects = _variants()[variant]
+        content, defects = _variants(key=key)[variant]
         text = _all_text(content)
         assert all(d["anchor"] in text for d in defects), variant
 
-    content, defects = _variants()["rule"]
+    content, defects = _variants(key=key)["rule"]
     assert [d["type"] for d in defects] == ["dequant", "weak_verb", "skill_unused", "timeline_gap"]
     dequant = defects[0]["anchor"]
     assert not any(ch.isdigit() for ch in dequant)                 # 去掉了数字，但留着结果词
     assert defects[1]["anchor"].startswith("协助")
     assert content.work[1].date == "2024.05-2024.08"               # 到较近那段的 2025.03 空了 7 个月
 
-    content, defects = _variants()["semantic"]
+    content, defects = _variants(key=key)["semantic"]
     assert [d["expect"] for d in defects] == ["exaggeration", "incoherent", "unclear_ownership"]
     assert content.work[0].bullets[1].endswith(defects[0]["anchor"])
+
+
+@POOL_KEYS
+def test_pool_content_triggers_exactly_the_planned_defects(key):
+    """素材本身：原句带数字、去量化的说法没有数字但有结果词（规则才会报）；没有以弱动词开头的描述；
+    技能栏多写的那些技能词典都认识，任何版本的经历和自我评价里都没提到它们（连别名也没有）。"""
+    pool, skills = POOLS[key], _skills()
+    pairs = [b for bullets in pool.internships.values() for b in bullets] + [b for _, _, bs in pool.projects for b in bs]
+    for sentence, dequant in pairs:
+        assert any(ch.isdigit() for ch in sentence) and not any(ch.isdigit() for ch in dequant), sentence
+        assert _RESULT_WORDS.search(dequant) and not _WEAK_VERBS.match(sentence), sentence
+    unused = {skills.lookup(name) for name in pool.unused}
+    assert None not in unused
+    for i in range(pool.n_bases):
+        for variant, (content, _) in _variants(i, key).items():
+            entries = content.education + content.work + content.projects
+            text = "\n".join([e.title for e in entries] + [b for e in entries for b in e.bullets] + [content.summary])
+            assert not unused & {sid for sid, _, _ in skills.find(text)}, (i, variant)
 
 
 def test_locate_ignores_whitespace_from_line_wraps():
@@ -78,12 +107,13 @@ def test_score_run_counts_position_and_type_hits():
     assert s["intercept_rate"] == 0.5
 
 
-def test_match_requirements_follow_the_resume_content():
+@POOL_KEYS
+def test_match_requirements_follow_the_resume_content(key):
     """匹配消融的 8 条要求：标准答案必须和简历（规则类降质版）的内容对得上。"""
-    skills = SkillDict(SkillEntry(s["id"], s["canonical_name"], tuple(s["aliases"])) for s in load_skills())
-    for i in range(20):
-        reqs = match_requirements(i, skills)
-        content, defects = _variants(i)["rule"]
+    pool, skills = POOLS[key], _skills()
+    for i in range(pool.n_bases):
+        reqs = match_requirements(i, skills, pool)
+        content, defects = _variants(i, key)["rule"]
         text = _all_text(content)
         by_kind = {r["kind"]: r for r in reqs}
         assert [r["kind"] for r in reqs] == list(MATCH_KINDS)
@@ -93,7 +123,7 @@ def test_match_requirements_follow_the_resume_content():
         assert listed == next(d["anchor"] for d in defects if d["type"] == "skill_unused")   # 只写在技能栏
         absent = by_kind["skill_absent"]["skill"]
         assert absent not in text and absent != listed
-        stack = [b for p in content.projects for b in p.bullets if b.startswith("技术栈：")]
+        stack = [b for p in content.projects for b in p.bullets if b.startswith(f"{pool.stack_label}：")]
         assert any(by_kind["skill_used"]["skill"] in s for s in stack)
         assert all(by_kind[k]["skill_id"] for k in ("skill_used", "skill_listed", "skill_absent"))   # 词典里都有
         assert by_kind["alternative"]["skill"] is None                                     # 二选一：词典判不了

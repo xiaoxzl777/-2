@@ -16,7 +16,8 @@ OPS = DOMAINS["ops"]
 
 
 def test_cs_prompts_are_byte_identical_to_before():
-    """快照是改造前按同样的输入拍的。逐字一样，提示词版本号就不用升，缓存和 M8 的评测结果都还对得上。"""
+    """快照是改造前按同样的输入拍的。逐字一样，提示词版本号就不用升，缓存和 M8 的评测结果都还对得上。
+    之后只重拍过一次：interview-v2 把面试评分、总结示例里的双花括号改成单花括号（只差花括号）。"""
     snapshot = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
     assert render_all() == snapshot                       # 不传方向：各处的默认值
     assert render_all(DOMAINS["cs"]) == snapshot          # 明确传计算机
@@ -28,6 +29,13 @@ def test_switching_direction_changes_every_prompt_and_leaves_no_marks():
     assert not any("[[" in m[1] for msgs in ops.values() for m in msgs)
     assert "运营岗位招聘官" in ops["diagnose"][0][1] and "专业技能与工具" in ops["jd_parse"][0][1]
     assert "专业上说得对不对" in ops["interview_eval"][0][1] and "运营面试官" in ops["interview_ask"][0][1]
+
+
+def test_no_escaped_braces_reach_the_model():
+    """{{ }} 只是 .format() 的转义写法。不经过 .format() 的模板里写了 {{，模型就会收到双花括号（interview-v1 的老毛病）。"""
+    for d in DOMAINS.values():
+        for case, msgs in render_all(d).items():
+            assert not any("{{" in m[1] or "}}" in m[1] for m in msgs), (d.key, case)
 
 
 def test_every_direction_fills_every_mark():

@@ -221,7 +221,7 @@ ADVICE_GAP_USER = """\
 
 # ───────────────────────── 模拟面试（图 B，只有技术面） ─────────────────────────
 
-INTERVIEW_VERSION = "interview-v1"
+INTERVIEW_VERSION = "interview-v2"   # v2：评分、总结两段系统提示词不经过 .format()，示例里的 {{ }} 改回单花括号
 
 INTERVIEW_PLAN_SYSTEM = """\
 你是一位资深[[interviewer]]，要为一场「{job_title}」岗位的[[interview_name]]定下 {n} 个话题，以 JSON 输出。
@@ -302,7 +302,7 @@ evidence 必须从【候选人回答】里逐字复制连续的一段。请重�
 INTERVIEW_REPORT_SYSTEM = """\
 你是[[interviewer]]，面试结束后给候选人写一段总结，以 JSON 输出。
 
-- strengths：表现好的 1–3 条；weaknesses：需要加强的 1–3 条。每条 {{"title": 12 字以内, "detail": 50 字以内}}，detail 要点出是哪个话题、候选人哪句话或哪种表现。
+- strengths：表现好的 1–3 条；weaknesses：需要加强的 1–3 条。每条 {"title": 12 字以内, "detail": 50 字以内}，detail 要点出是哪个话题、候选人哪句话或哪种表现。
 - links：只针对【可以对应的简历问题 / 岗位差距】里列出的条目写，每条一句话（60 字以内）说清面试表现和它的关系、接下来先做什么；ref 必须照抄列出的编号。列表为空就给空数组。
 - 口吻直接，称呼"你"。只根据下面的问答和点评写，不要编造没发生的事。
 
