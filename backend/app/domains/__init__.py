@@ -30,12 +30,14 @@ class Domain:
     sample_jd: dict              # 「填一份示例 JD」：{title, company, text}
     texts: MappingProxyType      # 提示词片段：[[key]] → 文字
     disabled_rules: frozenset[str] = field(default_factory=frozenset)   # 这个方向不跑的规则（rule_code）
+    result_words: tuple[str, ...] = ()   # 规则判断"写没写结果"时，在通用的结果词之外这个方向还认的词
 
 
 def _load(module) -> Domain:
     return Domain(key=module.KEY, name=module.NAME, icon=module.ICON, desc=module.DESC, rule_hint=module.RULE_HINT,
                   interview_hint=module.INTERVIEW_HINT, interview_label=module.INTERVIEW_LABEL, sample_jd=module.SAMPLE_JD,
-                  texts=MappingProxyType(module.TEXTS), disabled_rules=frozenset(module.DISABLED_RULES))
+                  texts=MappingProxyType(module.TEXTS), disabled_rules=frozenset(module.DISABLED_RULES),
+                  result_words=tuple(module.RESULT_WORDS))
 
 
 DOMAINS: dict[str, Domain] = {d.key: d for d in map(_load, (cs, ops))}   # 顺序就是下拉框里的顺序

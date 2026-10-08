@@ -24,7 +24,8 @@ MAX_SKILL_FINDINGS = 5        # 技能不一致最多报这么多条，避免刷
 
 # 数字：前面不能紧挨字母 / 数字 / . # + -（排除 Vue3、JDK8、CET-6、2.7 这类名称与版本号）
 NUMBER = re.compile(r"(?<![A-Za-z\d.#+\-])\d+(?:\.\d+)?")
-# 只收"结果性"的动词。不收"性能 / 效率"这类名词：否则小标题「性能优化：」本身就会被当成在陈述结果
+# 只收"结果性"的动词。不收"性能 / 效率"这类名词：否则小标题「性能优化：」本身就会被当成在陈述结果。
+# 各方向还可以在领域包里加自己的说法（RESULT_WORDS，如运营的「涨粉、阅读量」），见 RuleContext.results
 _RESULT_WORDS = re.compile(r"提升|提高|降低|减少|缩短|节省|节约|增长|达到|降至|升至|支撑|保障|上线|获得|解决了|避免|稳定运行")
 _WEAK_VERBS = re.compile(r"参与|协助|了解|学习|接触|帮助|配合|跟随|辅助")
 # 行首的列表符号 / 编号。"10.5%" 这种小数不是编号，所以编号的点后面不能紧跟数字
@@ -40,10 +41,14 @@ class RuleContext:
     page_count: int | None = None
     today: date = field(default_factory=date.today)
     disabled: frozenset[str] = frozenset()      # 这个求职方向关掉的规则（app/domains 的 disabled_rules）
+    result_words: tuple[str, ...] = ()          # 这个方向额外算"写了结果"的词（app/domains 的 result_words）
     units: list[ReviewUnit] = field(init=False)
+    results: re.Pattern = field(init=False)
 
     def __post_init__(self) -> None:
         self.units = iter_units(self.structure, self.full_text)
+        extra = "|".join(map(re.escape, self.result_words))
+        self.results = re.compile(f"{_RESULT_WORDS.pattern}|{extra}") if extra else _RESULT_WORDS
 
     @property
     def experience_units(self) -> list[ReviewUnit]:
@@ -109,7 +114,7 @@ def _finding(ctx: RuleContext, code: str, category: str, severity: str, title: s
 def no_quantification(ctx: RuleContext) -> Iterable[Finding]:
     """说了"提升 / 降低"却没有任何数字。"""
     for u in ctx.experience_units:
-        result = _RESULT_WORDS.search(u.text)
+        result = ctx.results.search(u.text)
         if result and not _has_number(u.text):
             yield _finding(ctx, "NO_QUANTIFICATION", "quantification", "high", "成果缺少量化数据",
                            f"这条描述提到了「{result.group(0)}」，但没有给出任何数字，读者无法判断成果的大小。",
@@ -121,7 +126,7 @@ def no_quantification(ctx: RuleContext) -> Iterable[Finding]:
 def star_incomplete(ctx: RuleContext) -> Iterable[Finding]:
     """只写了做了什么，没有写结果。"""
     for u in ctx.experience_units:
-        if not _RESULT_WORDS.search(u.text) and not _has_number(u.text):
+        if not ctx.results.search(u.text) and not _has_number(u.text):
             yield _finding(ctx, "STAR_INCOMPLETE", "completeness", "medium", "只有做了什么，没有结果",
                            "这条描述停留在「做了某事」，没有说明带来了什么结果（STAR 中的 R）。",
                            "补一句结果：解决了什么问题、达到了什么效果、支撑了什么业务。",

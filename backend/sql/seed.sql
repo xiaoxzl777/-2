@@ -198,12 +198,27 @@ INSERT INTO skills (id, canonical_name, category, aliases) VALUES
   (188, 'RFM', 'ops', '["RFM模型"]'),
   (189, '神策数据', 'ops', '["神策", "Sensors Data"]'),
   (190, 'Google Analytics', 'ops', '["谷歌分析"]'),
-  (191, '飞书', 'ops', '["Feishu", "Lark"]');
+  (191, '飞书', 'ops', '["Feishu", "Lark"]'),
+  (192, '淘宝', 'ops', '["淘宝店铺", "Taobao"]'),
+  (193, '天猫', 'ops', '["天猫店铺", "Tmall"]'),
+  (194, '京东', 'ops', '["京东店铺"]'),
+  (195, '拼多多', 'ops', '["PDD", "Pinduoduo"]'),
+  (196, '抖店', 'ops', '["抖音电商", "抖音小店", "抖音商城"]'),
+  (197, '生意参谋', 'ops', '[]'),
+  (198, '直通车', 'ops', '["淘宝直通车"]'),
+  (199, '巨量千川', 'ops', '["千川"]'),
+  (200, '问卷星', 'ops', '[]'),
+  (201, '易企秀', 'ops', '["MAKA"]'),
+  (202, 'Axure', 'ops', '["Axure RP"]'),
+  (203, '墨刀', 'ops', '["Modao"]'),
+  (204, '埋点', 'ops', '["埋点分析", "数据埋点"]'),
+  (205, '用户调研', 'ops', '["用户访谈", "问卷调研"]'),
+  (206, '企业微信', 'ops', '["企微", "WeCom"]');
 
-ALTER TABLE skills AUTO_INCREMENT = 192;
+ALTER TABLE skills AUTO_INCREMENT = 207;
 
 -- 岗位模板：按标题更新，不删除重建（投递记录按 id 引用岗位，删了会连带删掉投递）
-UPDATE jobs SET is_deleted = 1 WHERE is_template = 1 AND title NOT IN ('后端开发实习生（Java）', '后端开发实习生（Python / Go）', '前端开发实习生', '算法实习生（机器学习）', 'AI 应用开发实习生（大模型）', '测试开发实习生', '数据分析实习生', '内容运营实习生（新媒体）', '用户运营实习生');
+UPDATE jobs SET is_deleted = 1 WHERE is_template = 1 AND title NOT IN ('后端开发实习生（Java）', '后端开发实习生（Python / Go）', '前端开发实习生', '算法实习生（机器学习）', 'AI 应用开发实习生（大模型）', '测试开发实习生', '数据分析实习生', '内容运营实习生（新媒体）', '用户运营实习生', '活动运营实习生', '电商运营实习生', '产品运营实习生');
 
 SET @raw = '岗位职责：
 1. 参与业务系统的后端开发，负责接口设计、编码实现和单元测试；
@@ -439,3 +454,63 @@ UPDATE jobs SET domain = 'ops', raw_text = @raw, requirements = @reqs, parse_sta
 INSERT INTO jobs (user_id, is_template, title, domain, raw_text, requirements, parse_status)
   SELECT NULL, 1, '用户运营实习生', 'ops', @raw, @reqs, 'success' FROM DUAL
   WHERE NOT EXISTS (SELECT 1 FROM jobs WHERE is_template = 1 AND title = '用户运营实习生');
+
+SET @raw = '岗位职责：
+1. 参与线上线下活动的策划与执行，包括方案撰写、物料准备和现场协调；
+2. 跟踪活动的报名、参与和转化数据，活动结束后输出复盘报告；
+3. 配合设计、产品同学完成活动页面和推广素材的上线。
+
+任职要求：
+1. 本科及以上学历，市场营销、广告学、新闻传播等相关专业优先；
+2. 有校园活动、社团活动或线上活动的策划和执行经历；
+3. 能独立撰写活动方案，文字表达清楚；
+4. 熟练使用 Excel 统计活动数据，能用数据复盘活动效果；
+5. 会用稿定设计、秀米等工具制作海报和推文者优先；
+6. 会用问卷星、易企秀等工具者优先；
+7. 沟通协调能力强，能同时推进多件事情，抗压能力好。';
+SET @reqs = '[{"id": 1, "req_type": "hard", "category": "education", "content": "本科及以上学历", "skill": null, "skill_id": null, "weight": 1.0, "quote": "本科及以上学历，市场营销、广告学、新闻传播等相关专业优先", "char_start": 112, "char_end": 140}, {"id": 2, "req_type": "plus", "category": "education", "content": "市场营销、广告学、新闻传播等相关专业优先", "skill": null, "skill_id": null, "weight": 0.5, "quote": "市场营销、广告学、新闻传播等相关专业优先", "char_start": 120, "char_end": 140}, {"id": 3, "req_type": "hard", "category": "experience", "content": "有校园、社团或线上活动的策划和执行经历", "skill": null, "skill_id": null, "weight": 1.0, "quote": "有校园活动、社团活动或线上活动的策划和执行经历", "char_start": 145, "char_end": 168}, {"id": 4, "req_type": "hard", "category": "skill", "content": "能独立撰写活动方案，文字表达清楚", "skill": null, "skill_id": null, "weight": 1.0, "quote": "能独立撰写活动方案，文字表达清楚", "char_start": 173, "char_end": 189}, {"id": 5, "req_type": "hard", "category": "skill", "content": "熟练使用 Excel 统计活动数据", "skill": "Excel", "skill_id": 156, "weight": 1.0, "quote": "熟练使用 Excel 统计活动数据", "char_start": 194, "char_end": 211}, {"id": 6, "req_type": "hard", "category": "skill", "content": "能用数据复盘活动效果", "skill": null, "skill_id": null, "weight": 1.0, "quote": "能用数据复盘活动效果", "char_start": 212, "char_end": 222}, {"id": 7, "req_type": "plus", "category": "skill", "content": "会用稿定设计或秀米等工具制作海报和推文", "skill": null, "skill_id": null, "weight": 0.5, "quote": "会用稿定设计、秀米等工具制作海报和推文者优先", "char_start": 227, "char_end": 249}, {"id": 8, "req_type": "plus", "category": "skill", "content": "会用问卷星或易企秀等工具", "skill": null, "skill_id": null, "weight": 0.5, "quote": "会用问卷星、易企秀等工具者优先", "char_start": 254, "char_end": 269}, {"id": 9, "req_type": "soft", "category": "other", "content": "沟通协调能力强，能同时推进多件事情，抗压能力好", "skill": null, "skill_id": null, "weight": 0.3, "quote": "沟通协调能力强，能同时推进多件事情，抗压能力好", "char_start": 274, "char_end": 297}]';
+UPDATE jobs SET domain = 'ops', raw_text = @raw, requirements = @reqs, parse_status = 'success', is_deleted = 0
+  WHERE is_template = 1 AND title = '活动运营实习生';
+INSERT INTO jobs (user_id, is_template, title, domain, raw_text, requirements, parse_status)
+  SELECT NULL, 1, '活动运营实习生', 'ops', @raw, @reqs, 'success' FROM DUAL
+  WHERE NOT EXISTS (SELECT 1 FROM jobs WHERE is_template = 1 AND title = '活动运营实习生');
+
+SET @raw = '岗位职责：
+1. 协助店铺日常运营，包括商品上架、详情页优化和价格维护；
+2. 参与大促活动的准备和执行，跟踪店铺流量、转化和销售数据；
+3. 收集竞品信息，配合制定商品推广方案。
+
+任职要求：
+1. 本科及以上学历，电子商务、市场营销、统计学等相关专业优先；
+2. 熟悉淘宝、天猫、京东或抖店等电商平台的规则；
+3. 会用生意参谋等工具查看店铺数据，能发现流量和转化上的问题；
+4. 熟练使用 Excel 做数据整理和透视分析；
+5. 有直通车、巨量千川等广告投放经验者优先；
+6. 有个人店铺经营或电商实习经历者优先；
+7. 对数字敏感，执行力强，能适应大促期间的工作节奏。';
+SET @reqs = '[{"id": 1, "req_type": "hard", "category": "education", "content": "本科及以上学历", "skill": null, "skill_id": null, "weight": 1.0, "quote": "本科及以上学历，电子商务、市场营销、统计学等相关专业优先", "char_start": 101, "char_end": 129}, {"id": 2, "req_type": "plus", "category": "education", "content": "电子商务、市场营销、统计学等相关专业优先", "skill": null, "skill_id": null, "weight": 0.5, "quote": "电子商务、市场营销、统计学等相关专业优先", "char_start": 109, "char_end": 129}, {"id": 3, "req_type": "hard", "category": "skill", "content": "熟悉淘宝、天猫、京东或抖店等电商平台规则（满足其一即可）", "skill": null, "skill_id": null, "weight": 1.0, "quote": "熟悉淘宝、天猫、京东或抖店等电商平台的规则", "char_start": 134, "char_end": 155}, {"id": 4, "req_type": "hard", "category": "skill", "content": "会用生意参谋等工具查看店铺数据", "skill": "生意参谋", "skill_id": 197, "weight": 1.0, "quote": "会用生意参谋等工具查看店铺数据", "char_start": 160, "char_end": 175}, {"id": 5, "req_type": "hard", "category": "skill", "content": "熟练使用 Excel 做数据整理和透视分析", "skill": "Excel", "skill_id": 156, "weight": 1.0, "quote": "熟练使用 Excel 做数据整理和透视分析", "char_start": 193, "char_end": 214}, {"id": 6, "req_type": "plus", "category": "skill", "content": "有直通车、巨量千川等广告投放经验者优先", "skill": null, "skill_id": null, "weight": 0.5, "quote": "有直通车、巨量千川等广告投放经验者优先", "char_start": 219, "char_end": 238}, {"id": 7, "req_type": "plus", "category": "experience", "content": "有个人店铺经营或电商实习经历者优先", "skill": null, "skill_id": null, "weight": 0.5, "quote": "有个人店铺经营或电商实习经历者优先", "char_start": 243, "char_end": 260}, {"id": 8, "req_type": "soft", "category": "other", "content": "对数字敏感，执行力强，能适应大促期间的工作节奏", "skill": null, "skill_id": null, "weight": 0.3, "quote": "对数字敏感，执行力强，能适应大促期间的工作节奏", "char_start": 265, "char_end": 288}]';
+UPDATE jobs SET domain = 'ops', raw_text = @raw, requirements = @reqs, parse_status = 'success', is_deleted = 0
+  WHERE is_template = 1 AND title = '电商运营实习生';
+INSERT INTO jobs (user_id, is_template, title, domain, raw_text, requirements, parse_status)
+  SELECT NULL, 1, '电商运营实习生', 'ops', @raw, @reqs, 'success' FROM DUAL
+  WHERE NOT EXISTS (SELECT 1 FROM jobs WHERE is_template = 1 AND title = '电商运营实习生');
+
+SET @raw = '岗位职责：
+1. 参与产品新功能的上线推广，撰写功能介绍和使用指引；
+2. 收集和整理用户反馈，配合产品经理梳理需求；
+3. 跟踪功能使用数据，分析用户行为并提出优化建议。
+
+任职要求：
+1. 本科及以上学历，管理学、统计学、计算机等相关专业优先；
+2. 对互联网产品有兴趣，对常用产品有自己的使用体验和思考；
+3. 有用户调研或用户访谈的经历，能整理出结论；
+4. 熟练使用 Excel，会 SQL 或有埋点数据分析经验者优先；
+5. 会用 Axure、墨刀等原型工具者优先；
+6. 了解 A/B 测试、漏斗分析等方法；
+7. 逻辑清晰，沟通能力强，学习能力强。';
+SET @reqs = '[{"id": 1, "req_type": "hard", "category": "education", "content": "本科及以上学历", "skill": null, "skill_id": null, "weight": 1.0, "quote": "本科及以上学历，管理学、统计学、计算机等相关专业优先", "char_start": 97, "char_end": 123}, {"id": 2, "req_type": "plus", "category": "education", "content": "管理学、统计学、计算机等相关专业优先", "skill": null, "skill_id": null, "weight": 0.5, "quote": "管理学、统计学、计算机等相关专业优先", "char_start": 105, "char_end": 123}, {"id": 3, "req_type": "hard", "category": "other", "content": "对互联网产品有兴趣并有自己的使用体验和思考", "skill": null, "skill_id": null, "weight": 1.0, "quote": "对互联网产品有兴趣，对常用产品有自己的使用体验和思考", "char_start": 128, "char_end": 154}, {"id": 4, "req_type": "hard", "category": "experience", "content": "有用户调研或用户访谈经历并能整理结论", "skill": null, "skill_id": null, "weight": 1.0, "quote": "有用户调研或用户访谈的经历，能整理出结论", "char_start": 159, "char_end": 179}, {"id": 5, "req_type": "hard", "category": "skill", "content": "熟练使用 Excel", "skill": "Excel", "skill_id": 156, "weight": 1.0, "quote": "熟练使用 Excel，会 SQL 或有埋点数据分析经验者优先", "char_start": 184, "char_end": 214}, {"id": 6, "req_type": "plus", "category": "skill", "content": "会 SQL 或有埋点数据分析经验", "skill": null, "skill_id": null, "weight": 0.5, "quote": "会 SQL 或有埋点数据分析经验者优先", "char_start": 195, "char_end": 214}, {"id": 7, "req_type": "plus", "category": "skill", "content": "会用 Axure、墨刀等原型工具", "skill": null, "skill_id": null, "weight": 0.5, "quote": "会用 Axure、墨刀等原型工具者优先", "char_start": 219, "char_end": 238}, {"id": 8, "req_type": "hard", "category": "skill", "content": "了解 A/B 测试", "skill": "A/B 测试", "skill_id": 176, "weight": 1.0, "quote": "了解 A/B 测试、漏斗分析等方法", "char_start": 243, "char_end": 260}, {"id": 9, "req_type": "hard", "category": "skill", "content": "了解漏斗分析", "skill": "漏斗分析", "skill_id": 185, "weight": 1.0, "quote": "了解 A/B 测试、漏斗分析等方法", "char_start": 243, "char_end": 260}, {"id": 10, "req_type": "soft", "category": "other", "content": "逻辑清晰", "skill": null, "skill_id": null, "weight": 0.3, "quote": "逻辑清晰，沟通能力强，学习能力强", "char_start": 265, "char_end": 281}]';
+UPDATE jobs SET domain = 'ops', raw_text = @raw, requirements = @reqs, parse_status = 'success', is_deleted = 0
+  WHERE is_template = 1 AND title = '产品运营实习生';
+INSERT INTO jobs (user_id, is_template, title, domain, raw_text, requirements, parse_status)
+  SELECT NULL, 1, '产品运营实习生', 'ops', @raw, @reqs, 'success' FROM DUAL
+  WHERE NOT EXISTS (SELECT 1 FROM jobs WHERE is_template = 1 AND title = '产品运营实习生');

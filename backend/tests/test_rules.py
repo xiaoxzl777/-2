@@ -5,6 +5,7 @@ import pytest
 from app.diagnose.rules import RULES, RuleContext, run_rules
 from app.diagnose.scorer import score
 from app.diagnose.types import Finding, iter_units
+from app.domains import get_domain
 
 
 class Doc:
@@ -64,6 +65,15 @@ def test_result_without_numbers_vs_no_result_at_all():
     # 每条规则证据都是 full_text 的精确切片
     assert all(doc.text[f.char_start:f.char_end] == f.evidence_quote for f in findings)
 
+
+def test_each_domain_can_add_result_words():
+    """运营说结果用「涨粉、阅读量」：计算机方向（通用词表，和原来一样）当成没写结果，运营方向认得，报的是缺数字"""
+    doc = Doc()
+    p = _project(doc, "校园公众号", "负责公众号内容策划，涨粉明显。")
+    assert get_domain("cs").result_words == ()
+    assert _codes(_run(doc, {"projects": [p]})) == ["STAR_INCOMPLETE"]
+    findings = _run(doc, {"projects": [p]}, result_words=get_domain("ops").result_words)
+    assert _codes(findings) == ["NO_QUANTIFICATION"] and findings[0].evidence_quote == "涨粉明显"
 
 def test_subheading_plus_body_units():
     doc = Doc()

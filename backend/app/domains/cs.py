@@ -13,6 +13,7 @@ RULE_HINT = "技术岗的标准（比如技能栏写的技术，要在项目里�
 INTERVIEW_HINT = "面试问技术实现、方案取舍"
 INTERVIEW_LABEL = "技术面"
 DISABLED_RULES: tuple[str, ...] = ()
+RESULT_WORDS: tuple[str, ...] = ()   # 通用的结果词（diagnose/rules.py）本来就是按技术岗写的，不用加
 
 SAMPLE_JD = {
     "title": "后端开发实习生",

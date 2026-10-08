@@ -32,8 +32,9 @@ DUPLICATE_OVERLAP = 0.5     # 两条 finding 的证据区间重叠超过较短�
 def _rule_scan(state: DiagnoseState) -> dict:
     if state["mode"] == "llm_only":
         return {"rule_findings": []}
+    domain = get_domain(state.get("domain"))
     ctx = RuleContext(state["structure"], state["full_text"], state.get("ats_signals") or {}, state.get("page_count"),
-                      disabled=get_domain(state.get("domain")).disabled_rules)
+                      disabled=domain.disabled_rules, result_words=domain.result_words)
     return {"rule_findings": run_rules(ctx)}
 
 
