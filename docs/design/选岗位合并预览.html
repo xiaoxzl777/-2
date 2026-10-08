@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>选岗位 · 求职辅助</title>
+<style>
+  /* 色板同 index.css 开头（三套配色） */
+  :root, :root[data-pal="linkedin"] {
+    --bg: #f4f2ee; --bg-2: #e9e5df; --paper: #fff; --field: #fff; --ink: #191919; --ink-rgb: 25,25,25; --ink-2: #4d4d4d; --ink-3: #626262;
+    --accent: #0a66c2; --accent-rgb: 10,102,194; --accent-ink: #004182; --bad: #cc1016; --bad-rgb: 204,16,22; --line: rgba(25,25,25,.1); --sh-rgb: 0,0,0;
+    --ease: cubic-bezier(.22,1,.36,1); --spring: cubic-bezier(.34,1.56,.64,1);
+  }
+  :root[data-pal="red"] { --bg: #fbfaf8; --bg-2: #f0eeea; --paper: #fff; --field: #fff; --ink: #141414; --ink-rgb: 20,20,20; --ink-2: #4d4d4d; --ink-3: #6b6b6b;
+    --accent: #c8341f; --accent-rgb: 200,52,31; --accent-ink: #a3291a; --bad: #c42f22; --bad-rgb: 196,47,34; --line: rgba(20,20,20,.1); --sh-rgb: 20,20,20; }
+  :root[data-pal="green"] { --bg: #f2f0e9; --bg-2: #e6e3d7; --paper: #fbfaf5; --field: #fff; --ink: #1b231f; --ink-rgb: 27,35,31; --ink-2: #4a524c; --ink-3: #5a625c;
+    --accent: #2d5e4c; --accent-rgb: 45,94,76; --accent-ink: #22493b; --bad: #b33f2c; --bad-rgb: 179,63,44; --line: rgba(27,35,31,.1); --sh-rgb: 35,45,35; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "PingFang SC","Microsoft YaHei",sans-serif; -webkit-font-smoothing: antialiased; }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+  nav { padding: 18px 0; }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+  .logo i { width: 30px; height: 30px; border-radius: 10px; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-style: normal; font-size: 15px; }
+  .seg { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--bg-2); }
+  .seg button { height: 30px; padding: 0 12px; border: none; border-radius: 999px; background: none; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .seg button.on { background: var(--paper); color: var(--ink); box-shadow: 0 2px 8px rgba(var(--sh-rgb),.12); }
+  .guide { margin: 0 2px 12px; font-size: 13px; line-height: 1.7; color: var(--ink-3); }
+
+  /* ── 工作台第二步（照抄 .screen） ── */
+  .screen { display: grid; grid-template-columns: 1fr 1.05fr; gap: 64px; align-items: start; padding: 32px 0 80px; }
+  .back { display: inline-flex; align-items: center; height: 36px; padding: 0 16px 0 12px; border: none; border-radius: 999px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); font-size: 14px; font-weight: 600; color: var(--ink-2); }
+  h1 { margin: 18px 0 16px; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.2; letter-spacing: -.5px; }
+  .sub { max-width: 460px; margin: 0; font-size: 16px; line-height: 1.7; color: var(--ink-2); }
+  .cta { margin-top: 28px; }
+  .btn { height: 44px; padding: 0 22px; border-radius: 999px; border: none; font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+  .btn.lg { height: 56px; padding: 0 30px; font-size: 17px; }
+  .btn.sm { height: 36px; padding: 0 14px; font-size: 14px; }
+  .btn.accent { background: var(--accent); color: #fff; }
+  .btn.dark { background: var(--ink); color: var(--bg); }
+  .btn:disabled { opacity: .35; cursor: default; }
+
+  .card { padding: 24px; border-radius: 28px; background: var(--paper); box-shadow: 0 30px 60px -20px rgba(var(--sh-rgb),.25), 0 0 0 1px var(--line); }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .dir-chip { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border: none; border-radius: 999px; background: var(--bg-2); font-size: 13px; font-weight: 700; color: var(--ink-2); }
+  .dir-chip .chg { color: var(--accent-ink); }
+  .tabs { display: inline-flex; padding: 4px; border-radius: 999px; background: var(--bg-2); }
+  .tabs button { height: 32px; padding: 0 16px; border: none; border-radius: 999px; background: none; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .tabs button.on { background: var(--paper); color: var(--ink); box-shadow: 0 2px 8px rgba(var(--sh-rgb),.12); }
+
+  /* ═════ 新：「粘贴新的招聘 JD」这一条，点开就地展开表单 ═════ */
+  .add { width: 100%; display: flex; align-items: center; gap: 10px; padding: 14px 16px; border: none; border-radius: 16px; background: rgba(var(--accent-rgb),.06);
+    box-shadow: inset 0 0 0 1.5px rgba(var(--accent-rgb),.35); color: var(--accent-ink); font-size: 15px; font-weight: 700; text-align: left; }
+  .add .plus { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 18px; line-height: 1; transition: transform .3s var(--spring); }
+  .add .hint { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--ink-3); }
+  .add.open { border-radius: 16px 16px 0 0; }
+  .add.open .plus { transform: rotate(45deg); }
+  .form { padding: 14px 14px 12px; border-radius: 0 0 16px 16px; box-shadow: inset 0 0 0 1.5px rgba(var(--accent-rgb),.35); margin-top: -1.5px; }
+  .field { position: relative; margin-bottom: 10px; }
+  .field input, .field textarea { display: block; width: 100%; border: none; outline: none; border-radius: 14px; background: var(--field); box-shadow: inset 0 0 0 1.5px var(--line); }
+  .field input { height: 54px; padding: 22px 14px 6px; font-size: 15px; }
+  .field textarea { height: 150px; padding: 26px 14px 10px; resize: none; font-size: 14px; line-height: 1.7; }
+  .field input:focus, .field textarea:focus { box-shadow: inset 0 0 0 2px var(--ink); }
+  .field label { position: absolute; left: 15px; top: 17px; font-size: 15px; color: var(--ink-3); pointer-events: none; transition: transform .25s var(--ease), font-size .25s; transform-origin: left top; }
+  .field input:focus + label, .field input:not(:placeholder-shown) + label,
+  .field textarea:focus + label, .field textarea:not(:placeholder-shown) + label { transform: translateY(-10px); font-size: 12px; color: var(--ink-2); }
+  .row2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px; }
+  .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .foot .r { display: flex; align-items: center; gap: 10px; }
+  .link { padding: 0; border: none; background: none; font-size: 14px; font-weight: 600; color: var(--accent-ink); }
+  .hint { font-size: 12px; color: var(--ink-3); }
+  .skeleton { height: 28px; margin-top: 8px; border-radius: 999px; background: linear-gradient(90deg, var(--bg-2), var(--paper), var(--bg-2)); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  /* 解析完：一块「拆出 N 条要求」，在列表上面 */
+  .req-box { margin-top: 12px; padding: 12px 14px; border-radius: 16px; background: var(--bg); }
+  .req-head { margin-bottom: 8px; font-size: 13px; color: var(--ink-2); }
+  .req-head b { color: var(--ink); }
+  .req-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .req-chip { padding: 5px 10px; border-radius: 999px; font-size: 12.5px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); }
+  .req-chip.hard { background: var(--ink); color: var(--bg); box-shadow: none; }
+
+  .small-h { margin: 16px 0 8px 2px; font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--ink-3); }
+  .list { display: flex; flex-direction: column; gap: 8px; max-height: 330px; overflow: auto; padding: 2px; margin: -2px; }
+  .row { position: relative; }
+  .item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; border: none; border-radius: 16px; background: var(--field); text-align: left; box-shadow: inset 0 0 0 1.5px var(--line); }
+  .item:hover { box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+  .item.sel { box-shadow: inset 0 0 0 2px var(--ink); }
+  .item .ic { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--bg-2); font-size: 12px; font-weight: 800; color: var(--ink-2); }
+  .item.sel .ic { background: var(--ink); color: var(--bg); }
+  .item .txt { display: flex; flex-direction: column; min-width: 0; margin-right: 52px; }
+  .item .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 700; }
+  .item .s { margin-top: 2px; font-size: 12px; color: var(--ink-3); }
+  .item .radio { flex: none; width: 22px; height: 22px; margin-left: auto; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--line); }
+  .item.sel .radio { box-shadow: inset 0 0 0 7px var(--ink); }
+  .new { margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: rgba(var(--accent-rgb),.12); color: var(--accent-ink); font-size: 11px; font-weight: 700; vertical-align: 1px; }
+  .del { position: absolute; right: 50px; top: 50%; transform: translateY(-50%); height: 28px; padding: 0 8px; border: none; border-radius: 8px; background: none; font-size: 12px; font-weight: 600; color: var(--ink-3); }
+  .del:hover { background: rgba(var(--bad-rgb),.08); color: var(--bad); }
+  .empty { margin: 0; padding: 18px 16px; border-radius: 16px; box-shadow: inset 0 0 0 1.5px var(--line); font-size: 14px; color: var(--ink-3); text-align: center; }
+
+  .notes { margin: 0; padding: 0 0 60px 20px; font-size: 14px; line-height: 1.9; color: var(--ink-2); max-width: 900px; }
+  @media (max-width: 900px) { .screen { grid-template-columns: minmax(0,1fr); gap: 28px; } }
+  @media (max-width: 520px) { .wrap { padding: 0 16px; } .card { padding: 18px; border-radius: 22px; } .card-head { flex-wrap: wrap; } .row2 { grid-template-columns: minmax(0,1fr); } .add .hint { display: none; } }
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <div class="logo"><i>求</i>求职辅助</div>
+  <div class="seg" id="pals"><button data-pal="linkedin" class="on">领英蓝</button><button data-pal="red">朱红</button><button data-pal="green">墨绿</button></div>
+</div></nav>
+
+<main class="wrap">
+
+  <section class="screen">
+    <div>
+      <button class="back">← 上一步：选方向</button>
+      <h1>你想投哪个岗位？</h1>
+      <p class="sub">「<b>计算机</b>」方向。把招聘信息里的「岗位要求」整段贴过来，我会拆成一条条，之后逐条对照你的简历。</p>
+      <div class="cta"><button class="btn lg accent" id="next" disabled>下一步：选简历 →</button></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <button class="dir-chip"><span>计算机方向</span><span class="chg">换</span></button>
+        <div class="tabs" id="tabs"><button data-tab="mine" class="on">我的岗位</button><button data-tab="tpl">模板</button></div>
+      </div>
+      <div id="body"></div>
+    </div>
+  </section>
+
+  <ul class="notes">
+    <li>「粘贴 JD」并进「我的岗位」：最上面一条「＋ 粘贴新的招聘 JD」，点开就地展开原来的表单；下面是以前贴过的岗位。只剩「我的岗位」「模板」两个页签。</li>
+    <li>不分新老用户：表单默认收起，最上面一行指引说明怎么用；还没有岗位时，列表的位置提示去点「＋ 粘贴新的招聘 JD」或去「模板」挑。</li>
+    <li>点「解析要求」：解析完表单收起，上面显示「拆出 N 条要求」，新岗位排在列表第一条、标「新」并自动选中，不用切页签。</li>
+    <li>每条岗位右边照旧有「删除」（原地确认），模板没有。「下一步」要选中一个岗位才能点。</li>
+  </ul>
+</main>
+
+<script>
+const SAMPLE = { title: '后端开发实习生', company: '示例科技', text: '任职要求：\n1. 本科及以上学历，计算机相关专业；\n2. 熟悉 Java，熟悉 Spring Boot、MyBatis 等常用框架；\n3. 熟悉 MySQL，有 SQL 调优经验者优先；\n4. 有 Redis 使用经验，了解常见缓存问题；\n5. 了解消息队列（Kafka / RocketMQ）；\n6. 有高并发场景经验者优先；熟悉 Linux 常用命令；\n7. 良好的沟通能力与团队协作意识。' }
+const CHIPS = [['hard', '本科及以上学历'], ['hard', '熟悉 Java'], ['hard', '熟悉 Spring Boot'], ['hard', '熟悉 MySQL'], ['hard', '有 Redis 使用经验'],
+  ['hard', '了解消息队列'], ['hard', '熟悉 Linux 常用命令'], ['plus', '有 SQL 调优经验'], ['plus', '有高并发场景经验'], ['soft', '沟通与团队协作']]
+const OLD = () => [{ id: 1, title: 'Java 后端开发实习生', s: '青木科技 · 12 条要求' }, { id: 2, title: '后端开发（Go）', s: '未填公司 · 9 条要求' }]
+const TPL = ['后端开发实习生（Java）', '后端开发实习生（Python / Go）', '前端开发实习生', '算法实习生（机器学习）', 'AI 应用开发实习生（大模型）', '测试开发实习生', '数据分析实习生']
+
+let jobs, tab, open, parsing, parsed, sel, newId, form
+function reset() {
+  jobs = OLD(); tab = 'mine'; open = false; parsing = false; parsed = null; sel = null; newId = null
+  form = { title: '', company: '', text: '' }
+  render()
+}
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+
+function render() {
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab))
+  document.getElementById('next').disabled = !sel
+  const body = document.getElementById('body')
+  if (tab === 'tpl') {
+    body.innerHTML = `<div class="list">${TPL.map((t, i) => item({ id: 100 + i, title: t, s: '' }, t.slice(0, 2), false)).join('')}</div>`
+    return
+  }
+  const len = form.text.trim().length
+  const can = form.title.trim() && len >= 30 && !parsing
+  body.innerHTML = `
+    <p class="guide">贴过的岗位都存在下面，下次直接选；没有具体岗位，可以去「模板」里挑一个。</p>
+    <button class="add ${open ? 'open' : ''}" data-act="toggle"><span class="plus">+</span>粘贴新的招聘 JD<span class="hint">${open ? '收起' : '贴进来自动拆成一条条要求'}</span></button>
+    ${open ? `<div class="form">
+      <div class="row2">
+        <div class="field"><input id="f-title" placeholder=" " value="${esc(form.title)}"><label>岗位名称</label></div>
+        <div class="field"><input id="f-company" placeholder=" " value="${esc(form.company)}"><label>公司（选填）</label></div>
+      </div>
+      <div class="field"><textarea id="f-text" placeholder=" ">${esc(form.text)}</textarea><label>岗位要求原文</label></div>
+      <div class="foot">
+        <button class="link" data-act="sample">填一份示例 JD</button>
+        <span class="r">${len > 0 && len < 30 ? `<span class="hint">还差 ${30 - len} 字</span>` : ''}
+          <button class="btn sm dark" data-act="parse" ${can ? '' : 'disabled'}>${parsing ? '解析中…' : '解析要求'}</button></span>
+      </div>
+      ${parsing ? '<div class="skeleton" style="width:80%"></div><div class="skeleton" style="width:60%"></div>' : ''}
+    </div>` : ''}
+    ${parsed ? `<div class="req-box"><div class="req-head">已解析「<b>${esc(parsed)}</b>」：拆出 <b>${CHIPS.length}</b> 条要求 · 黑色为必须项，每条都能在原文找到出处</div>
+      <div class="req-chips">${CHIPS.map(([k, t]) => `<span class="req-chip ${k}">${t}</span>`).join('')}</div></div>` : ''}
+    ${jobs.length ? `<p class="small-h">已保存的岗位</p><div class="list">${jobs.map((j) => item(j, 'JD', true)).join('')}</div>`
+      : open ? '' : '<p class="empty" style="margin-top:12px">还没有保存的岗位。点上面「＋ 粘贴新的招聘 JD」贴一份，或者去「模板」里挑一个。</p>'}`
+}
+function item(j, ic, deletable) {
+  return `<div class="row"><button class="item ${sel === j.id ? 'sel' : ''}" data-act="pick" data-id="${j.id}">
+    <span class="ic">${ic}</span><span class="txt"><span class="t">${esc(j.title)}${j.id === newId ? '<span class="new">新</span>' : ''}</span>${j.s ? `<span class="s">${j.s}</span>` : ''}</span>
+    <span class="radio"></span></button>${deletable ? '<button class="del">删除</button>' : ''}</div>`
+}
+
+document.addEventListener('input', (e) => {
+  const id = e.target.id
+  if (id === 'f-title') form.title = e.target.value
+  if (id === 'f-company') form.company = e.target.value
+  if (id === 'f-text') form.text = e.target.value
+  const len = form.text.trim().length, btn = document.querySelector('[data-act="parse"]')
+  if (btn) btn.disabled = !(form.title.trim() && len >= 30)
+})
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('button'); if (!t) return
+  if (t.closest('#pals')) { document.documentElement.dataset.pal = t.dataset.pal; t.parentElement.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === t)); return }
+  if (t.closest('#tabs')) { tab = t.dataset.tab; return render() }
+  const act = t.dataset.act
+  if (act === 'toggle') { open = !open; return render() }
+  if (act === 'sample') { form = { ...SAMPLE }; return render() }
+  if (act === 'pick') { sel = Number(t.dataset.id); return render() }
+  if (act === 'parse') {
+    parsing = true; render()
+    setTimeout(() => {                               // 假装调了 2 秒模型
+      newId = Date.now(); jobs = [{ id: newId, title: form.title.trim(), s: `${form.company.trim() || '未填公司'} · ${CHIPS.length} 条要求` }, ...jobs]
+      parsed = form.title.trim(); sel = newId; parsing = false; open = false; form = { title: '', company: '', text: '' }; render()
+    }, 1600)
+  }
+})
+reset()
+</script>
+</body>
+</html>
