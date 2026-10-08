@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db, get_session_factory
 from app.deps import get_current_user, get_owned_resume, get_parsed_resume
 from app.llm.client import LLMClient, get_llm_client
-from app.models import ParsedBlock, Resume, User
-from app.schemas import ApiResponse, BlockOut, BlocksOut, Page, ResumeOut, UploadOut, ok
+from app.models import MatchReport, ParsedBlock, Resume, User
+from app.schemas import ApiResponse, BlockOut, BlocksOut, Page, ResumeListItem, ResumeOut, UploadOut, ok
 from app.services import resume_service
 from app.services.parse_service import SessionFactory, parse_resume
 
@@ -46,14 +46,14 @@ def upload_resume(
                         parse_status=resume.parse_status, deduplicated=deduplicated))
 
 
-@router.get("", response_model=ApiResponse[Page[ResumeOut]])
+@router.get("", response_model=ApiResponse[Page[ResumeListItem]])
 def list_resumes(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """当前用户的简历，最近更新的在前。"""
+    """当前用户的简历，最近更新的在前。每条带上投过几次（一条分组查询，不按条查）。"""
     mine = (Resume.user_id == user.id) & Resume.is_deleted.is_(False)
     total = db.scalar(select(func.count()).select_from(Resume).where(mine))
     rows = db.scalars(
@@ -61,8 +61,12 @@ def list_resumes(
         .order_by(Resume.updated_at.desc(), Resume.id.desc())
         .offset((page - 1) * page_size).limit(page_size)
     ).all()
-    return ok(Page[ResumeOut](items=[ResumeOut.model_validate(r) for r in rows],
-                              total=total, page=page, page_size=page_size))
+    counts = dict(db.execute(
+        select(MatchReport.resume_id, func.count()).where(MatchReport.resume_id.in_([r.id for r in rows]))
+        .group_by(MatchReport.resume_id)
+    ).all()) if rows else {}
+    items = [ResumeListItem(**ResumeOut.model_validate(r).model_dump(), apply_count=counts.get(r.id, 0)) for r in rows]
+    return ok(Page[ResumeListItem](items=items, total=total, page=page, page_size=page_size))
 
 
 @router.get("/{resume_id}", response_model=ApiResponse[ResumeOut])

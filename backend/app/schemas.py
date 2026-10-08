@@ -88,6 +88,11 @@ class ResumeOut(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
+class ResumeListItem(ResumeOut):
+    apply_count: int        # 用这份简历投过几次：删除前提示「这些投递会一起从我的投递里隐藏」
+
+
 class Page(BaseModel, Generic[T]):
     items: list[T]
     total: int

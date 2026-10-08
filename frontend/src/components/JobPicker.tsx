@@ -1,10 +1,11 @@
 // 第 ② 步右侧：粘贴 JD 当场解析成要求项，或从「我的岗位」「模板」里选一个。都只列上一步选的方向，
-// 左上角的「X方向 换」回到上一步。
+// 左上角的「X方向 换」回到上一步。「我的岗位」每条能删（模板不能）。
 import { useEffect, useState, type FormEvent } from 'react'
 import { ApiError } from '../api/client'
 import type { Domain } from '../api/domains'
 import { JD_MAX, JD_MIN, jobsApi, REQ_TYPE_LABEL, type Job, type JobBrief } from '../api/jobs'
 import { TiltCard } from './effects'
+import { PickRow } from './PickRow'
 import { Tabs } from './Tabs'
 
 type Tab = 'paste' | 'mine' | 'tpl'
@@ -14,7 +15,7 @@ const REQ_ORDER = { hard: 0, plus: 1, soft: 2 }
 export function JobPicker({ domain, selected, onPick, onChangeDomain }: {
   domain: Domain
   selected: JobBrief | null
-  onPick: (job: JobBrief) => void
+  onPick: (job: JobBrief | null) => void
   onChangeDomain: () => void
 }) {
   const [tab, setTab] = useState<Tab>('paste')
@@ -60,6 +61,13 @@ export function JobPicker({ domain, selected, onPick, onChangeDomain }: {
     setTitle(domain.sample_jd.title)
     setCompany(domain.sample_jd.company)
     setJd(domain.sample_jd.text)
+  }
+
+  /** 删掉之后：从列表里去掉；正选着它就清空，「粘贴 JD」里刚解析出的就是它也收起来 */
+  const removed = (id: number) => {
+    setJobs((list) => list?.filter((j) => j.id !== id) ?? null)
+    if (selected?.id === id) onPick(null)
+    if (parsed?.id === id) setParsed(null)
   }
 
   const inDomain = jobs?.filter((j) => j.domain === domain.key) ?? null
@@ -122,7 +130,7 @@ export function JobPicker({ domain, selected, onPick, onChangeDomain }: {
       )}
 
       {tab === 'mine' && (
-        <JobList jobs={mine} selected={selected} onPick={onPick} empty={`「${domain.name}」方向下还没有岗位。在「粘贴 JD」里贴一份，解析后会保存在这里。`} />
+        <JobList jobs={mine} selected={selected} onPick={onPick} onRemoved={removed} empty={`「${domain.name}」方向下还没有岗位。在「粘贴 JD」里贴一份，解析后会保存在这里。`} />
       )}
       {tab === 'tpl' && (
         <JobList jobs={templates} selected={selected} onPick={onPick} empty="这个方向暂时没有内置模板，先用「粘贴 JD」吧。" />
@@ -131,10 +139,11 @@ export function JobPicker({ domain, selected, onPick, onChangeDomain }: {
   )
 }
 
-function JobList({ jobs, selected, onPick, empty }: {
+function JobList({ jobs, selected, onPick, onRemoved, empty }: {
   jobs: JobBrief[] | null
   selected: JobBrief | null
   onPick: (job: JobBrief) => void
+  onRemoved?: (id: number) => void // 不给就不能删（模板）
   empty: string
 }) {
   if (jobs === null) return <div className="skeleton" />
@@ -142,14 +151,14 @@ function JobList({ jobs, selected, onPick, empty }: {
   return (
     <div className="pick-list">
       {jobs.map((j) => (
-        <button key={j.id} type="button" className={`pick-item ${selected?.id === j.id ? 'sel' : ''}`} onClick={() => onPick(j)}>
+        <PickRow key={j.id} name={j.title} selected={selected?.id === j.id} onPick={() => onPick(j)}
+          del={onRemoved && { note: '之前用它的投递不受影响，在「我的投递」里照样能看。', run: () => jobsApi.remove(j.id), onGone: () => onRemoved(j.id) }}>
           <span className="ic">{j.is_template ? j.title.slice(0, 2) : 'JD'}</span>
           <span className="txt">
             <span className="t">{j.title}</span>
             <span className="s">{j.is_template ? '' : `${j.company ?? '未填公司'} · `}{j.requirement_count} 条要求</span>
           </span>
-          <span className="radio" aria-hidden="true" />
-        </button>
+        </PickRow>
       ))}
     </div>
   )

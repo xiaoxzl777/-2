@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>删除简历和岗位 · 求职辅助</title>
+<style>
+  /* ═════════ 色板：三套配色（正式改时对应 index.css 开头的 @theme） ═════════ */
+  :root, :root[data-pal="linkedin"] {
+    --bg: #f4f2ee; --bg-rgb: 244,242,238; --bg-2: #e9e5df; --paper: #fff; --field: #fff;
+    --ink: #191919; --ink-rgb: 25,25,25; --ink-2: #4d4d4d; --ink-3: #626262; --line: rgba(25,25,25,.1);
+    --accent: #0a66c2; --accent-rgb: 10,102,194; --accent-ink: #004182;
+    --bad: #cc1016; --bad-rgb: 204,16,22; --sh-rgb: 0,0,0; --glow-rgb: 10,102,194; --glow-a: .08;
+    --ease: cubic-bezier(.22,1,.36,1); --spring: cubic-bezier(.34,1.56,.64,1);
+  }
+  :root[data-pal="red"] {
+    --bg: #fbfaf8; --bg-rgb: 251,250,248; --bg-2: #f0eeea; --paper: #fff; --field: #fff;
+    --ink: #141414; --ink-rgb: 20,20,20; --ink-2: #4d4d4d; --ink-3: #6b6b6b; --line: rgba(20,20,20,.1);
+    --accent: #c8341f; --accent-rgb: 200,52,31; --accent-ink: #a3291a;
+    --bad: #c42f22; --bad-rgb: 196,47,34; --sh-rgb: 20,20,20; --glow-rgb: 200,52,31; --glow-a: .07;
+  }
+  :root[data-pal="green"] {
+    --bg: #f2f0e9; --bg-rgb: 242,240,233; --bg-2: #e6e3d7; --paper: #fbfaf5; --field: #fff;
+    --ink: #1b231f; --ink-rgb: 27,35,31; --ink-2: #4a524c; --ink-3: #5a625c; --line: rgba(27,35,31,.1);
+    --accent: #2d5e4c; --accent-rgb: 45,94,76; --accent-ink: #22493b;
+    --bad: #b33f2c; --bad-rgb: 179,63,44; --sh-rgb: 35,45,35; --glow-rgb: 90,150,115; --glow-a: .16;
+  }
+  html.theming *, html.theming *::before, html.theming *::after { transition: background-color .35s, color .35s, box-shadow .35s !important; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); overflow-x: hidden;
+    font-family: "PingFang SC","HarmonyOS Sans SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .grain { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .35; background-image: radial-gradient(rgba(var(--ink-rgb),.08) 1px, transparent 1px); background-size: 22px 22px; }
+  .wrap { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+
+  /* ── 导航（同工作台，配色简化成三个按钮） ── */
+  nav { padding: 18px 0; }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+  .logo-mark { width: 30px; height: 30px; border-radius: 10px; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-size: 15px; }
+  .pals { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--bg-2); }
+  .pals button { height: 30px; padding: 0 12px; border: none; border-radius: 999px; background: none; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .pals button.on { background: var(--paper); color: var(--ink); box-shadow: 0 2px 8px rgba(var(--sh-rgb),.12); }
+
+  /* ── 样稿说明 ── */
+  .intro { padding: 28px 0 8px; }
+  .tag { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 999px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); font-size: 13px; color: var(--ink-2); }
+  .tag b { padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--bg); font-weight: 600; font-size: 12px; }
+  h1 { margin: 18px 0 12px; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.2; letter-spacing: -1px; font-weight: 800; }
+  .notes { margin: 0; padding-left: 20px; max-width: 860px; font-size: 15px; line-height: 1.9; color: var(--ink-2); }
+  .notes b { color: var(--ink); }
+  .reset { margin-top: 10px; padding: 0; border: none; background: none; font-size: 14px; font-weight: 600; color: var(--accent-ink); }
+  .reset:hover { text-decoration: underline; }
+
+  .scenes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; padding: 28px 0 80px; align-items: start; }
+  .scene-h { margin: 0 0 12px 4px; font-size: 13px; font-weight: 700; letter-spacing: 1px; color: var(--ink-3); }
+
+  /* ── 工作台里原有的样式（照抄 index.css） ── */
+  .card { position: relative; padding: 24px; border-radius: 28px; background: var(--paper);
+    box-shadow: 0 1px 0 rgba(255,255,255,.8) inset, 0 30px 60px -20px rgba(var(--sh-rgb),.25), 0 0 0 1px var(--line); }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .dir-chip { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border: none; border-radius: 999px; background: var(--bg-2); font-size: 13px; font-weight: 700; color: var(--ink-2); white-space: nowrap; }
+  .dir-chip .chg { color: var(--accent-ink); }
+  .tabs { display: inline-flex; padding: 4px; border-radius: 999px; background: var(--bg-2); }
+  .tabs button { height: 32px; padding: 0 14px; border: none; border-radius: 999px; background: none; font-size: 13px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+  .tabs button.on { background: var(--paper); color: var(--ink); box-shadow: 0 2px 8px rgba(var(--sh-rgb),.12); }
+  .drop { display: grid; place-items: center; gap: 8px; margin-bottom: 16px; padding: 30px 16px; border: 2px dashed rgba(var(--ink-rgb),.18); border-radius: 20px; background: var(--field); text-align: center; }
+  .drop svg { color: var(--accent); }
+  .drop b { font-size: 16px; }
+  .drop span { font-size: 13px; line-height: 1.6; color: var(--ink-3); }
+  .small-h { margin: 0 0 8px 2px; font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--ink-3); }
+  .pick-list { display: flex; flex-direction: column; gap: 8px; max-height: 330px; overflow: auto; margin: -2px; padding: 2px 8px 2px 2px; }
+  .pick-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; border: none; border-radius: 16px;
+    background: var(--field); text-align: left; box-shadow: inset 0 0 0 1.5px var(--line); transition: box-shadow .25s; }
+  .pick-item:hover:not(:disabled) { box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+  .pick-item.sel { box-shadow: inset 0 0 0 2px var(--ink); }
+  .pick-item:disabled { cursor: default; }
+  .pick-item:disabled .ic, .pick-item:disabled .t { opacity: .6; }
+  .pick-item .ic { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--bg-2); font-size: 12px; font-weight: 800; color: var(--ink-2); }
+  .pick-item.sel .ic { background: var(--ink); color: var(--bg); }
+  .pick-item .txt { display: flex; flex-direction: column; min-width: 0; }
+  .pick-item .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 700; }
+  .pick-item .s { margin-top: 2px; font-size: 12px; color: var(--ink-3); }
+  .pick-item .s.bad { color: var(--bad); }
+  .pick-item .radio { flex: none; width: 22px; height: 22px; margin-left: auto; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--line); transition: box-shadow .3s var(--spring); }
+  .pick-item.sel .radio { box-shadow: inset 0 0 0 7px var(--ink); }
+  .empty { margin: 0; padding: 22px 16px; border-radius: 16px; background: var(--field); box-shadow: inset 0 0 0 1.5px var(--line); font-size: 14px; line-height: 1.7; color: var(--ink-3); text-align: center; }
+  .cta { display: flex; align-items: center; gap: 14px; margin-top: 22px; }
+  .cta-note { font-size: 13px; color: var(--ink-3); }
+  .btn { height: 44px; padding: 0 22px; border-radius: 999px; border: none; font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: background .2s, opacity .2s; }
+  .btn.accent { background: var(--accent); color: #fff; }
+  .btn.sm { height: 34px; padding: 0 14px; font-size: 14px; }
+  .btn.ghost { background: transparent; color: var(--ink); }
+  .btn.ghost:hover { background: rgba(var(--ink-rgb),.06); }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .btn:focus-visible, .pick-item:focus-visible, .pick-del:focus-visible, .tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ═════════ 新加的 ═════════ */
+  /* 一条 = 选它的按钮 + 右边的「删除」（按钮里不能套按钮，所以并排放、删除浮在单选圈左边） */
+  .pick-row { position: relative; flex: none; overflow: hidden; transition: transform .35s var(--spring); }
+  .pick-row:hover { transform: translateX(4px); }
+  .pick-row .txt { margin-right: 52px; }            /* 给「删除」留位置，标题长了照样省略号 */
+  .pick-del { position: absolute; right: 50px; top: 50%; transform: translateY(-50%); height: 28px; padding: 0 8px; border: none; border-radius: 8px;
+    background: none; font-size: 12px; font-weight: 600; color: var(--ink-3); transition: background .2s, color .2s; }
+  .pick-del:hover { background: rgba(var(--bad-rgb),.08); color: var(--bad); }
+
+  /* 点了「删除」：这一条原地变成确认框 */
+  .pick-confirm { padding: 14px 16px; border-radius: 16px; background: rgba(var(--bad-rgb),.05); box-shadow: inset 0 0 0 1.5px rgba(var(--bad-rgb),.5);
+    animation: cfIn .3s var(--ease); }
+  .pick-confirm p { margin: 0; font-size: 14px; line-height: 1.7; color: var(--ink-2); }
+  .pick-confirm p b { color: var(--ink); word-break: break-all; }
+  .pick-confirm .err { margin-top: 6px; color: var(--bad); }
+  .pick-confirm .row { display: flex; gap: 8px; margin-top: 10px; }
+  .btn.danger { background: var(--bad); color: #fff; }
+  .btn.danger:hover { filter: brightness(.9); }
+  @keyframes cfIn { from { opacity: 0; transform: scale(.98); } to { opacity: 1; transform: none; } }
+
+  /* 删掉后收起来（高度收到 0，再吃掉和下一条之间的 8px 间距） */
+  .pick-row.gone { height: 0 !important; margin-top: -8px; opacity: 0; transition: height .35s var(--ease), margin-top .35s var(--ease), opacity .2s; }
+
+  .list-foot { margin: 10px 2px 0; font-size: 12px; color: var(--ink-3); }
+
+  @media (max-width: 900px) { .scenes { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 520px) {
+    .wrap { padding: 0 16px; } .card { padding: 18px; border-radius: 22px; }
+    .card-head { flex-wrap: wrap; } .pals button { padding: 0 9px; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+
+<nav>
+  <div class="wrap">
+    <div class="logo"><span class="logo-mark">求</span>求职辅助</div>
+    <div class="pals" role="radiogroup" aria-label="配色">
+      <button type="button" data-pal="linkedin" class="on">领英蓝</button>
+      <button type="button" data-pal="red">朱红</button>
+      <button type="button" data-pal="green">墨绿</button>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap">
+  <section class="intro">
+    <span class="tag"><b>样稿</b>工作台 · 删除简历和岗位</span>
+    <h1>传错的简历、不用的岗位，可以删了</h1>
+    <ul class="notes">
+      <li>简历列表、「我的岗位」每条右边多一个<b>「删除」</b>，一直显示，不用鼠标停上去才出来。<b>模板岗位不能删</b>，没有这个按钮。</li>
+      <li>点了不马上删，这一条<b>原地变成确认框</b>；默认停在「取消」上，按 Esc 也是取消。</li>
+      <li>删简历：确认框写明<b>用它投过几次</b>，这些投递和面试报告会从「我的投递」里一起隐藏。</li>
+      <li>删岗位：确认框写明<b>投递不受影响</b>，在「我的投递」里照样能看。</li>
+      <li>删的正好是选中的那条：选择清空，「下一步」变灰，重新选一个。</li>
+      <li><b>解析失败的简历</b>不能选，但能删（原来没法清掉）。</li>
+      <li>删除失败（比如后端没起来）：确认框里说原因，这一条留着。简历列表从最近 50 份改成 100 份，超过时列表底下写一句。</li>
+    </ul>
+    <button type="button" class="reset" id="reset">把样稿恢复原样 ↺</button>
+  </section>
+
+  <div class="scenes">
+    <section>
+      <p class="scene-h">第 ③ 步 · 选简历</p>
+      <div class="card">
+        <label class="drop">
+          <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 15V3M7 8l5-5 5 5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>
+          </svg>
+          <b>拖进来，或点这里选文件</b>
+          <span>PDF · 10MB 以内 · 扫描件读不出文字<br>Word 简历请先另存为 PDF</span>
+        </label>
+        <p class="small-h">已上传</p>
+        <div class="pick-list" id="resumes"></div>
+      </div>
+      <div class="cta"><button type="button" class="btn accent" id="cta-resume">下一步：确认投递 →</button><span class="cta-note" id="note-resume"></span></div>
+    </section>
+
+    <section>
+      <p class="scene-h">第 ② 步 · 选岗位</p>
+      <div class="card">
+        <div class="card-head">
+          <button type="button" class="dir-chip"><span>计算机方向</span><span class="chg">换</span></button>
+          <div class="tabs" id="tabs">
+            <button type="button" data-tab="paste">粘贴 JD</button>
+            <button type="button" data-tab="mine" class="on">我的岗位</button>
+            <button type="button" data-tab="tpl">模板</button>
+          </div>
+        </div>
+        <div id="jobs"></div>
+      </div>
+      <div class="cta"><button type="button" class="btn accent" id="cta-job">下一步：选简历 →</button><span class="cta-note" id="note-job"></span></div>
+    </section>
+  </div>
+</main>
+
+<script>
+/* ── 示例数据（虚构） ── */
+const RESUMES = () => [
+  { id: 1, title: '我的简历-后端-v3.pdf', s: '2 页 · 已解析 · 10 月 6 日', applies: 3 },
+  { id: 2, title: '我的简历-后端-v2.pdf', s: '1 页 · 已解析 · 9 月 28 日', applies: 1 },
+  { id: 3, title: '扫描版简历.pdf', s: '解析失败：读不出文字，可能是扫描件或图片', failed: true, applies: 0 },
+  { id: 4, title: '随便传的测试文件.pdf', s: '1 页 · 已解析 · 9 月 20 日', applies: 0 },
+]
+const JOBS = () => [
+  { id: 11, title: 'Java 后端开发实习生', s: '示例科技 · 9 条要求' },
+  { id: 12, title: '后端开发（Go）', s: '未填公司 · 7 条要求' },
+  { id: 13, title: '测试开发实习生', s: '示例数据 · 6 条要求' },
+]
+const TEMPLATES = [
+  { id: 16, title: '后端开发实习生（Java）', s: '12 条要求' },
+  { id: 17, title: '前端开发实习生', s: '11 条要求' },
+  { id: 18, title: '测试开发实习生', s: '10 条要求' },
+]
+
+let resumes, jobs, selResume, selJob, confirming, tab, failNext
+function reset() {
+  resumes = RESUMES(); jobs = JOBS(); selResume = 1; selJob = 11; confirming = null; tab = 'mine'
+  renderResumes(); renderJobs()
+}
+
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+
+/** 一条：平时是「选它的按钮 + 删除」，确认中是确认框 */
+function row(item, { list, ic, selected, deletable }) {
+  const key = `${list}:${item.id}`
+  if (confirming && confirming.key === key) {
+    const what = list === 'resume'
+      ? (item.applies ? `它的 <b>${item.applies} 次投递</b>和面试报告也会从「我的投递」里隐藏。` : '还没用它投过岗位。')
+      : '之前用它的投递不受影响，在「我的投递」里照样能看。'
+    return `<div class="pick-row" data-key="${key}"><div class="pick-confirm" role="alertdialog" aria-label="确认删除">
+      <p><b>删除「${esc(item.title)}」？</b><br>${what}</p>
+      ${confirming.error ? `<p class="err" role="alert">没删掉：${confirming.error}</p>` : ''}
+      <div class="row">
+        <button type="button" class="btn sm danger" data-act="do" ${confirming.busy ? 'disabled' : ''}>${confirming.busy ? '删除中…' : '删除'}</button>
+        <button type="button" class="btn sm ghost" data-act="cancel">取消</button>
+      </div></div></div>`
+  }
+  return `<div class="pick-row" data-key="${key}">
+    <button type="button" class="pick-item ${selected ? 'sel' : ''}" data-act="pick" ${item.failed ? 'disabled' : ''}>
+      <span class="ic">${ic}</span>
+      <span class="txt"><span class="t">${esc(item.title)}</span><span class="s ${item.failed ? 'bad' : ''}">${item.s}</span></span>
+      <span class="radio" aria-hidden="true"></span>
+    </button>
+    ${deletable ? `<button type="button" class="pick-del" data-act="ask" aria-label="删除 ${esc(item.title)}">删除</button>` : ''}
+  </div>`
+}
+
+function renderResumes() {
+  const box = document.getElementById('resumes')
+  box.innerHTML = resumes.length
+    ? resumes.map((r) => row(r, { list: 'resume', ic: 'PDF', selected: selResume === r.id, deletable: true })).join('')
+    : '<p class="empty">还没有上传过简历，在上面传一份。</p>'
+  document.getElementById('cta-resume').disabled = !selResume
+  document.getElementById('note-resume').textContent = selResume ? '' : '先选一份简历'
+  focusConfirm(box)
+}
+
+function renderJobs() {
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab))
+  const box = document.getElementById('jobs')
+  if (tab === 'paste') box.innerHTML = '<p class="empty">（粘贴 JD 的表单不变，这里省略）</p>'
+  else {
+    const list = tab === 'mine' ? jobs : TEMPLATES
+    box.innerHTML = list.length
+      ? `<div class="pick-list">${list.map((j) => row(j, {
+          list: 'job', ic: tab === 'mine' ? 'JD' : j.title.slice(0, 2), selected: selJob === j.id, deletable: tab === 'mine',
+        })).join('')}</div>`
+      : '<p class="empty">「计算机」方向下还没有岗位。在「粘贴 JD」里贴一份，解析后会保存在这里。</p>'
+  }
+  document.getElementById('cta-job').disabled = !selJob
+  document.getElementById('note-job').textContent = selJob ? '' : '先选一个岗位'
+  focusConfirm(box)
+}
+
+/** 确认框出来时，焦点放在「取消」上（误按回车不会删） */
+function focusConfirm(box) {
+  if (!confirming) return
+  const b = box.querySelector(`[data-key="${confirming.key}"] [data-act="cancel"]`)
+  if (b && !confirming.focused) { b.focus({ preventScroll: true }); confirming.focused = true }
+}
+
+const render = () => { renderResumes(); renderJobs() }
+
+/** 收起这一条，收完再从数据里去掉 */
+function collapse(key, done) {
+  const el = document.querySelector(`[data-key="${key}"]`)
+  if (!el || matchMedia('(prefers-reduced-motion: reduce)').matches) return done()
+  el.style.height = el.offsetHeight + 'px'
+  el.getBoundingClientRect()
+  el.classList.add('gone')
+  setTimeout(done, 360)
+}
+
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-act], #tabs button, .pals button')
+  if (!t) return
+  if (t.matches('#tabs button')) { tab = t.dataset.tab; confirming = null; return renderJobs() }
+  if (t.matches('.pals button')) {
+    document.documentElement.classList.add('theming')
+    document.documentElement.dataset.pal = t.dataset.pal
+    document.querySelectorAll('.pals button').forEach((b) => b.classList.toggle('on', b === t))
+    return setTimeout(() => document.documentElement.classList.remove('theming'), 400)
+  }
+  const key = t.closest('[data-key]').dataset.key
+  const [list, idStr] = key.split(':'), id = Number(idStr)
+  const act = t.dataset.act
+  if (act === 'pick') { list === 'resume' ? (selResume = id) : (selJob = id); confirming = null; return render() }
+  if (act === 'ask') { confirming = { key }; return render() }
+  if (act === 'cancel') { confirming = null; render(); return document.querySelector(`[data-key="${key}"] .pick-del`)?.focus({ preventScroll: true }) }
+  if (act === 'do') {
+    confirming.busy = true; confirming.error = null; render()
+    setTimeout(() => {                                   // 假装请求了一下后端
+      if (failNext) { failNext = false; confirming.busy = false; confirming.error = '连不上服务器，请稍后再试'; return render() }
+      collapse(key, () => {
+        if (list === 'resume') { resumes = resumes.filter((r) => r.id !== id); if (selResume === id) selResume = null }
+        else { jobs = jobs.filter((j) => j.id !== id); if (selJob === id) selJob = null }
+        confirming = null; render()
+      })
+    }, 450)
+  }
+})
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && confirming) { const key = confirming.key; confirming = null; render(); document.querySelector(`[data-key="${key}"] .pick-del`)?.focus({ preventScroll: true }) }
+  if (e.key === 'f' && e.altKey) failNext = true          // 样稿用：Alt + F 后下一次删除假装失败，看出错的样子
+})
+document.getElementById('reset').addEventListener('click', reset)
+reset()
+</script>
+</body>
+</html>

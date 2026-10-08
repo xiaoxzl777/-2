@@ -41,4 +41,7 @@ export const jobsApi = {
   list: () => request<JobBrief[]>('/jobs?include_templates=1'),
 
   get: (id: number) => request<Job>(`/jobs/${id}`),
+
+  /** 软删除，只能删自己的（模板不能删）；用它的投递不受影响 */
+  remove: (id: number) => request<null>(`/jobs/${id}`, { method: 'DELETE' }),
 }

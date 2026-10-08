@@ -1,4 +1,4 @@
-// 对应后端 app/api/resume.py 与 app/schemas.py 的 ResumeOut / UploadOut
+// 对应后端 app/api/resume.py 与 app/schemas.py 的 ResumeOut / ResumeListItem / UploadOut
 import { request } from './client'
 
 export type ParseStatus = 'pending' | 'parsing' | 'success' | 'failed'
@@ -17,6 +17,7 @@ export type Resume = {
   overall_score: number | null
   created_at: string
   updated_at: string
+  apply_count?: number // 只有列表接口带：用它投过几次（删除前提示这些投递会一起隐藏）
 }
 
 type Page<T> = { items: T[]; total: number; page: number; page_size: number }
@@ -30,6 +31,9 @@ export type UploadOut = {
 
 // 与后端上传校验保持一致：目前只收 PDF
 export const MAX_UPLOAD_MB = 20
+
+// 选简历的列表一次取多少份（后端每页最多 100）；更早的不显示
+export const RESUME_LIST_MAX = 100
 
 /** 解析失败的原因（后端 parse_error）→ 给用户看的短说明 */
 export function parseErrorText(code: string | null): string {
@@ -57,13 +61,16 @@ export type ResumeStructure = Partial<Record<'education' | 'work' | 'projects' |
 
 
 export const resumesApi = {
-  list: () => request<Page<Resume>>('/resumes?page_size=50'),
+  list: () => request<Page<Resume>>(`/resumes?page_size=${RESUME_LIST_MAX}`),
 
   get: (id: number) => request<Resume>(`/resumes/${id}`),
 
   blocks: (id: number) => request<ResumeBlocks>(`/resumes/${id}/blocks`),
 
   structure: (id: number) => request<ResumeStructure>(`/resumes/${id}/structure`),
+
+  /** 软删除：用它的投递、面试报告也从「我的投递」里隐藏 */
+  remove: (id: number) => request<null>(`/resumes/${id}`, { method: 'DELETE' }),
 
   /** 立即返回，解析在后台进行 */
   upload: (file: File) => {

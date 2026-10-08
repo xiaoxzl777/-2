@@ -1,9 +1,10 @@
 // 第 ② 步右侧：拖入 / 点选 PDF 上传，或从已上传的简历里选一份。
-// 解析在后台进行；解析中的也能选（投递会等它解析完），解析失败的不能选。
+// 解析在后台进行；解析中的也能选（投递会等它解析完），解析失败的不能选。每份都能删（解析失败的也能）。
 import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { ApiError } from '../api/client'
-import { isParsing, MAX_UPLOAD_MB, parseErrorText, resumesApi, type Resume } from '../api/resumes'
+import { isParsing, MAX_UPLOAD_MB, parseErrorText, RESUME_LIST_MAX, resumesApi, type Resume } from '../api/resumes'
 import { TiltCard } from './effects'
+import { PickRow } from './PickRow'
 
 const POLL_MS = 1500
 
@@ -16,13 +17,17 @@ function statusText(r: Resume): string {
 
 export function ResumePicker({ selected, onPick }: { selected: Resume | null; onPick: (r: Resume | null) => void }) {
   const [resumes, setResumes] = useState<Resume[] | null>(null) // null = 还在加载
+  const [more, setMore] = useState(false) // 超过一次取的份数，更早的没列出来
   const [upload, setUpload] = useState<{ name: string; error?: string } | null>(null)
   const [over, setOver] = useState(false)
   const selectedRef = useRef(selected)
   selectedRef.current = selected
 
   useEffect(() => {
-    resumesApi.list().then((page) => setResumes(page.items)).catch(() => setResumes([]))
+    resumesApi.list().then((page) => {
+      setResumes(page.items)
+      setMore(page.total > page.items.length)
+    }).catch(() => setResumes([]))
   }, [])
 
   // 解析中的简历定时刷新状态；选中的那份解析失败了就取消选中
@@ -32,7 +37,7 @@ export function ResumePicker({ selected, onPick }: { selected: Resume | null; on
     const timer = window.setInterval(() => {
       for (const id of parsingIds.split(',').map(Number)) {
         resumesApi.get(id).then((fresh) => {
-          setResumes((list) => list?.map((r) => (r.id === id ? fresh : r)) ?? null)
+          setResumes((list) => list?.map((r) => (r.id === id ? { ...r, ...fresh } : r)) ?? null)
           if (selectedRef.current?.id === id) onPick(fresh.parse_status === 'failed' ? null : fresh)
         }).catch(() => { /* 下一轮再试 */ })
       }
@@ -50,7 +55,10 @@ export function ResumePicker({ selected, onPick }: { selected: Resume | null; on
       let fresh = await resumesApi.get(out.id)
       // 同一文件上次解析失败：后端已经重新排队解析，只是状态还没来得及改
       if (out.deduplicated && fresh.parse_status === 'failed') fresh = { ...fresh, parse_status: 'pending', parse_error: null }
-      setResumes((list) => [fresh, ...(list ?? []).filter((r) => r.id !== fresh.id)])
+      setResumes((list) => {
+        const prev = list?.find((r) => r.id === fresh.id) // 同一文件传过：沿用列表里的投递次数
+        return [{ ...prev, ...fresh }, ...(list ?? []).filter((r) => r.id !== fresh.id)]
+      })
       setUpload(null)
       onPick(fresh)
     } catch (err) {
@@ -91,17 +99,24 @@ export function ResumePicker({ selected, onPick }: { selected: Resume | null; on
           <p className="small-h">已上传</p>
           <div className="pick-list">
             {resumes.map((r) => (
-              <button key={r.id} type="button" className={`pick-item ${selected?.id === r.id ? 'sel' : ''}`}
-                disabled={r.parse_status === 'failed'} onClick={() => onPick(r)}>
+              <PickRow key={r.id} name={r.title} selected={selected?.id === r.id} disabled={r.parse_status === 'failed'} onPick={() => onPick(r)}
+                del={{
+                  note: r.apply_count ? <>它的 <b>{r.apply_count} 次投递</b>和面试报告也会从「我的投递」里隐藏。</> : '还没用它投过岗位。',
+                  run: () => resumesApi.remove(r.id),
+                  onGone: () => {
+                    setResumes((list) => list?.filter((x) => x.id !== r.id) ?? null)
+                    if (selectedRef.current?.id === r.id) onPick(null)
+                  },
+                }}>
                 <span className="ic">PDF</span>
                 <span className="txt">
                   <span className="t">{r.title}</span>
                   <span className={`s ${r.parse_status === 'failed' ? 'bad' : ''}`}>{statusText(r)}</span>
                 </span>
-                <span className="radio" aria-hidden="true" />
-              </button>
+              </PickRow>
             ))}
           </div>
+          {more && <p className="pick-list-foot">只列出最近 {RESUME_LIST_MAX} 份。</p>}
         </>
       )}
     </TiltCard>

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.models import Resume
+from app.models import MatchReport, Resume
 from tests.conftest import make_pdf, upload_pdf
 from tests.test_layout import _two_column_items
 
@@ -33,6 +33,18 @@ def test_list_is_paginated_newest_first_and_scoped_to_me(client, auth_headers, t
     assert [r["id"] for r in page2["items"]] == ids[:1]
     # 列表里不带 full_text 这类大字段
     assert "full_text" not in page1["items"][0] and "structure" not in page1["items"][0]
+
+
+def test_list_counts_applies_per_resume(client, auth_headers, resume_and_job, tmp_path, db_session_factory):
+    """删除前要提示「这份简历的 N 次投递会一起隐藏」：失败的投递也算（「我的投递」里也列着）"""
+    rid, jid = resume_and_job
+    other = _upload(client, auth_headers, _distinct_pdf(tmp_path, 1))
+    with db_session_factory() as db:
+        db.add_all([MatchReport(resume_id=rid, job_id=jid, status="success", mode="hybrid"),
+                    MatchReport(resume_id=rid, job_id=jid, status="failed", mode="hybrid")])
+        db.commit()
+    items = client.get(API, headers=auth_headers).json()["data"]["items"]
+    assert {r["id"]: r["apply_count"] for r in items} == {rid: 2, other: 0}
 
 
 def test_list_rejects_bad_paging(client, auth_headers):

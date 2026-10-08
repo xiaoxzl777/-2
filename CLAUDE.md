@@ -1,6 +1,6 @@
 # CLAUDE.md —— 给接手的 AI 看的项目交接
 
-> 最后更新：2026-10-07（结果页新排版）。本文件记录**当前进度、用户的工作习惯、已定下的决定和下一步**。
+> 最后更新：2026-10-08（本机 Docker 部署恢复）。本文件记录**当前进度、用户的工作习惯、已定下的决定和下一步**。
 > 设计细节以 `docs/` 为准（README 有索引），这里不重复。
 
 ## 1. 项目一句话
@@ -22,7 +22,7 @@
 
 ## 3. 当前进度
 
-M0–M9 全部做完（M9 部署是本机 Docker，用户 2026-10-07 定的先不上公网），后端、前端做到了模拟面试，又加了求职方向（计算机 / 运营）和「我的投递」页。377 个测试全过，约 20 秒。
+M0–M9 全部做完（M9 部署是本机 Docker，用户 2026-10-07 定的先不上公网），后端、前端做到了模拟面试，又加了求职方向（计算机 / 运营）和「我的投递」页。378 个测试全过，约 20 秒。
 - 30 个接口实现了 28 个，未实现的在 `docs/03-api.md` 标了〔未实现〕：`PATCH /resumes/{id}/structure`、`/system/info`。
 - 匹配**不用 RAG**（实测过，见 06 6.5）；检索只用在面试里用户贴的超过 3000 字的面经（`retrieval/context_store.py`）。
 - 设计看 docs（04 / 06），思路和坑看 08，实现细节看 git log。下表只记文档里查不到、接手时又要知道的东西。
@@ -48,6 +48,7 @@ M0–M9 全部做完（M9 部署是本机 Docker，用户 2026-10-07 定的先�
 | 面试补强 | 10-07 第八次提交 | 2026-10-07 用户让把第 7 节里面试相关的四条处理掉（按 1→2→3→4 做）。① 定话题不够 N 个也重试一次、两次取多的（原来只在一个不剩时重试，本机 15 场有 1 场只有 4 个；材料本来凑不出 N 条不重试）；② 放弃的面试除了启动时，lifespan 里再挂每小时一次的 `sweep_forever`；③ 运营面试评分评测 `scripts/interview_answers_ops.py`（12 题 × 三档，`run_eval.py --task interview --set ops`），结果在 05 5.4、08 第 9 章：具体 84.3 / 空泛 34.4 / 答错 37.9，排序 100%，约 ¥0.52；④ 结果页成绩单里显示这次投递面过的场次：样稿 `docs/design/结果页面试场次预览.html`，用户问放哪，按我的建议放「成绩单里」（不放按钮下面：左栏变高会把分数卡挤下去）。`GET /apply/{id}` 加了 `interviews`（和「我的投递」共用 `apply_service.interviews_of`）；胶囊抽成 `components/InterviewPill.tsx` 两页共用；成绩单里最多放 2 场（没做完的在前），多了给「全部 N 场 →」去「我的投递」——面过 5 场时 5 行会把左边标题挤下去 124px；有没做完的那场时主按钮换成「继续面试 / 继续练习」，不再开新的一场 |
 | M9 部署（本机 Docker） | 10-07 第九次提交 | 用户选「先只做本机」（公网要云服务器、国内加域名要备案，以后再说）。`docker compose up -d --build` 一条命令：前端在 Docker 里打包（`frontend/Dockerfile` 多阶段，Nginx 托管 + 转发 /api）；MySQL / Redis 不对外开端口（本机 3306、6379 被占）；后端数据用数据卷 `backend_data`；`restart: unless-stopped`；后端按 `requirements.lock` 装。实测（都经 80 端口）：投递 → 建议 → 面试出题都通，流式和容器里直连后端节奏一样（没被缓冲）；SPA 路由刷新 200；22MB 上传 413；重启容器数据还在。修了三个只在 Docker 里出现的问题：首次建库中文乱码（两份 SQL 开头加 `SET NAMES utf8mb4`，改在 dump 脚本里）、容器 UTC 和 MySQL 差 8 小时（后端设 `TZ`）、健康检查在建库的临时实例上就报好了（改走 TCP）。验证用的临时账号已随 `down -v` 清掉，部署库现在是干净的（只有模板和词典），容器还开着 |
 | 文档整理 + 所在地掩码 | 10-08 第十一次提交 | 用户要「优化 docs」：先让三个子代理只读审查（约 120 条），用户选「改错 + 去重 / 调结构」都做，再分五个子代理按文件并行改、主会话统一收尾。章号：一级标题按文件号（〇–八），04、05 的小节改成「文件号.x」（04 原四 / 五 / 六章并成 4.1–4.20，05 评测在前、里程碑压成完成状态表 5.7、不做与未来工作 5.8）；代码注释、CLAUDE.md 里的引用同步改了。三份旧样稿移进 `docs/design/archive/`。审查时发现说明写着「个人信息不发给模型」，实际匹配判定和差距建议发的整份掩码文本里所在地 / 籍贯没掩，用户选了改代码：`mask_pii` 也掩冒号后的地名（等长的「某」） |
+| 删除简历和岗位 | 10-08 第十二次提交 | 样稿 `docs/design/删除简历和岗位预览.html`，用户一次通过。工作台简历列表、「我的岗位」每条右边一个一直显示的「删除」（模板没有），点了原地变成确认框（默认停在「取消」，Esc 取消，焦点回到「删除」）；删简历写「它的 N 次投递和面试报告也会从「我的投递」里隐藏」，删岗位写「投递不受影响」。两个列表共用 `components/PickRow.tsx`（按钮里不能套按钮，选它的按钮和删除并排放）；删完收起再从列表去掉，删的是选中的就清空选择；后端 404 当作已删。解析失败的简历不能选但能删；原来整条调到 0.6 透明，失败原因的红字对比度不够，改成只调淡图标和标题。鼠标停上去右移的从按钮改到整条（不然删除留在原地）。后端只加了 `GET /resumes` 的 `apply_count`（一条分组查询）；简历列表一次取 100 份（原 50），超过时底下写一句。样稿里「下一步」旁的「先选一份简历」没加：工作台每步原来都没有这类提示 |
 
 **本机测试数据**（`user` 账号下，都是虚构内容）：
 - 岗位「后端开发实习生（示例科技）」；模板 id 16–22。
@@ -92,7 +93,7 @@ M0–M9 全部做完（M9 部署是本机 Docker，用户 2026-10-07 定的先�
 ```powershell
 # 后端（需要本机 MySQL + Redis 已启动，.env 已配置）
 cd backend; .\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
-.\.venv\Scripts\python.exe -m pytest -q            # 377 个用例，约 20 秒，不联网
+.\.venv\Scripts\python.exe -m pytest -q            # 378 个用例，约 20 秒，不联网
 .\.venv\Scripts\python.exe scripts\gen_layout_set.py; .\.venv\Scripts\python.exe scripts\eval_layout.py   # 版面合成集 + 打分
 
 # 前端
@@ -149,6 +150,7 @@ docker compose up -d --build                       # http://localhost
 1. 模拟面试：用户继续试用，有意见再改。
 2. 公网部署：用户说以后再定（要云服务器；国内服务器加域名要 ICP 备案，一般一两周；还要配 HTTPS）。
 3. 不在计划里、可以写进论文「未来工作」的：第 7 节，以及 03 里标〔未实现〕的两个接口、「我的简历」页、DOCX。
-- **本机 Docker 部署现在是坏的**（2026-10-08，用户说先不管）：更新部署时 Docker Desktop 的 80 端口转发没释放（`com.docker.backend.exe` 还占着 80），新的 `resume-nginx` 卡在 Created，`docker start` / `docker rm -f` / `docker inspect` 它都卡住超时；mysql、redis、backend 三个容器在跑。恢复办法：重启 Docker Desktop，再 `docker start rmq-broker rmq-dashboard nacos rmq-namesrv redis sentinel`（用户别的项目的容器，都没设自动重启），最后 `docker compose up -d`。新镜像（含 bf8a22e「我的投递」改动）已经构建好了，起来就是新版。重启会断掉用户别的项目，先问用户。
+- **本机 Docker 部署已恢复**（2026-10-08）：之前更新部署时 Docker Desktop 的 80 端口转发没释放，新的 `resume-nginx` 卡在 Created，`docker start` / `rm -f` / `inspect` 都超时。过了一夜那个容器自己没了、80 端口也放开了，直接 `docker compose up -d --build` 就起来了，没重启 Docker Desktop。之后用浏览器脚本在部署版上走了一遍（注册 → 上传虚构简历 → 投递约 11 秒出结果 → 建议约 3 秒 → 练习面试答一题、跳一题、提前结束 → 报告 → 我的投递 → 手机宽度不溢出），没有报错；临时账号随 `down -v` 清掉，部署库现在只有模板和词典。镜像已含「删除简历和岗位」（测完同样 `down -v` 清过库）。
+  再卡住时：先 `docker ps -a` 看卡住的容器还在不在、80 端口谁占着，不在了就直接 `up -d`；还卡着才重启 Docker Desktop，重启后要 `docker start rmq-broker rmq-dashboard nacos rmq-namesrv redis sentinel`（用户别的项目的容器，都没设自动重启），会断掉用户别的项目，先问用户。
 - 本机环境：MySQL 是系统服务 `MySQL80`（开机自启，占 3306）；Redis 是 Docker 里一个叫 `redis` 的容器（用户别的项目的，和 RocketMQ、Nacos 一起，`restart=no`，占 6379），重启电脑后要开 Docker Desktop 再 `docker start redis`。
   后端、前端开发时手动起。Chroma、面试检查点都是 `data/` 下的文件，没有单独的进程。

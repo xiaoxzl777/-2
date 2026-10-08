@@ -40,8 +40,8 @@
                                → {id, task_id:"parse:{id}", parse_status, deduplicated}；立即返回，解析在后台跑
                                去重：同一用户、未删除的简历里有同一文件（SHA-256 相同）就复用那条记录，deduplicated = true；
                                复用时只有上次解析失败的才重新解析，pending / parsing 的说明已有任务在跑，success 的直接用旧结果
-          GET    /resumes                  ?page=&page_size=，最近更新的在前
-          GET    /resumes/{id}             DELETE /resumes/{id}（软删除）
+          GET    /resumes                  ?page=&page_size=，最近更新的在前；每条带 apply_count（用它投过几次，删除前提示用）
+          GET    /resumes/{id}             DELETE /resumes/{id}（软删除；用它的投递、面试报告在「我的投递」里一起隐藏）
           GET    /resumes/{id}/blocks      full_text + 按阅读顺序的 blocks[] + sections[] + 版面判定；前端渲染原文、按 char 区间高亮
           GET    /resumes/{id}/structure   结构化结果（02 2.3）
                                blocks / structure：还在解析 40901，解析失败 50003
