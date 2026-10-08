@@ -44,7 +44,7 @@ export function parseErrorText(code: string | null): string {
 
 export const isParsing = (r: Resume) => r.parse_status === 'pending' || r.parse_status === 'parsing'
 
-/** 解析结果（原文纸面用）：块按阅读顺序排好，char 区间相对 full_text，开区间 */
+/** 解析结果（原文纸面用）：块按阅读顺序排好，char 区间相对 full_text，左闭右开 */
 export type ResumeBlocks = {
   full_text: string
   blocks: { block_index: number; char_start: number; char_end: number }[]

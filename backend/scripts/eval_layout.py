@@ -1,6 +1,6 @@
 """版面合成集评测：python scripts/eval_layout.py（先跑 scripts/gen_layout_set.py 生成数据）
 
-指标（05-evaluation-and-plan 8.2）：
+指标（05-evaluation-and-plan 5.2）：
   相邻行对顺序准确率：标准答案里前后相邻的两段文字，在输出里也紧挨着、且顺序一样的比例（所有文档的相邻对一起算）。
                       只看"前一段在前"太宽松：两栏按行交错着读，栏内的相邻对仍然"在前"，几乎不扣分
   文档级全对率：所有相邻对都对的文档占比

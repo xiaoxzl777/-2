@@ -103,7 +103,7 @@ class BlockOut(BaseModel):
     text: str
     font_size: float | None
     is_bold: bool
-    char_start: int                   # 相对 full_text，开区间 [start, end)
+    char_start: int                   # 相对 full_text，左闭右开 [start, end)
     char_end: int
 
 

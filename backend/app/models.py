@@ -1,7 +1,7 @@
 """ORM 模型：11 张表，与 docs/02-database.md 一一对应。
 
 约定：
-- 所有 char_start / char_end 都是相对 resumes.full_text 的偏移，开区间 [start, end)。
+- 所有 char_start / char_end 都是相对 resumes.full_text 的偏移，左闭右开 [start, end)。
 - JSON 字段只整体读写，不做条件查询；结构见 docs/02-database.md。
 - 枚举用 native_enum 存为 MySQL ENUM，取值直接写字符串，不另建 Python Enum 类。
 """
@@ -107,13 +107,13 @@ class Resume(Base):
         server_default="unknown",
         comment="第 1 页判定；DOCX 恒 single",
     )
-    layout_confidence: Mapped[float | None] = mapped_column(Float, comment="各页最小值；<0.7 表示有规则拿不准的页（不做 LLM 兜底，见 04-design 5.1）")
+    layout_confidence: Mapped[float | None] = mapped_column(Float, comment="各页最小值；<0.7 表示有规则拿不准的页（不做 LLM 兜底，理由见 05-evaluation-and-plan 5.2）")
     layout_detail: Mapped[list[dict[str, Any]] | None] = mapped_column(
         JSON, comment="[{page_no, layout_type, confidence, gap}]"
     )
     used_llm_fallback: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sql_text("0"),
-        comment="恒为 0：版面不做大模型兜底（04-design 5.1），列和接口字段先留着",
+        comment="恒为 0：版面不做大模型兜底（理由见 05-evaluation-and-plan 5.2），列和接口字段先留着",
     )
     page_count: Mapped[int | None] = mapped_column(Integer, comment="DOCX 为 NULL")
     ats_signals: Mapped[dict[str, Any] | None] = mapped_column(JSON, comment="{textboxes, drawings, images}")

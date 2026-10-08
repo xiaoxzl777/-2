@@ -1,370 +1,305 @@
 # 二、数据库设计
 
-## 2.1 ER 关系（MySQL 11 张表）
+MySQL 8.0，11 张表。**完整建表语句以 `backend/sql/schema.sql` 为准**：它由 `scripts/dump_schema.py` 从 `backend/app/models.py` 生成（改表先改 models.py，再重新生成），`tests/test_schema_sync.py` 检查两者一致。本章不再抄建表语句，只写每张表的用途与要点、外键关系、JSON 字段结构和预留字段。
+
+通用约定：
+
+- 所有 `char_start / char_end` 都是左闭右开区间 `[start, end)`。没有特别说明的，都相对 `resumes.full_text`；JD 要求项的区间相对 `jobs.raw_text`，面试评分依据的区间相对这一题的回答文本。
+- JSON 字段只整体读写，不按里面的键查询。
+- 枚举存为 MySQL ENUM；时间列为 DATETIME（本地时间）。
+
+## 2.1 表与外键关系
+
+一次投递 = `match_reports` 一行（投递 id 就是它的 id），同时建一条 `diagnoses`，由 `match_reports.diagnosis_id` 指过去；模拟面试挂在投递下面（`interview_sessions.match_report_id`）。
 
 ```
 users ─┬─< resumes ─┬─< parsed_blocks
        │            ├─< diagnoses ─< findings
-       │            ├─< match_reports ──────────┐
+       │            ├─< match_reports（投递）>── jobs
        │            └─< interview_sessions ─< interview_turns
-       │                    ▲          ▲        │
-       └─< jobs ────────────┴──────────┘        │
-                                                (match_report_id)
-skills      技能同义词词典（扁平，无层级）
-llm_calls   调用审计
+       ├─< jobs（内置模板 user_id 为 NULL）
+       └─< interview_sessions
+另有两条：match_reports.diagnosis_id → diagnoses；interview_sessions.match_report_id → match_reports
+skills（技能词典）、llm_calls（调用审计）不建外键
 ```
 
-## 2.2 建表 SQL
+| 外键 | 指向 | 父行被删时 |
+|---|---|---|
+| `resumes.user_id` | users | 不允许删（默认 RESTRICT） |
+| `resumes.parent_id` | resumes | 置 NULL（预留，见 2.4） |
+| `jobs.user_id` | users（模板为 NULL） | 不允许删 |
+| `parsed_blocks.resume_id` | resumes | 级联删除 |
+| `diagnoses.resume_id` | resumes | 级联删除 |
+| `findings.diagnosis_id` | diagnoses | 级联删除 |
+| `match_reports.resume_id` | resumes | 级联删除 |
+| `match_reports.job_id` | jobs | 级联删除 |
+| `match_reports.diagnosis_id` | diagnoses | 置 NULL |
+| `interview_sessions.user_id` | users | 不允许删 |
+| `interview_sessions.resume_id` | resumes | 级联删除 |
+| `interview_sessions.job_id` | jobs | 级联删除 |
+| `interview_sessions.match_report_id` | match_reports | 置 NULL |
+| `interview_turns.session_id` | interview_sessions | 级联删除 |
+
+简历和岗位在业务上都是软删除（`is_deleted`），级联只在物理删除时生效。比如直接在库里删掉一份岗位模板，会连带删掉投给它的投递和面试，所以模板只按标题更新，不删了重插。
+
+## 2.2 各表要点
 
 ### ① users
 
-```sql
-CREATE TABLE users (
-  id            BIGINT       PRIMARY KEY AUTO_INCREMENT,
-  username      VARCHAR(50)  NOT NULL UNIQUE,
-  email         VARCHAR(100) UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
-  role          ENUM('seeker','admin') NOT NULL DEFAULT 'seeker',
-  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-```
+账号。`username`、`email` 唯一；`password_hash` 是 bcrypt 哈希；`role` 取 seeker / admin，注册时一律是 seeker（admin 见 2.4）。
 
 ### ② resumes
 
-```sql
-CREATE TABLE resumes (
-  id         BIGINT       PRIMARY KEY AUTO_INCREMENT,
-  user_id    BIGINT       NOT NULL,
-  parent_id  BIGINT       NULL COMMENT '版本链，本期恒为 NULL',
-  version_no INT          NOT NULL DEFAULT 1,
-  title      VARCHAR(200) NOT NULL COMMENT '原始文件名消毒后，仅展示',
+一份上传的简历和它的解析结果。
 
-  file_path  VARCHAR(500) NOT NULL COMMENT '相对路径 uploads/{user_id}/{uuid}.{ext}',
-  file_type  ENUM('pdf','docx') NOT NULL,
-  file_size  INT          NOT NULL,
-  file_hash  CHAR(64)     NOT NULL,
+- **文件**：`file_path` 是相对 `DATA_DIR` 的路径 `uploads/{user_id}/{uuid}.pdf`；`title` 是消毒后的原文件名（或上传时另给的标题），只用于展示；`file_hash`（SHA-256）用来去重：同一用户重复上传同一文件时复用这条记录（规则见 03 的 POST /resumes）。`page_count` 上传校验时就写入。
+- **解析状态**：`parse_status` 为 pending → parsing → success / failed；失败原因 `parse_error` 取 `scanned_pdf`（扫描件）/ `encrypted_pdf` / `llm_failed` / `interrupted`（服务重启打断）/ `exception:<异常类型>`。
+- **版面**：`layout_type` 是第 1 页的判定（single / double / sidebar / table / unknown）；`layout_confidence` 取各页最小值，低于 0.7 表示有规则拿不准的页（不做大模型兜底，见 04-design 4.8）；`layout_detail` 是逐页明细（2.3）。
+- **内容**：`full_text` 是坐标系基准，解析完成后不再改变（00-overview 不变量①）；`structure`、`sections` 的结构见 2.3。
+- `overall_score`：最近一次成功诊断的总分，和诊断结果在同一事务里回写，列表页直接用。
+- **软删除**：`is_deleted` / `deleted_at`。删除后对用户不可见，文件和数据先保留（到期物理删除还没做）。
 
-  parse_status      ENUM('pending','parsing','success','failed') NOT NULL DEFAULT 'pending',
-  parse_error       VARCHAR(100) COMMENT 'scanned_pdf / encrypted_pdf / llm_failed / interrupted / exception:<异常类型>',
-  layout_type       ENUM('single','double','sidebar','table','unknown') NOT NULL DEFAULT 'unknown' COMMENT '第 1 页判定；DOCX 恒 single',
-  layout_confidence FLOAT   COMMENT '各页最小值；<0.7 表示有规则拿不准的页（不做 LLM 兜底，见 04-design 5.1）',
-  layout_detail     JSON    COMMENT '[{page_no, layout_type, confidence, gap:[x0,x1]|null}]',
-  used_llm_fallback BOOLEAN NOT NULL DEFAULT FALSE COMMENT '恒为 0：版面不做大模型兜底（04-design 5.1），列和接口字段先留着',
-  page_count        INT     NULL COMMENT 'DOCX 为 NULL',
-  ats_signals       JSON    COMMENT '{textboxes, drawings, images} 计数',
+### ③ parsed_blocks
 
-  full_text    MEDIUMTEXT COMMENT '★ 坐标系基准，解析后永不改变',
-  structure    JSON       COMMENT '结构化结果，含 summary / skill_mentions',
-  sections     JSON       COMMENT '[{type, title, char_start, char_end, confidence}]',
-  is_corrected BOOLEAN    NOT NULL DEFAULT FALSE,
-  corrected_at DATETIME,
+解析出的文本块，`block_index` 是重建后的全局阅读顺序；每块满足 `full_text[char_start:char_end] == text`（不变量②）。`column_index`：0 = 左栏或单栏，1 = 右栏，-1 = 跨栏行。`x0 / y0 / x1 / y1` 是块在 PDF 页面上的坐标，findings 落库时用它算 `page_no` / `bbox`（前端高亮按 char 区间在 full_text 上定位，不用坐标）。重新解析时整批删掉重写。
 
-  overall_score DECIMAL(5,2) COMMENT '最近一次成功诊断，同事务回写；人工纠正后置 NULL',
-  is_deleted    BOOLEAN  NOT NULL DEFAULT FALSE,
-  deleted_at    DATETIME NULL,
-  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+### ④ diagnoses
 
-  FOREIGN KEY (user_id)   REFERENCES users(id),
-  FOREIGN KEY (parent_id) REFERENCES resumes(id) ON DELETE SET NULL,
-  INDEX idx_user (user_id, is_deleted, updated_at),
-  INDEX idx_hash (user_id, file_hash)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-```
+一次简历诊断，由投递触发（一次投递一条）。
 
-`structure` 结构（键名为本系统规范；每个条目带 `block_ids` 与由其推出的 char 区间）：
+- `status`：pending → running → success / partial / failed。partial 表示成本预检截掉了部分条目（`units_skipped > 0`），结果可用但不完整。同一份简历同时只能有一个诊断在跑。
+- `mode`：rule_only / llm_only / hybrid，是消融实验的开关；`model_name`、`prompt_version` 记下用的模型和提示词版本；`job_title` 是这次投的岗位名。
+- 统计只算首轮（`findings.attempt_no = 1`）：`llm_finding_count` 是模型首轮产出的问题数（通过 + 被拦截），`hallucination_count` 是其中证据定位失败、被拦截的条数，两者之比就是拦截率；`schema_error_count` 是模型输出不合格式的次数。
+- `score_detail`：五个维度的分（2.3）；`token_input / token_output` 从 llm_calls 汇总；`cost` 单位为元。
+
+### ⑤ findings
+
+诊断出的一条问题。
+
+- `source`：rule / llm。规则通道填 `rule_code`，模型通道填 `risk_type`；`category` 是五个维度之一，`severity` 取 high / medium / low。
+- 溯源：`unit_id` 是所属条目（如 `work[0].highlights[2]`），`evidence_quote` 加 char 区间是原文依据；`page_no`、`bbox`（`[x0, y0, x1, y1]`）在落库时由 parsed_blocks 映射出来。
+- `verify_result`：exact / fuzzy / failed，规则通道恒为 exact。failed 的行保留但不展示，评测统计拦截率要用。`match_score` 是定位时的相似度。
+- `attempt_no`：1 = 首轮，2、3 = 带着原因重试后的产出。
+- `rewrite`：点开这条时现场生成的具体建议（2.3），没生成过为 NULL。
+
+### ⑥ jobs
+
+岗位：用户粘贴的 JD，或内置模板（`is_template = 1`，`user_id` 为 NULL）。
+
+- `domain`：求职方向，取 `app/domains` 的 key（cs / ops），决定 JD 解析、诊断、匹配、建议、面试用哪套提示词（04-design 4.16）。
+- `raw_text` 是清洗后的 JD 原文，`requirements` 里的区间相对它；`requirements` 的结构见 2.3。
+- `parse_status`：JD 同步解析，失败就不保存，所以目前只会写 success（2.4）。
+- 软删除 `is_deleted`；模板不能删。
+
+### ⑦ match_reports
+
+一次投递的匹配报告，也就是投递本身。
+
+- `status`：pending → running → success / failed。同一份简历对同一个岗位同时只能有一个在跑。`error_msg` 是给开发者看的技术报错；给用户看的失败原因在读取时组装（`apply_service.failure_of`）。
+- `overall_match`：0–100 的加权匹配度；`passed` = `overall_match ≥ SCREEN_THRESHOLD`（默认 60）。
+- `dimension_scores`：`{skill, education, experience, other}`，按要求项类别分组算的匹配度，JD 里没有这类要求的为 null。
+- `items`：逐条要求的判定明细（2.3）。里面冗余存了要求的内容，岗位后来被删，报告照样读得懂。
+- `mode`：dict_only / llm_fulltext / hybrid，匹配消融的开关；`llm_item_count` 是交给模型判定的要求项数，`hallucination_count` 是其中引用无法定位的条数。
+
+### ⑧ skills
+
+扁平的技能同义词词典，只回答「这个词是不是某个技能的另一种写法」。技能之间的上下位关系（Spring Boot 属于 Java 生态）不建树，交给模型判断。`canonical_name` 唯一，`aliases` 不含规范名本身，`category` 如 language / backend / frontend / database / ai / ops 等。数据来源 `data/skills_seed.csv`（手写，191 条：计算机 155、运营 36）。简历解析和技能词典不分方向。
+
+### ⑨ interview_sessions
+
+一场模拟面试，挂在一次投递下面（`match_report_id`），`resume_id`、`job_id` 也冗余存一份。
+
+- `mode`：normal / practice。初筛没过的一律 practice，过了的也可以主动选 practice。
+- `status`：planned（话题已定、还没开始）→ in_progress → completed / abandoned。很久没动静（`INTERVIEW_IDLE_HOURS`，默认 24 小时）的面试在服务启动时扫一次、之后每小时扫一次，按已答的题出报告（不调模型写总结），标成 abandoned。
+- 只做一轮专业面（计算机方向叫技术面，运营方向叫运营面），`current_round` 恒为 tech。`current_topic` 是正在问的话题 idx（从 0 起），`current_depth` 为 0 表示主问题、1 表示追问。
+- `company_name` 默认取岗位的公司名；`extra_context` 是用户贴的面经或公司介绍，超过 3000 字时切段进 Chroma（2.5）。
+- `cost` / `cost_limit`：本场累计花费和上限（元，默认 0.3）。
+- 本表和 interview_turns 是面试进度的权威来源。图 B 另用 SQLite 检查点（`checkpoints.sqlite`）续跑，检查点丢了就按这两张表重建（06-workflows 6.3）。`plan`、`report` 的结构见 2.3。
+
+### ⑩ interview_turns
+
+一问一答。`turn_no` 是会话内的全局序号；`topic_idx` 是所属话题，`depth` 为 0 表示主问题，1 起是第几次追问（上限 `INTERVIEW_MAX_FOLLOWUP`，默认 1）；`round` 恒为 tech；`question_meta` 为 `{label, source}`。`answer` 为 NULL 表示还没答，跳过时是空串；提交回答用条件更新（`answered_at IS NULL`），同一题只能答一次。`evaluation` 见 2.3。
+
+### ⑪ llm_calls
+
+每次模型调用一行审计，命中缓存的、失败的也记。
+
+- `scene`：section / structure / diagnose / jd_parse / match / rewrite / gap / interview_plan / interview_ask / interview_eval / interview_report / embed / rerank。
+- `ref_type` + `ref_id` 指向业务记录（resume / job / diagnosis / match_report / finding / interview），不建外键。
+- `model_version` 取响应里的 system_fingerprint；`run_id` 是评测批次号，线上调用为 NULL；`cache_hit`、`success`、`error_msg`、`latency_ms`、token 数和 `cost` 用于成本统计和评测。
+
+## 2.3 JSON 字段结构
+
+### resumes.structure
+
+键名是本系统自己定的。每个条目带 `block_ids`，以及由它推出的 char 区间（首尾块之间的连续一段）。
 
 ```json
 {
   "basics":   { "name": "", "email": "", "phone": "", "location": "" },
   "summary":  { "text": "", "block_ids": [3], "char_start": 40, "char_end": 120 },
-  "education":[ { "school": "", "major": "", "degree": "本科", "start": "2023-09", "end": "2027-06",
+  "education":[ { "school": "", "major": "", "degree": "本科", "start": "2023-09", "end": "2027-06", "is_present": false,
                   "block_ids": [5, 6], "char_start": 120, "char_end": 180 } ],
-  "work":     [ { "company": "", "position": "", "kind": "internship",
+  "work":     [ { "name": "<公司或组织>", "role": "", "kind": "internship",
+                  "tech_stack": [ { "name": "Redis", "skill_id": 40 } ],
                   "start": "2025-07", "end": null, "is_present": true,
                   "block_ids": [10, 11, 12], "char_start": 400, "char_end": 620,
                   "highlights": [ { "text": "<full_text 按 block_ids 切片，逐字原文>",
                                     "block_ids": [12], "char_start": 560, "char_end": 620 } ] } ],
-  "projects": [ { "name": "", "role": "", "start": "", "end": "",
-                  "tech_stack": [ { "name": "Spring Boot", "skill_id": 133 } ],
+  "projects": [ { "name": "", "role": "", "tech_stack": [ { "name": "Spring Boot", "skill_id": 133 } ],
+                  "start": null, "end": null, "is_present": false,
                   "block_ids": [], "char_start": 0, "char_end": 0, "highlights": [] } ],
-  "skills":   [ { "name": "Spring Boot", "level": "熟悉", "skill_id": 133, "char_start": 900, "char_end": 911 } ],
-  "awards":   [ ],
+  "skills":   [ { "name": "Spring Boot", "level": "熟悉", "skill_id": 133, "block_ids": [20], "char_start": 900, "char_end": 911 } ],
+  "awards":   [ { "name": "", "start": "2024-11", "end": null, "is_present": false, "block_ids": [], "char_start": 0, "char_end": 0 } ],
   "skill_mentions": [ { "skill_id": 133, "surface": "SpringBoot", "char_start": 880, "char_end": 890,
-                        "section_type": "projects", "matched_by": "dict" } ]
+                        "section_type": "projects", "matched_by": "dict" } ],
+  "extraction_errors": [ "projects: 不是合法的 JSON" ]
 }
 ```
 
-> `basics` 本地正则抽取（不变量⑤）；`kind ∈ {work, internship, campus}`；日期 `YYYY-MM` / `YYYY` / null；`skill_mentions.matched_by` 目前恒为 `dict`（同义词词典命中）。
+- `basics` 在本地用正则抽取，不发给模型（不变量⑤）。没有自我评价章节时 `summary` 为 null。
+- `work` 和 `projects` 结构相同，`work` 多一个 `kind`（work / internship / campus）。`highlights[].text` 是从原文切出来的，不用模型写的文字。
+- 日期是 `YYYY-MM`、`YYYY` 或 null。`skill_id` 只有词典里有的技能才有，否则为 null。`skill_mentions.matched_by` 目前恒为 dict（同义词词典命中）。
+- `extraction_errors`：章节归类（`section: …`）或某个章节抽取（`projects: …`）失败的原因。这类失败不算整体解析失败，其余部分照常可用，原因留在这里供排查。
 
-### ③ parsed_blocks
+### resumes.sections
 
-```sql
-CREATE TABLE parsed_blocks (
-  id           BIGINT PRIMARY KEY AUTO_INCREMENT,
-  resume_id    BIGINT NOT NULL,
-  block_index  INT    NOT NULL COMMENT '★ 重建后的全局阅读顺序',
-  page_no      INT    NOT NULL DEFAULT 1,
-  column_index INT    NOT NULL DEFAULT 0 COMMENT '0=左栏/单栏 1=右栏 -1=跨栏行',
-  x0 FLOAT NULL, y0 FLOAT NULL, x1 FLOAT NULL, y1 FLOAT NULL,   -- DOCX 为 NULL
-  text      TEXT    NOT NULL,
-  font_size FLOAT   NULL,
-  is_bold   BOOLEAN NOT NULL DEFAULT FALSE,
-  char_start INT NOT NULL COMMENT '相对 full_text，开区间',
-  char_end   INT NOT NULL,
-  FOREIGN KEY (resume_id) REFERENCES resumes(id) ON DELETE CASCADE,
-  INDEX idx_order (resume_id, block_index),
-  INDEX idx_char  (resume_id, char_start)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+一项一个章节，字段同 `schemas.SectionOut`：
+
+| 键 | 含义 |
+|---|---|
+| `type` | basics / summary / education / work / projects / skills / awards / other |
+| `kind` | 只有 work 才有：work / internship / campus；其余为 null |
+| `title` | 标题原文；没有标题的段（如开头的基本信息）为 "" |
+| `block_start` / `block_end` | 章节的首块和末块（闭区间，含标题块） |
+| `char_start` / `char_end` | 章节在 full_text 里的区间 |
+| `content_start` | 正文（标题之后）的起点；没有正文时等于 `char_end` |
+| `confidence` | 0–1 |
+| `matched_by` | dict（词典）/ feature / style / llm / implicit（没有标题块：基本信息、从开头段切出来的教育、整篇无标题） |
+| `needs_llm` | 版面像标题但词典不认识，要交给模型归类 |
+
+### resumes 的其他 JSON
+
+- `layout_detail`：`[{page_no, layout_type, confidence, gap: [x0, x1] | null}]`，gap 是分栏的空白带。
+- `ats_signals`：`{images, textboxes, drawings}`。目前只有 `images`（图片数）是真实统计的，`textboxes`、`drawings` 恒为 0（`parser/extract.py`）。
+
+### diagnoses.score_detail
+
+`{completeness, quantification, expression, consistency, ats}`，各 0–100；在当前 `mode` 下没有来源的维度为 null。
+
+### findings.rewrite 与 match_reports.items[].advice
+
+两处结构相同，都是点开时现场生成、存下来的具体建议：
+
+```json
+{ "text": "…", "violation_count": 0, "prompt_version": "advice-v1", "model": "deepseek-chat", "created_at": "2026-10-07T10:21:05" }
 ```
 
-### ④ diagnoses
+`violation_count` 是数字复检时，原文没有、被换成【数值】占位符的数字个数。
 
-```sql
-CREATE TABLE diagnoses (
-  id        BIGINT PRIMARY KEY AUTO_INCREMENT,
-  resume_id BIGINT NOT NULL,
-  status    ENUM('pending','running','success','partial','failed','cancelled') NOT NULL DEFAULT 'pending'
-            COMMENT 'partial = 成本预检截断了部分条目',
-  error_msg VARCHAR(200),
-  mode           ENUM('rule_only','llm_only','hybrid') NOT NULL DEFAULT 'hybrid',
-  model_name     VARCHAR(50),
-  prompt_version VARCHAR(20),
-  job_title      VARCHAR(200) NULL,
-  units_total    INT NOT NULL DEFAULT 0,
-  units_skipped  INT NOT NULL DEFAULT 0,
-  rule_finding_count  INT NOT NULL DEFAULT 0,
-  llm_finding_count   INT NOT NULL DEFAULT 0 COMMENT '首轮产出总数 = 通过 + 未通过',
-  hallucination_count INT NOT NULL DEFAULT 0 COMMENT '首轮 evidence_mismatch 数；拦截率 = 此 / llm_finding_count',
-  schema_error_count  INT NOT NULL DEFAULT 0,
-  overall_score       DECIMAL(5,2),
-  score_detail        JSON COMMENT '{completeness, quantification, expression, consistency, ats}，无来源维度 null',
-  token_input  INT NOT NULL DEFAULT 0,
-  token_output INT NOT NULL DEFAULT 0,
-  cost         DECIMAL(10,6) NOT NULL DEFAULT 0,
-  started_at  DATETIME,
-  finished_at DATETIME,
-  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (resume_id) REFERENCES resumes(id) ON DELETE CASCADE,
-  INDEX idx_resume (resume_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+### jobs.requirements
+
+```json
+[ { "id": 1, "req_type": "hard", "category": "skill", "content": "熟悉 Redis", "skill": "Redis", "skill_id": 40,
+    "weight": 1.0, "quote": "<raw_text[char_start:char_end]>", "char_start": 120, "char_end": 128 } ]
 ```
 
-### ⑤ findings
+`req_type` 取 hard / plus / soft，`weight` 由它决定；`category` 取 skill / education / experience / other，`skill` 只有技能类才有；`quote` 是 JD 原文的逐字引用，定位不到原文的要求在解析时就丢掉了。
 
-```sql
-CREATE TABLE findings (
-  id           BIGINT PRIMARY KEY AUTO_INCREMENT,
-  diagnosis_id BIGINT NOT NULL,
-  source    ENUM('rule','llm') NOT NULL,
-  rule_code VARCHAR(50),
-  risk_type VARCHAR(50),
-  category  ENUM('completeness','quantification','expression','consistency','ats') NOT NULL,
-  severity  ENUM('high','medium','low') NOT NULL,
-  title       VARCHAR(200) NOT NULL,
-  description TEXT,
-  suggestion  TEXT,
-  unit_id        VARCHAR(40) COMMENT '所属条目，如 work[0].highlights[2]',
-  evidence_quote TEXT,
-  char_start     INT,
-  char_end       INT,
-  page_no        INT  NULL,
-  bbox           JSON NULL COMMENT '落库时由 parsed_blocks 映射；DOCX 为 NULL',
-  verify_result ENUM('exact','fuzzy','failed') NOT NULL COMMENT '规则通道恒 exact；failed 行保留不展示',
-  match_score   FLOAT,
-  attempt_no    TINYINT NOT NULL DEFAULT 1 COMMENT '1=首轮，2/3=重试产出',
-  rewrite JSON NULL COMMENT '具体建议 {text, violation_count, prompt_version, model, created_at}，点开时生成',
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (diagnosis_id) REFERENCES diagnoses(id) ON DELETE CASCADE,
-  INDEX idx_diagnosis (diagnosis_id, severity),
-  INDEX idx_verify    (diagnosis_id, verify_result)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+### match_reports.items
+
+```json
+[ { "requirement_id": 1, "content": "熟悉 Redis", "req_type": "hard", "category": "skill", "weight": 1.0, "skill": "Redis",
+    "status": "hit", "matched_by": "fulltext", "reason": "…",
+    "evidence_quote": "<full_text[char_start:char_end]>", "char_start": 560, "char_end": 590, "unit_id": "work[0]",
+    "advice": null } ]
 ```
 
-### ⑥ jobs
+`status` 取 hit / partial / miss；`matched_by` 取 dict / profile / fulltext，没人判过的 miss 为 null；`advice` 只有没满足、部分满足的要求点开过才有。
 
-```sql
-CREATE TABLE jobs (
-  id          BIGINT       PRIMARY KEY AUTO_INCREMENT,
-  user_id     BIGINT       NULL COMMENT '模板岗位为 NULL',
-  is_template BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '内置通用岗位模板',
-  title       VARCHAR(200) NOT NULL,
-  company     VARCHAR(200) NULL,
-  domain      VARCHAR(20)  NOT NULL DEFAULT 'cs' COMMENT '求职方向（app/domains 的 key），决定诊断 / 匹配 / 面试用哪套提示词',
-  raw_text    TEXT         NOT NULL,
-  requirements JSON COMMENT '[{id, req_type:hard|plus|soft, category:skill|education|experience|other, content, skill, skill_id, weight, quote, char_start, char_end}]',
-  parse_status ENUM('pending','success','failed') NOT NULL DEFAULT 'pending' COMMENT 'JD 同步解析，失败不保存，所以目前只会写 success',
-  is_deleted BOOLEAN  NOT NULL DEFAULT FALSE,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id),
-  INDEX idx_job_user (user_id, is_deleted),
-  INDEX idx_template (is_template)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+### interview_sessions.plan
+
+```json
+{ "topics": [ { "idx": 0, "source": "project", "ref": "P1", "label": "二手交易平台 · 缓存", "intent": "…" } ],
+  "materials": { "job_title": "", "company": null, "domain": "cs", "requirements": [], "experiences": [],
+                 "findings": [], "context": null, "context_mode": "none" } }
 ```
 
-### ⑦ match_reports
+`source` 取 project / requirement / finding，`ref` 指向材料里的编号（P1、R9、F128）。`materials` 是建面试时整理好的材料，存在这里，检查点丢了也能重建；这场面试的求职方向就是 `materials.domain`。`context_mode` 取 none（没贴面经）/ full（不超过 3000 字，整段放在 `context`）/ retrieval（更长，切段进 Chroma，`context` 为 null）。
 
-```sql
-CREATE TABLE match_reports (
-  id        BIGINT PRIMARY KEY AUTO_INCREMENT,
-  resume_id BIGINT NOT NULL,
-  job_id    BIGINT NOT NULL,
-  status           ENUM('pending','running','success','failed') NOT NULL DEFAULT 'pending',
-  error_msg        VARCHAR(200),
-  overall_match    DECIMAL(5,2),
-  passed           BOOLEAN NULL COMMENT 'overall_match >= SCREEN_THRESHOLD',
-  dimension_scores JSON COMMENT '{skill, education, experience, other}，按要求项类别分组；JD 里没有该类要求的为 null',
-  items            JSON COMMENT '[{content, req_type, category, weight, skill, requirement_id, status:hit|partial|miss, matched_by:dict|profile|fulltext|null, reason, evidence_quote, char_start, char_end, unit_id, advice?}]' /* advice：没满足的要求点开时生成的具体建议，结构同 findings.rewrite */,
-  gap_summary      TEXT COMMENT '预留，目前不写：未通过说明由 GET /apply/{id} 读取时组装',
-  diagnosis_id     BIGINT NULL COMMENT '同一次投递产生的诊断，未通过说明要用',
-  mode             ENUM('dict_only','llm_fulltext','hybrid') NOT NULL DEFAULT 'hybrid' COMMENT '匹配消融开关',
-  model_name       VARCHAR(50),
-  prompt_version   VARCHAR(20),
-  llm_item_count      INT NOT NULL DEFAULT 0 COMMENT 'LLM 判定的要求项数',
-  hallucination_count INT NOT NULL DEFAULT 0 COMMENT '其中引用无法定位的条数',
-  cost             DECIMAL(10,6) NOT NULL DEFAULT 0,
-  started_at  DATETIME,
-  finished_at DATETIME,
-  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (resume_id) REFERENCES resumes(id) ON DELETE CASCADE,
-  FOREIGN KEY (job_id)    REFERENCES jobs(id)    ON DELETE CASCADE,
-  FOREIGN KEY (diagnosis_id) REFERENCES diagnoses(id) ON DELETE SET NULL,
-  INDEX idx_resume_job (resume_id, job_id),
-  INDEX idx_job        (job_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+### interview_sessions.report
+
+```json
+{ "overall": 71, "verdict": "pass", "threshold": 60.0, "mode": "normal",
+  "topics": [ { "idx": 0, "label": "", "source": "project", "score": 73 } ],
+  "strengths": [ { "title": "", "detail": "" } ], "weaknesses": [ { "title": "", "detail": "" } ],
+  "links": [ { "kind": "requirement", "ref_id": 9, "topic_idx": 2, "label": "", "text": "" } ],
+  "answered": 8, "early": false, "summary_ok": true, "prompt_version": "interview-v2", "created_at": "2026-10-07T11:45:59" }
 ```
 
-### ⑧ skills
+- `verdict`：pass / fail / practice（练习模式不下结论）/ incomplete（没聊完所有话题就结束，不下结论）。`threshold` 是出报告时的及格线。
+- `topics[].score` 是话题分，没问到的为 null；`overall` 是问到了的话题的平均分。
+- `early`：没走完全部话题就出的报告为 true（用户点了提前结束、花费到了单场上限、或被收尾成 abandoned）；`summary_ok`：模型写的文字总结成功了没有，失败时 `strengths`、`weaknesses` 为空，`links` 用固定的一句话。
+- `links` 只挑得分低于 60、来源是简历问题或岗位要求的话题。
 
-```sql
-CREATE TABLE skills (
-  id             BIGINT       PRIMARY KEY AUTO_INCREMENT,
-  canonical_name VARCHAR(100) NOT NULL UNIQUE,
-  category       VARCHAR(50)  COMMENT 'language/backend/frontend/database/devops/ai/data/tool/...',
-  aliases        JSON         COMMENT '["SpringBoot","spring-boot"]，不含规范名本身',
-  created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_category (category)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+### interview_turns.evaluation
+
+```json
+{ "skipped": false, "scores": { "correctness": 4, "depth": 2, "clarity": 4 }, "score": 67,
+  "evidence": [ { "quote": "先更新数据库再删缓存", "char_start": 0, "char_end": 10, "verify_result": "exact" } ],
+  "good": "", "bad": "", "better_answer": "", "number_violations": 0, "decision": "followup", "low_evidence": false }
 ```
 
-> 扁平词典，只回答「这个词是不是某个技能的另一种写法」。技能之间的上下位关系（Spring Boot 属于 Java 生态）不建树，交给 LLM 判定。
-> 数据来源 `data/skills_seed.csv`（手写，191 条：计算机 155、运营 36），由 `scripts/dump_seed.py` 生成 `backend/sql/seed.sql`，在 MySQL 中手动执行。
+- 三项各 0–5，`score` = 三项平均 × 20。跳过的题 `scores` 为 null、`score` 为 0，没有 `number_violations`。
+- `evidence` 从**这一题的回答文本**里逐字引用，经 `locate_span` 校验（不变量⑥），区间相对回答文本。校验失败的引用丢弃；一条有效引用都没有时带着原因重试 1 次，仍然没有就三项都给中性 3 分、标 `low_evidence`，聚合话题分时权重减半。
+- `number_violations`：`better_answer`（参考答法）里候选人没说过、被换成【数值】的数字个数。只存库，不对外返回：接口和 SSE 只给 `interview_service._PUBLIC_EVAL` 里的键。
+- `decision`：followup（追问）/ next（换下一个话题）。
 
-### ⑨ interview_sessions
+## 2.4 预留字段（本期不写）
 
-```sql
-CREATE TABLE interview_sessions (
-  id              BIGINT PRIMARY KEY AUTO_INCREMENT,
-  user_id         BIGINT NOT NULL,
-  resume_id       BIGINT NOT NULL,
-  job_id          BIGINT NOT NULL,
-  match_report_id BIGINT NULL,
+下面这些列或取值建表时留着，代码目前不写或只写固定值：
 
-  company_name  VARCHAR(200) NULL,
-  extra_context MEDIUMTEXT   NULL COMMENT '用户粘贴的面经/公司介绍；>3000 字时切块进 Chroma interview_ctx',
-  mode          ENUM('normal','practice') NOT NULL DEFAULT 'normal' COMMENT 'practice = 初筛未通过仍练习',
+| 字段 / 取值 | 现状 |
+|---|---|
+| `resumes.parent_id`、`version_no` | 简历版本链，恒为 NULL / 1 |
+| `resumes.is_corrected`、`corrected_at` | 对应未实现的 `PATCH /resumes/{id}/structure`（人工纠正结构），恒为 0 / NULL；「纠正后 `overall_score` 置 NULL」也没做 |
+| `resumes.file_type` 的 docx | 只收 PDF，恒为 pdf。DOCX 相关的约定（`page_count`、`bbox`、坐标为 NULL，`layout_type` 恒为 single）都不会出现 |
+| `resumes.used_llm_fallback` | 恒为 0：版面不做大模型兜底（04-design 4.8），接口里的同名字段也先留着 |
+| `resumes.ats_signals` 的 textboxes、drawings | 恒为 0 |
+| `diagnoses.status` 的 cancelled | 没有取消功能 |
+| `jobs.parse_status` 的 pending、failed | JD 同步解析，失败不保存，只会写 success |
+| `match_reports.gap_summary` | 不写：未通过说明由 `GET /apply/{id}` 读取时组装 |
+| `interview_sessions.current_round`、`interview_turns.round` 的 hr | 只做一轮专业面，恒为 tech |
+| `users.role` 的 admin | 没有用到 admin 的接口（`GET /system/info` 未实现） |
+| `structure.skill_mentions[].matched_by` | 恒为 dict |
 
-  status         ENUM('planned','in_progress','completed','abandoned') NOT NULL DEFAULT 'planned',
-  current_round  ENUM('tech','hr') NULL COMMENT '只做技术面，恒为 tech（hr 值保留未用）',
-  current_topic  INT NOT NULL DEFAULT 0,
-  current_depth  TINYINT NOT NULL DEFAULT 0 COMMENT '0=主问 1=追问',
+## 2.5 Chroma
 
-  plan   JSON COMMENT '{topics:[{idx, source:project|requirement|finding, ref, label, intent}], materials:{...}}，材料也存这里，检查点丢了能重建',
-  report JSON COMMENT '{overall, verdict:pass|fail|practice|incomplete, topics[{idx,label,source,score}], strengths[], weaknesses[], links[], answered, early, summary_ok}',
-
-  model_name     VARCHAR(50),
-  prompt_version VARCHAR(20),
-  cost           DECIMAL(10,6) NOT NULL DEFAULT 0,
-  cost_limit     DECIMAL(10,4) NOT NULL DEFAULT 0.3,
-
-  started_at     DATETIME,
-  finished_at    DATETIME,
-  last_active_at DATETIME,
-  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-  FOREIGN KEY (user_id)         REFERENCES users(id),
-  FOREIGN KEY (resume_id)       REFERENCES resumes(id)       ON DELETE CASCADE,
-  FOREIGN KEY (job_id)          REFERENCES jobs(id)          ON DELETE CASCADE,
-  FOREIGN KEY (match_report_id) REFERENCES match_reports(id) ON DELETE SET NULL,
-  INDEX idx_iv_user (user_id, created_at),
-  INDEX idx_active (status, last_active_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-```
-
-### ⑩ interview_turns
-
-```sql
-CREATE TABLE interview_turns (
-  id         BIGINT PRIMARY KEY AUTO_INCREMENT,
-  session_id BIGINT NOT NULL,
-  round      ENUM('tech','hr') NOT NULL,
-  turn_no    INT     NOT NULL COMMENT '会话内全局序号',
-  topic_idx  INT     NOT NULL,
-  depth      TINYINT NOT NULL DEFAULT 0,
-
-  question      TEXT NOT NULL,
-  question_meta JSON COMMENT '{label, source}',
-  answer        TEXT NULL,
-  answered_at   DATETIME NULL,
-
-  evaluation JSON NULL COMMENT '{skipped, score, scores:{correctness,depth,clarity}, evidence:[{quote, char_start, char_end, verify_result}], good, bad, better_answer, decision:followup|next, low_evidence}',
-  cost       DECIMAL(10,6) NOT NULL DEFAULT 0,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-  FOREIGN KEY (session_id) REFERENCES interview_sessions(id) ON DELETE CASCADE,
-  INDEX idx_session (session_id, turn_no)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-```
-
-> 评估中的 `evidence` 是从**用户回答文本**里逐字引用并经 `locate_span` 校验的（不变量⑥）；校验失败的引用丢弃，评分若无任何有效引用则降为"证据不足"并只给中性分。
-
-### ⑪ llm_calls
-
-```sql
-CREATE TABLE llm_calls (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  scene    VARCHAR(50) NOT NULL COMMENT 'section/structure/diagnose/jd_parse/match/rewrite/gap/interview_plan/interview_ask/interview_eval/interview_report/embed/rerank',
-  ref_type VARCHAR(30) COMMENT 'resume/job/diagnosis/match_report/finding/interview',
-  ref_id   BIGINT,
-  provider       VARCHAR(30),
-  model_name     VARCHAR(50) NOT NULL,
-  model_version  VARCHAR(64) NULL COMMENT 'response_metadata.system_fingerprint',
-  prompt_version VARCHAR(20),
-  run_id         VARCHAR(36) NULL COMMENT '评测批次；线上为 NULL',
-  token_input  INT NOT NULL DEFAULT 0,
-  token_output INT NOT NULL DEFAULT 0,
-  cost         DECIMAL(10,6) NOT NULL DEFAULT 0,
-  latency_ms   INT,
-  cache_hit BOOLEAN NOT NULL DEFAULT FALSE,
-  success   BOOLEAN NOT NULL DEFAULT TRUE,
-  error_msg VARCHAR(500),
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_scene (scene, created_at),
-  INDEX idx_ref   (ref_type, ref_id),
-  INDEX idx_run   (run_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-```
-
-## 2.3 Chroma
-
-模拟面试是主流程里唯一往 Chroma 写数据的地方（06-workflows 6.5）；匹配不检索（06-workflows 6.2）。
+模拟面试是主流程里唯一往 Chroma 写数据的地方（06-workflows 6.5）；匹配不检索（06-workflows 6.5）。
 
 ```
 interview_ctx  面经切段          用户贴的面经 / 公司介绍超过 3000 字时切段（约 500 字一段）入库，metadata {session_id, idx}；
                                  每个话题召回 → 精排取 3 段；会话结束即删（retrieval/context_store.py）
-resume_units   简历经历切块      已删除：只在 06-workflows 6.2「逐条检索 vs 全文判定」对照实验里用过，主流程不用；
+resume_units   简历经历切块      已删除：只在 06-workflows 6.5「逐条检索 vs 全文判定」对照实验里用过，主流程不用；
                                  代码见提交 ee10f38 里的 retrieval/unit_store.py、matching/units.py
 cases          优秀描述案例      暂缓：改写本期不检索（06-workflows 6.5），有范例库后再建
 ```
 
-skills 表和岗位模板（`jobs.is_template = 1`，9 份：计算机 7、运营 2）由 `backend/sql/seed.sql` 手动导入；`uploads/`、`chroma/`、`checkpoints.sqlite`、`.env` 进 `.gitignore`。
+## 2.6 初始数据与建库
 
-## 2.4 设计说明
+- skills 表和岗位模板（`jobs.is_template = 1`，9 份：计算机 7、运营 2）在 `backend/sql/seed.sql` 里，由 `scripts/dump_seed.py` 生成：技能来自 `data/skills_seed.csv`，模板原文在 `data/job_templates/`，先由 `scripts/build_job_templates.py` 解析成 `data/job_templates.json`（导入时不调模型，每次导入的要求项都一样）。
+- 本机：在 MySQL 里先执行 `schema.sql`，再执行 `seed.sql`。
+- Docker：`docker-compose.yml` 把两个文件挂到 MySQL 镜像的 `/docker-entrypoint-initdb.d/`，数据卷为空（首次启动）时自动按顺序执行；数据卷里已有数据就不会再执行，改了表结构要自己迁移或清空数据卷。
+- 后端启动时只检查表是否齐全，缺表直接报错退出，不会自动建表。
+- `uploads/`、`chroma/`、`checkpoints.sqlite`、`.env` 进 `.gitignore`。
+
+## 2.7 设计说明
 
 | 决策 | 理由 |
 |---|---|
-| 面试记录（round / topic / depth、turns）存 DB，是权威来源；图 B 另用 `SqliteSaver` 检查点续跑（见 06-workflows 6.3） | 报告、页面、评测都读 DB；检查点丢失时由 turns 重建 |
-| 计划与报告存 JSON | 只整体读写 |
-| 评分 evidence 走同一个 `locate_span` | 诊断、匹配、面试评分共用一个反幻觉机制 |
-| `jobs.is_template` | 无具体 JD 的用户也能投递、面试 |
-| bbox 可空、`parent_id` 本期恒为 NULL、`used_llm_fallback` 恒为 0 | 字段先留着，不影响现有功能 |
+| 投递不单独建表：`match_reports` 一行就是一次投递，`diagnosis_id` 指向同一次的诊断 | 投递就是「诊断 + 匹配 + 初筛」一次跑完，结论都在匹配报告里；多一张表只多一层关联 |
+| 面试记录（话题、深度、turns）存 DB，是权威来源；图 B 另用 `SqliteSaver` 检查点续跑（06-workflows 6.3） | 报告、页面、评测都读 DB；检查点丢了由 turns 重建 |
+| 计划、报告、评分存 JSON | 只整体读写，不按里面的键查询 |
+| 面试评分的依据走同一个 `locate_span` | 诊断、匹配、面试评分共用一套防幻觉机制 |
+| `jobs.is_template` | 没有具体 JD 的用户也能投递、面试 |
+| 简历、岗位软删除；`match_reports.items` 冗余存要求内容 | 老的投递和面试报告还要引用它们，岗位删了报告照样读得懂 |

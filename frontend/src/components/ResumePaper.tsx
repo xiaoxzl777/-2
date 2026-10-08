@@ -1,6 +1,6 @@
 // 简历原文纸面：按块排版，把三类标注按字符区间画在原文上 —— 简历问题、部分满足的要求、满足的要求（颜色见图例，随配色变）。
 // 一段文字可以同时属于好几条（切成小段，颜色取最严重的那条）。当前这一条描边闪一下、弹出批注，并在纸面里滚到中间。
-// 结果页右边常驻的原文、窄屏从右侧滑出的原文（ResumeSheet）共用它。样稿：docs/design/结果页排版预览.html
+// 结果页右边常驻的原文、窄屏从右侧滑出的原文（ResumeSheet）共用它。样稿：docs/design/结果页面试场次预览.html
 import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react'
 import type { ResumeBlocks } from '../api/resumes'
 import type { AdviceSource } from './AdviceBlock'

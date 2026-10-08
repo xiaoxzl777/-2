@@ -3,7 +3,7 @@
 /* 配色：三套，用户在导航栏「配色」里选（components/PalettePicker.tsx），记在 localStorage；
    <html data-pal> 由 index.html 里的小脚本在渲染前设好，刷新不会先闪一下默认色。没有 data-pal 就是领英蓝。
    所有颜色都从这里的变量取，不要在下面写死色值（半透明色用 rgba(var(--xx-rgb), a)）。
-   每套都核对过对比度：正文、灰字、标签字、按钮白字与各自底色 ≥ 4.5:1（用户要求「所有东西都要清晰可见」）。样稿：docs/design/结果页排版预览.html */
+   每套都核对过对比度：正文、灰字、标签字、按钮白字与各自底色 ≥ 4.5:1（用户要求「所有东西都要清晰可见」）。样稿：docs/design/结果页面试场次预览.html */
 @theme {
   --color-bg: #f4f2ee;          /* 页面底 */
   --color-bg-2: #e9e5df;        /* 分段切换、进度条底等浅灰块 */
@@ -340,7 +340,7 @@ button { cursor: pointer; }
 .spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(255, 255, 255, 0.35); border-top-color: #fff; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── 登录后的页面（工作台等）：版式同首页首屏 —— 左边标题，右边操作卡。样稿：docs/design/工作台预览.html。初筛结果另见下面的 .rv ── */
+/* ── 登录后的页面（工作台等）：版式同首页首屏 —— 左边标题，右边操作卡。样稿：docs/design/岗位方向预览.html。初筛结果另见下面的 .rv ── */
 .user-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--color-ink-2); }
 .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--color-accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
 .splash { min-height: 100vh; display: grid; place-items: center; color: var(--color-ink-3); }
@@ -657,7 +657,7 @@ button { cursor: pointer; }
 
 .tech-msg { margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--color-field); box-shadow: inset 0 0 0 1px var(--line); font-family: ui-monospace, Consolas, monospace; font-size: 12px; line-height: 1.6; color: var(--color-ink-2); word-break: break-all; }
 
-/* ── 初筛结果：顶部成绩单 + 左边问题清单、右边常驻原文。样稿：docs/design/结果页排版预览.html（「改后」）。类名都带 rv- 前缀
+/* ── 初筛结果：顶部成绩单 + 左边问题清单、右边常驻原文。样稿：docs/design/结果页面试场次预览.html（「改后」）。类名都带 rv- 前缀
    整页一套两列网格：成绩单、问题清单、原文都落在这两列上，左右边缘对齐 ── */
 .rv { --cols: minmax(0, 1fr) minmax(0, 1.08fr); padding: 36px 0 90px; }
 .rv-band, .rv-body { display: grid; grid-template-columns: var(--cols); column-gap: 28px; }

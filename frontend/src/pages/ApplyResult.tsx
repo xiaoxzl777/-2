@@ -62,7 +62,7 @@ export default function ApplyResult() {
 
 // ───────────── 结果 ─────────────
 
-// 顶部成绩单，下面左边问题清单、右边常驻原文（整页一套两列网格，各边对齐）。样稿：docs/design/结果页排版预览.html（「改后」）
+// 顶部成绩单，下面左边问题清单、右边常驻原文（整页一套两列网格，各边对齐）。样稿：docs/design/结果页面试场次预览.html（「改后」）
 // 宽屏：点开一条，右边原文就定位到它；点原文里的高亮，左边展开对应的那条。窄屏放不下两栏：原文照旧从右侧滑出
 function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Result['gate']>; jobTitle: string }) {
   const navigate = useNavigate()

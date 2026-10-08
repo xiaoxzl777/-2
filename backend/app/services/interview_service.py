@@ -359,7 +359,7 @@ def public_evaluation(evaluation: dict | None) -> dict | None:
 # ───────────── 启动清理 ─────────────
 
 def cleanup_idle(session_factory: SessionFactory, checkpointer, store_factory=None) -> int:
-    """很久没动静的面试 → 按已答的题出报告（不调模型写总结），标成 abandoned。启动时跑一次。"""
+    """很久没动静的面试 → 按已答的题出报告（不调模型写总结），标成 abandoned。启动时跑一次，之后每小时一次（main.sweep_forever）。"""
     deadline = datetime.now() - timedelta(hours=settings.INTERVIEW_IDLE_HOURS)
     with session_factory() as db:
         rows = db.scalars(select(InterviewSession).where(

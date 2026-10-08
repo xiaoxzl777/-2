@@ -1,4 +1,4 @@
-"""图 B：模拟面试（只有技术面）。走一步、停下来等人回答、再走。
+"""图 B：模拟面试（只有一轮专业面：技术面 / 运营面）。走一步、停下来等人回答、再走。
 
     START ─► plan_interview ─► pick_topic ─┬─► retrieve_context ─► ask_question ─► wait_answer ─► evaluate_answer ─► decide
                                    ▲        └─(话题用完)─► final_report ─► END                ★ interrupt()              │

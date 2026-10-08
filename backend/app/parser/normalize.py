@@ -42,7 +42,7 @@ class DateRange:
     start: str | None       # "YYYY-MM" 或 "YYYY"
     end: str | None         # 单个日期或"至今"时为 None
     is_present: bool
-    span: tuple[int, int]   # 在输入文本中的位置，开区间
+    span: tuple[int, int]   # 在输入文本中的位置，左闭右开
 
     @property
     def month_precision(self) -> bool:

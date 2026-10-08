@@ -105,7 +105,7 @@ class Section:
     block_start: int           # 含标题块
     block_end: int             # 闭区间
     char_start: int
-    char_end: int              # 开区间，相对 full_text
+    char_end: int              # 左闭右开，相对 full_text
     content_start: int         # 正文（标题之后）的起始偏移；没有正文时 == char_end
     confidence: float
     matched_by: str            # dict / feature / style / llm / implicit（没有标题块：basics、切出来的教育、整篇无标题）

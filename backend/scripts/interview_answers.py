@@ -1,4 +1,4 @@
-"""面试评分评测（05-evaluation-and-plan 8.4）的题目和三档回答：run_eval.py --task interview 用。
+"""面试评分评测（05-evaluation-and-plan 5.4）的题目和三档回答：run_eval.py --task interview 用。
 
 题目出自降质集的 6 个虚构项目（gen_eval_set.PROJECTS），每个 2 题，bullet 是题目对应的那条描述（下标）。
 每题三档回答，质量高低在写的时候就定好了（代替人工打分），每档专门压低一项：

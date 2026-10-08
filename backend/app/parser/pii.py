@@ -1,7 +1,7 @@
 """个人信息：本地抽取 + 外发前掩码（系统不变量⑤）。
 
-- extract_basics：姓名 / 电话 / 邮箱 / 所在地 用正则和版面特征在本地抽取，basics 章节永不发给 LLM。
-- mask_pii：发给 LLM 的其余文本先掩码。掩码**逐字符替换、长度不变**，
+- extract_basics：姓名 / 电话 / 邮箱 / 所在地 用正则和版面特征在本地抽取。
+- mask_pii：整份简历发给 LLM 之前先掩码：姓名、电话、邮箱、身份证号、所在地 / 籍贯。掩码**逐字符替换、长度不变**，
   所以在掩码文本上算出的 char 偏移与原文完全一致，证据定位不需要任何换算。
 
 领域层：纯函数，不碰数据库，不调任何 API。
@@ -85,11 +85,18 @@ def _mask_email(m: re.Match) -> str:
     return re.sub(r"[^@.]", "*", m.group(0))
 
 
+def _mask_location(m: re.Match) -> str:
+    """只掩冒号后面的地名，「所在地：」这几个字留着（模型知道这里原来是个地方）"""
+    head = m.start(1) - m.start()
+    return m.group(0)[:head] + "某" * (m.end(1) - m.start(1))
+
+
 def mask_pii(text: str, name: str | None = None) -> str:
-    """把电话、邮箱、身份证号、姓名替换成等长的占位字符。返回值与输入长度严格相等。"""
+    """把电话、邮箱、身份证号、所在地 / 籍贯、姓名替换成等长的占位字符。返回值与输入长度严格相等。"""
     masked = _ID_CARD.sub(_mask_digits, text)   # 先处理身份证：它包含一段会被电话正则命中的数字
     masked = _PHONE.sub(_mask_digits, masked)
     masked = _EMAIL.sub(_mask_email, masked)
+    masked = _LOCATION.sub(_mask_location, masked)  # 在邮箱之后：「邮箱地址：」后面的邮箱已经成了 *，不会被当成地名
     if name and len(name.strip()) >= 2:
         masked = masked.replace(name.strip(), "某" * len(name.strip()))
     assert len(masked) == len(text), "掩码必须保持长度不变，否则 char 偏移会错位"

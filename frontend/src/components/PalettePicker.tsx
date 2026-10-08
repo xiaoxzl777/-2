@@ -1,4 +1,4 @@
-// 导航栏右上角的「配色」：点开选三套之一，只影响这台设备。样稿：docs/design/结果页排版预览.html
+// 导航栏右上角的「配色」：点开选三套之一，只影响这台设备。样稿：docs/design/结果页面试场次预览.html
 import { useEffect, useRef, useState } from 'react'
 import { PALETTES, usePalette } from '../store/palette'
 

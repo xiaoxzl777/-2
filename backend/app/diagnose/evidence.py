@@ -41,7 +41,7 @@ _QUOTE_WRAPPERS = " \t\r\n\"'“”‘’「」『』…."
 @dataclass(slots=True, frozen=True)
 class Span:
     start: int
-    end: int          # 开区间，相对传入的 text
+    end: int          # 左闭右开，相对传入的 text
     score: float      # 1.0 = 精确匹配；模糊匹配为 0–1
     method: str       # exact / fuzzy
 

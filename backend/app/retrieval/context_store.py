@@ -2,7 +2,7 @@
 
     创建会话   切段 → 向量化 → 存进 interview_ctx（metadata.session_id 区分会话）
     每个话题   用"话题名 + 考察目标"召回 top-K → reranker 精排 → 取前 N 段给出题的 prompt
-    会话结束   删掉这场的切段（隐私：docs/04-design 4.7）
+    会话结束   删掉这场的切段（隐私：docs/04-design 4.5）
 
 不长的材料整段放进 prompt，不走这里——和"匹配不用 RAG"同一个理由：放得下就不检索（docs/06-workflows 6.5）。
 重排失败时退回召回的顺序，功能不中断。

@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     RAG_RECALL_K: int = 20                     # 第一阶段 embedding 召回条数
     RAG_TOP_K: int = 3                         # 第二阶段 rerank 后注入 prompt 的条数
     INTERVIEW_COST_LIMIT: float = 0.3          # 元；超了就提前结束并出报告
-    INTERVIEW_TOPICS: int = 5                  # 一场几个话题（只有技术面）
+    INTERVIEW_TOPICS: int = 5                  # 一场几个话题（只有一轮专业面）
     INTERVIEW_MAX_FOLLOWUP: int = 1            # 每个话题最多追问几次
     INTERVIEW_CONTEXT_FULL_MAX: int = 3000     # 面经不超过这么多字就整段给面试官，更长才切段检索
     INTERVIEW_ANSWER_MAX: int = 3000           # 一次回答最多多少字
