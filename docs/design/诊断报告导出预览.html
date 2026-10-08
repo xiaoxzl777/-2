@@ -88,6 +88,9 @@
   .none { color: var(--ink-3); font-style: italic; }
 
   .foot { margin-top: 18px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 11px; color: var(--ink-3); }
+  .foot b, .disclaimer b { color: var(--ink-2); }
+  /* 免责声明：第一页标题下面一行，发给别人一打开就能看到 */
+  .disclaimer { margin: 8px 0 0; font-size: 11px; line-height: 1.6; color: var(--ink-3); }
 
   .html2pdf__container .sheet { width: auto; max-width: none; margin: 0; padding: 0; box-shadow: none; }
 
@@ -121,6 +124,7 @@
     <h1>简历诊断报告</h1>
     <div class="by">智能求职辅助系统<br>导出于 2026-10-08 14:20</div>
   </header>
+  <p class="disclaimer"><b>免责声明</b>：本报告由系统自动生成，初筛结论是模拟的，不代表任何企业的真实招聘结果；修改建议仅供参考。</p>
 
   <dl class="meta">
     <dt>目标岗位</dt><dd>后端开发实习生（Java）· 计算机方向</dd>
@@ -310,7 +314,7 @@
     </div>
   </div>
 
-  <p class="foot">本报告由系统根据简历原文和岗位要求自动生成，仅供修改简历时参考。「DeepSeek 生成」的建议只用了你简历里已有的事实，【】里的数字和做法需要你按实际填写。</p>
+  <p class="foot"><b>免责声明</b>：本报告由系统根据简历原文和岗位要求自动生成，初筛结论是模拟的，不代表任何企业的真实招聘结果；修改建议仅供参考，请结合自己的实际情况判断。「DeepSeek 生成」的建议只用了你简历里已有的事实，【】里的数字和做法需要你按实际填写。</p>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.14.0/dist/html2pdf.bundle.min.js"></script>

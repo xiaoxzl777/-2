@@ -175,20 +175,31 @@ function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Res
           <Headline badge="初筛结果" label={jobTitle || '岗位'}
             lines={passed ? ['通过初筛，', <>可以去<Mark>面试</Mark>了。</>] : ['差一点，', <>这次没过<Mark>初筛</Mark>。</>]} />
           <p className="rv-sub fade d2">{sub[0]}<br />{sub[1]}</p>
-          <div className="cta fade d3">
-            {passed ? (
-              <>
-                <MagneticButton className="accent lg" onClick={() => navigate(toInterview)}>{live ? '继续面试' : '进入模拟面试'} <span className="arrow">→</span></MagneticButton>
-                <MagneticButton className="outline lg" onClick={() => navigate('/app')}>再投一个</MagneticButton>
-              </>
-            ) : (
-              <>
-                <MagneticButton className="accent lg" onClick={() => navigate(`/app?job=${data.job_id}`)}>改完简历，再投这个岗位 <span className="arrow">→</span></MagneticButton>
-                <MagneticButton className="outline lg" onClick={() => navigate(toInterview)}>{live ? '继续练习' : '以练习模式面试'}</MagneticButton>
-              </>
-            )}
-            {/* 诊断报告：排成 A4、可以下载成 PDF 对照着改（样稿：docs/design/诊断报告导出预览.html） */}
-            <Link className="rv-report" to={`/app/apply/${data.id}/report`}>预览报告</Link>
+          {/* 按钮那排和下面的提示条装在一起：两者一样宽，左右两边都对齐 */}
+          <div className="rv-actions">
+            <div className="cta fade d3">
+              {passed ? (
+                <>
+                  <MagneticButton className="accent lg" onClick={() => navigate(toInterview)}>{live ? '继续面试' : '进入模拟面试'} <span className="arrow">→</span></MagneticButton>
+                  <MagneticButton className="outline lg" onClick={() => navigate('/app')}>再投一个</MagneticButton>
+                </>
+              ) : (
+                <>
+                  <MagneticButton className="accent lg" onClick={() => navigate(`/app?job=${data.job_id}`)}>改完简历，再投这个岗位 <span className="arrow">→</span></MagneticButton>
+                  <MagneticButton className="outline lg" onClick={() => navigate(toInterview)}>{live ? '继续练习' : '以练习模式面试'}</MagneticButton>
+                </>
+              )}
+            </div>
+            {/* 诊断报告入口：一条提示条，说清楚能做什么（样稿：docs/design/预览报告入口预览.html 方案 B；报告本身见 诊断报告导出预览.html） */}
+            <div className="rv-report fade d3">
+              <span className="ic" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M14 3v6h6M8 13h8M8 17h5" />
+                </svg>
+              </span>
+              <span className="tx"><b>诊断报告</b>可下载 PDF，对照着改简历</span>
+              <Link className="btn sm accent" to={`/app/apply/${data.id}/report`}>预览报告 <span className="arrow">→</span></Link>
+            </div>
           </div>
         </div>
         <div className={`rv-score fade d2${data.interviews.length ? ' has-iv' : ''}`}>
@@ -250,6 +261,7 @@ function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Res
           </div>
         )}
       </div>
+      <p className="rv-disclaimer">以上结果由系统根据简历和岗位要求自动生成，初筛结论是模拟的，不代表任何企业的真实招聘结果；修改建议仅供参考。</p>
     </section>
     {!wide && (
       <ResumeSheet open={sheet.open} title={resumeTitle} doc={doc} loadError={docError} items={items}

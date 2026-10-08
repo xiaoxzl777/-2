@@ -734,15 +734,32 @@ button { cursor: pointer; }
   .rv-score { flex-wrap: wrap; gap: 20px; padding: 20px; }
   .rv-score .dims { min-width: 180px; } /* 再窄就把四项分换到圆环下面 */
 }
-/* 成绩单那排按钮最后的「预览报告」：不显眼的文字链接 */
-.rv-report { align-self: center; padding: 6px 4px; font-size: 14px; font-weight: 600; color: var(--color-accent-ink); text-decoration: none; }
-.rv-report:hover { text-decoration: underline; }
-.rv-report:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 4px; }
+/* 成绩单按钮下面的「诊断报告」提示条：说清楚能做什么，右边一个实心按钮（样稿 docs/design/预览报告入口预览.html 方案 B） */
+.rv-report { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px 14px 12px 16px; border-radius: 16px;
+  background: rgba(var(--accent-rgb), 0.07); box-shadow: inset 0 0 0 1.5px rgba(var(--accent-rgb), 0.28); }
+.rv-report .ic { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--color-paper); color: var(--color-accent-ink); box-shadow: 0 0 0 1px var(--line); }
+.rv-report .tx { font-size: 14px; line-height: 1.5; color: var(--color-ink-2); }
+.rv-report .tx b { display: block; color: var(--color-ink); }
+.rv-report .btn { flex: none; margin-left: auto; }
+.rv-report .btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+/* 按钮那排和提示条一样宽、左右都对齐：外面按两者里宽的那个定宽；按钮排改成两列网格，比提示条窄时两个按钮按比例拉长 */
+.rv-actions { display: inline-grid; row-gap: 16px; max-width: 100%; }
+.rv-actions .cta { display: grid; grid-auto-flow: column; grid-auto-columns: auto; }
+.rv-actions .rv-report { margin-top: 0; }
+@media (max-width: 640px) { /* 手机：按钮排放不下两个大按钮，照旧折行，提示条占满一行 */
+  .rv-actions { display: grid; }
+  .rv-actions .cta { display: flex; }
+  .rv-actions .cta .btn { flex: 1 1 auto; } /* 折行后每行的按钮撑满，右边和提示条对齐 */
+}
+.rv-disclaimer { margin: 36px 0 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: 13px; line-height: 1.7; color: var(--color-ink-3); }
+@media (max-width: 520px) { .rv-report { flex-wrap: wrap; } .rv-report .btn { margin-left: 48px; } }
 
 /* ── 诊断报告：/app/apply/:id/report，排成 A4、可下载成 PDF。样稿：docs/design/诊断报告导出预览.html。类名都带 rpt- 前缀。
    纸面用固定的黑白灰、不跟三套配色走（下载的 PDF 在哪打开都一样）；问题 = 实线下划线、部分满足 = 虚线，黑白打印也分得清 ── */
 .rpt { padding: 28px 0 64px; }
-.rpt-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; width: 210mm; max-width: 100%; margin: 0 auto 16px; }
+/* 顶上那条（回到结果页 / 下载 PDF）贴在导航栏下面，往下翻也一直在；底色和页面一样，纸面从它下面滑过去 */
+.rpt-bar { position: sticky; top: 72px; z-index: 15; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; width: 210mm; max-width: 100%;
+  margin: 0 auto 16px; padding: 10px 0; background: var(--color-bg); box-shadow: 0 10px 12px -10px rgba(var(--sh-rgb), 0.12); }
 .rpt-bar .back { margin-bottom: 0; }
 .rpt-bar .btn { margin-left: auto; }
 .rpt-tip { font-size: 13px; color: var(--color-ink-3); }
@@ -802,6 +819,8 @@ button { cursor: pointer; }
 .rpt-advice .rw { font-weight: 700; }
 .rpt-sheet .ph { padding: 0 2px; border-radius: 0; background: none; color: inherit; font-weight: inherit; border-bottom: 1.5px dotted var(--r-ink); } /* 【】占位：盖掉全局 .ph 的彩色底 */
 .rpt-foot { margin: 18px 0 0; padding-top: 8px; border-top: 1px solid var(--r-line); font-size: 11px; color: var(--r-ink-3); }
+.rpt-disclaimer { margin: 8px 0 0; font-size: 11px; line-height: 1.6; color: var(--r-ink-3); } /* 第一页标题下面：发给别人一打开就能看到 */
+.rpt-foot b, .rpt-disclaimer b { color: var(--r-ink-2); }
 @media (max-width: 760px) {
   .rpt-sheet { padding: 18px 16px; }
   .rpt-verdict { grid-template-columns: minmax(0, 1fr); }

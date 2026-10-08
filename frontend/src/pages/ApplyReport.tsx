@@ -202,6 +202,7 @@ function Report({ data, gate, doc, resumeTitle, hits, total, job, onBack }: Load
           <h1>简历诊断报告</h1>
           <div className="by">智能求职辅助系统<br />导出于 {minute(now)}</div>
         </header>
+        <p className="rpt-disclaimer"><b>免责声明</b>：本报告由系统自动生成，初筛结论是模拟的，不代表任何企业的真实招聘结果；修改建议仅供参考。</p>
         <dl className="rpt-meta">
           <dt>目标岗位</dt><dd>{job?.title ?? '（岗位已删除）'}{domainName ? ` · ${domainName}方向` : ''}</dd>
           <dt>使用简历</dt><dd>{resumeTitle || '—'}</dd>
@@ -230,7 +231,8 @@ function Report({ data, gate, doc, resumeTitle, hits, total, job, onBack }: Load
         <Section title="三、简历本身的问题" note={issues.length ? `${issues.length} 条 · 严重的在前` : ''}
           rows={issueRows} empty="简历本身没发现明显问题。" />
 
-        <p className="rpt-foot">本报告由系统根据简历原文和岗位要求自动生成，仅供修改简历时参考。「DeepSeek 生成」的建议只用了你简历里已有的事实，【】里的数字和做法需要你按实际填写。</p>
+        <p className="rpt-foot"><b>免责声明</b>：本报告由系统根据简历原文和岗位要求自动生成，初筛结论是模拟的，不代表任何企业的真实招聘结果；
+          修改建议仅供参考，请结合自己的实际情况判断。「DeepSeek 生成」的建议只用了你简历里已有的事实，【】里的数字和做法需要你按实际填写。</p>
       </article>
     </section>
   )

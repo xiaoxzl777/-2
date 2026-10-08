@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>预览报告入口 · 求职辅助</title>
+<style>
+  /* 色板同 index.css 开头（三套配色） */
+  :root, :root[data-pal="linkedin"] {
+    --bg: #f4f2ee; --bg-2: #e9e5df; --paper: #fff; --ink: #191919; --ink-rgb: 25,25,25; --ink-2: #4d4d4d; --ink-3: #626262;
+    --accent: #0a66c2; --accent-rgb: 10,102,194; --accent-ink: #004182; --line: rgba(25,25,25,.1); --sh-rgb: 0,0,0;
+    --ease: cubic-bezier(.22,1,.36,1); --spring: cubic-bezier(.34,1.56,.64,1);
+  }
+  :root[data-pal="red"] { --bg: #fbfaf8; --bg-2: #f0eeea; --paper: #fff; --ink: #141414; --ink-rgb: 20,20,20; --ink-2: #4d4d4d; --ink-3: #6b6b6b;
+    --accent: #c8341f; --accent-rgb: 200,52,31; --accent-ink: #a3291a; --line: rgba(20,20,20,.1); --sh-rgb: 20,20,20; }
+  :root[data-pal="green"] { --bg: #f2f0e9; --bg-2: #e6e3d7; --paper: #fbfaf5; --ink: #1b231f; --ink-rgb: 27,35,31; --ink-2: #4a524c; --ink-3: #5a625c;
+    --accent: #2d5e4c; --accent-rgb: 45,94,76; --accent-ink: #22493b; --line: rgba(27,35,31,.1); --sh-rgb: 35,45,35; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "PingFang SC","Microsoft YaHei",sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+  nav { padding: 18px 0; }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+  .logo i { width: 30px; height: 30px; border-radius: 10px; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-style: normal; font-size: 15px; }
+  .pals { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--bg-2); }
+  .pals button { height: 30px; padding: 0 12px; border: none; border-radius: 999px; background: none; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .pals button.on { background: var(--paper); color: var(--ink); box-shadow: 0 2px 8px rgba(var(--sh-rgb),.12); }
+
+  .label { margin: 28px 0 12px; font-size: 13px; font-weight: 700; letter-spacing: 1px; color: var(--ink-3); }
+  .label b { padding: 2px 8px; margin-right: 8px; border-radius: 999px; background: var(--ink); color: var(--bg); }
+
+  /* ── 结果页顶部（照抄 .rv-band） ── */
+  .band { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.08fr); column-gap: 28px; align-items: end; padding: 26px 30px; border-radius: 24px; background: rgba(var(--ink-rgb),.02); box-shadow: inset 0 0 0 1px var(--line); }
+  .tag { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 999px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); font-size: 13px; color: var(--ink-2); }
+  .tag b { padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 12px; }
+  h1 { margin: 16px 0 12px; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.2; letter-spacing: -1px; }
+  .sub { margin: 0 0 22px; font-size: 16px; line-height: 1.7; color: var(--ink-2); }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .btn { height: 44px; padding: 0 22px; border-radius: 999px; border: none; font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: background .2s, box-shadow .3s; text-decoration: none; }
+  .btn.lg { height: 56px; padding: 0 30px; font-size: 17px; }
+  .btn.accent { background: var(--accent); color: #fff; }
+  .btn.outline { background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .btn svg { flex: none; }
+  .score { display: flex; align-items: center; gap: 28px; padding: 22px 28px; border-radius: 20px; background: var(--paper); box-shadow: 0 0 0 1px var(--line), 0 24px 44px -26px rgba(var(--sh-rgb),.35); }
+  .ring { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; font-size: 30px; font-weight: 800; box-shadow: inset 0 0 0 8px var(--accent); }
+  .dims { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; font-size: 13px; color: var(--ink-2); }
+  .dims b { float: right; color: var(--ink); }
+  .dims i { display: block; height: 4px; margin-top: 6px; border-radius: 4px; background: var(--ink); }
+
+  /* 方案 A：同一排第三个按钮，描边、带文档图标，和「以练习模式面试」一样大小 */
+  .btn.report { background: var(--paper); color: var(--accent-ink); box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .btn.report:hover { background: rgba(var(--accent-rgb),.06); }
+
+  /* 方案 B：按钮下面一条提示条 */
+  .bar-b { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px 14px 12px 16px; border-radius: 16px;
+    background: rgba(var(--accent-rgb),.07); box-shadow: inset 0 0 0 1.5px rgba(var(--accent-rgb),.28); }
+  .bar-b .ic { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--paper); color: var(--accent-ink); box-shadow: 0 0 0 1px var(--line); }
+  .bar-b .tx { font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+  .bar-b .tx b { display: block; color: var(--ink); }
+  .bar-b .btn { margin-left: auto; flex: none; background: var(--accent); color: #fff; height: 40px; padding: 0 18px; font-size: 14px; }
+
+  .notes { margin: 8px 0 0; padding-left: 20px; font-size: 14px; line-height: 1.8; color: var(--ink-2); }
+  @media (max-width: 1000px) { .band { grid-template-columns: minmax(0,1fr); row-gap: 22px; } }
+  @media (max-width: 560px) { .wrap { padding: 0 16px; } .band { padding: 20px; } .score { flex-wrap: wrap; } .bar-b { flex-wrap: wrap; } .bar-b .btn { margin-left: 48px; } }
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <div class="logo"><i>求</i>求职辅助</div>
+  <div class="pals"><button data-pal="linkedin" class="on">领英蓝</button><button data-pal="red">朱红</button><button data-pal="green">墨绿</button></div>
+</div></nav>
+
+<main class="wrap">
+  <p class="label"><b>现在</b>一行小字「预览报告」，容易被忽略</p>
+  <section class="band">
+    <div>
+      <span class="tag"><b>初筛结果</b>后端开发实习生（Java）</span>
+      <h1>差一点，这次没过初筛。</h1>
+      <p class="sub">匹配度 40，初筛线是 60。<br>先补「对照岗位」里的必须项，涨分最快；简历本身的问题顺手改掉。</p>
+      <div class="cta">
+        <a class="btn lg accent">改完简历，再投这个岗位 →</a>
+        <a class="btn lg outline">以练习模式面试</a>
+        <a style="font-size:14px;font-weight:600;color:var(--accent-ink)">预览报告</a>
+      </div>
+    </div>
+    <div class="score"><div class="ring">40</div><div class="dims"><span>技能<b>32</b><i style="width:32%"></i></span><span>学历<b>100</b><i></i></span><span>经验<b>100</b><i></i></span><span>其他<b>50</b><i style="width:50%"></i></span></div></div>
+  </section>
+
+  <p class="label"><b>方案 A</b>同一排第三个按钮：和旁边的大按钮一样高，描边 + 文档图标，用主色描边和其他两个区分开</p>
+  <section class="band">
+    <div>
+      <span class="tag"><b>初筛结果</b>后端开发实习生（Java）</span>
+      <h1>差一点，这次没过初筛。</h1>
+      <p class="sub">匹配度 40，初筛线是 60。<br>先补「对照岗位」里的必须项，涨分最快；简历本身的问题顺手改掉。</p>
+      <div class="cta">
+        <a class="btn lg accent">改完简历，再投这个岗位 →</a>
+        <a class="btn lg outline">以练习模式面试</a>
+        <a class="btn lg report"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>预览报告</a>
+      </div>
+    </div>
+    <div class="score"><div class="ring">40</div><div class="dims"><span>技能<b>32</b><i style="width:32%"></i></span><span>学历<b>100</b><i></i></span><span>经验<b>100</b><i></i></span><span>其他<b>50</b><i style="width:50%"></i></span></div></div>
+  </section>
+
+  <p class="label"><b>方案 B</b>按钮下面一条提示条：说清楚能做什么，右边一个实心按钮</p>
+  <section class="band">
+    <div>
+      <span class="tag"><b>初筛结果</b>后端开发实习生（Java）</span>
+      <h1>差一点，这次没过初筛。</h1>
+      <p class="sub">匹配度 40，初筛线是 60。<br>先补「对照岗位」里的必须项，涨分最快；简历本身的问题顺手改掉。</p>
+      <div class="cta">
+        <a class="btn lg accent">改完简历，再投这个岗位 →</a>
+        <a class="btn lg outline">以练习模式面试</a>
+      </div>
+      <div class="bar-b">
+        <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg></span>
+        <span class="tx"><b>诊断报告</b>可下载 PDF，对照着改简历</span>
+        <a class="btn">预览报告 →</a>
+      </div>
+    </div>
+    <div class="score"><div class="ring">40</div><div class="dims"><span>技能<b>32</b><i style="width:32%"></i></span><span>学历<b>100</b><i></i></span><span>经验<b>100</b><i></i></span><span>其他<b>50</b><i style="width:50%"></i></span></div></div>
+  </section>
+
+  <p class="label"><b>结果页最底下</b>新加一行免责声明（灰色小字，两种方案都有）</p>
+  <p style="margin:0;padding:14px 0;border-top:1px solid var(--line);font-size:13px;line-height:1.7;color:var(--ink-3)">以上结果由系统根据简历和岗位要求自动生成，初筛结论是模拟的，不代表任何企业的真实招聘结果；修改建议仅供参考。</p>
+
+  <ul class="notes">
+    <li>方案 A：通过时（按钮是「进入模拟面试」「再投一个」，比较短）三个按钮排在一行；没通过时左边两个大按钮已经占满一行，第三个会换到第二行，和现在那行小字的位置一样，只是变成了按钮。</li>
+    <li>方案 B：最显眼，还顺带说明了能做什么；代价是左边多出一块（约 70px 高），通过、没通过都一样。</li>
+    <li>报告页顶上那条（回到结果页 / 下载 PDF）两种方案都一样：固定在导航栏下面，往下翻也一直在（见 诊断报告导出预览.html）。</li>
+  </ul>
+  <div style="height:60px"></div>
+</main>
+<script>
+document.querySelectorAll('.pals button').forEach((b) => b.addEventListener('click', () => {
+  document.documentElement.dataset.pal = b.dataset.pal
+  document.querySelectorAll('.pals button').forEach((x) => x.classList.toggle('on', x === b))
+}))
+</script>
+</body>
+</html>
