@@ -16,6 +16,7 @@
 | [07-代码导读](docs/07-代码导读.md) | 后端各目录、各文件干什么，建议的阅读顺序 |
 | [08-实现思路与代码讲解](docs/08-实现思路与代码讲解.md) | 后端每件事为什么这么做、关键代码、踩过的坑、答辩问题速查 |
 | [design/](docs/design/) | 前端样稿（独立 HTML，浏览器直接打开）；`archive/` 里是被取代或被否掉的 |
+| [figures/](docs/figures/) | 论文用图 9 张（架构、产品流程、图 A、图 B、E-R、四张评测图），各一份 SVG + PNG；`python docs/figures/make_figures.py` 重新生成（只用 Python 自带库，PNG 用本机 Chrome / Edge 截） |
 
 ## 技术栈
 
