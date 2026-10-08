@@ -28,6 +28,7 @@ data/eval_runs/*
 data/layout_set/
 data/eval_set/
 data/eval_set_ops/
+data/eval_set_finance/
 data/checkpoints.sqlite*
 !data/uploads/.gitkeep
 !data/chroma/.gitkeep

@@ -213,12 +213,47 @@ INSERT INTO skills (id, canonical_name, category, aliases) VALUES
   (203, '墨刀', 'ops', '["Modao"]'),
   (204, '埋点', 'ops', '["埋点分析", "数据埋点"]'),
   (205, '用户调研', 'ops', '["用户访谈", "问卷调研"]'),
-  (206, '企业微信', 'ops', '["企微", "WeCom"]');
+  (206, '企业微信', 'ops', '["企微", "WeCom"]'),
+  (207, '用友', 'finance', '["用友U8", "用友NC", "用友T3"]'),
+  (208, '金蝶', 'finance', '["金蝶K3", "金蝶云", "金蝶云星空", "金蝶KIS"]'),
+  (209, 'SAP', 'finance', '["SAP ERP", "SAP FICO"]'),
+  (210, 'Wind', 'finance', '["万得", "Wind金融终端"]'),
+  (211, 'iFinD', 'finance', '["同花顺iFinD"]'),
+  (212, 'Bloomberg', 'finance', '["彭博", "彭博终端"]'),
+  (213, 'Power BI', 'data', '["PowerBI"]'),
+  (214, 'Tableau', 'data', '[]'),
+  (215, 'VBA', 'tool', '["Excel VBA"]'),
+  (216, '总账', 'finance', '["总账核算", "总账管理"]'),
+  (217, '应收应付', 'finance', '["应收账款", "应付账款", "往来账"]'),
+  (218, '成本核算', 'finance', '["成本会计"]'),
+  (219, '合并报表', 'finance', '["合并财务报表"]'),
+  (220, '纳税申报', 'finance', '["报税", "税务申报"]'),
+  (221, '税务筹划', 'finance', '["纳税筹划", "税收筹划"]'),
+  (222, '审计底稿', 'finance', '["底稿编制"]'),
+  (223, '函证', 'finance', '["询证函"]'),
+  (224, '盘点', 'finance', '["存货监盘", "监盘"]'),
+  (225, '内部控制', 'finance', '["内控", "内控测试"]'),
+  (226, '预算管理', 'finance', '["全面预算", "预算编制"]'),
+  (227, '财务报表分析', 'finance', '["财报分析", "报表分析"]'),
+  (228, '杜邦分析', 'finance', '["杜邦分析法"]'),
+  (229, '财务建模', 'finance', '["财务模型", "三张表模型"]'),
+  (230, 'DCF 估值', 'finance', '["DCF", "现金流折现"]'),
+  (231, '可比公司估值', 'finance', '["可比公司法", "相对估值"]'),
+  (232, '企业会计准则', 'finance', '["会计准则"]'),
+  (233, 'IFRS', 'finance', '["国际财务报告准则"]'),
+  (234, '银行对账', 'finance', '["银行余额调节表"]'),
+  (235, '固定资产管理', 'finance', '["固定资产"]'),
+  (236, '资金管理', 'finance', '["现金管理"]'),
+  (237, '账龄分析', 'finance', '[]'),
+  (238, '差异分析', 'finance', '["预算差异分析"]'),
+  (239, '财务比率分析', 'finance', '["比率分析"]'),
+  (240, '行业研究', 'finance', '["行研"]'),
+  (241, '研报撰写', 'finance', '["研究报告", "研报"]');
 
-ALTER TABLE skills AUTO_INCREMENT = 207;
+ALTER TABLE skills AUTO_INCREMENT = 242;
 
 -- 岗位模板：按标题更新，不删除重建（投递记录按 id 引用岗位，删了会连带删掉投递）
-UPDATE jobs SET is_deleted = 1 WHERE is_template = 1 AND title NOT IN ('后端开发实习生（Java）', '后端开发实习生（Python / Go）', '前端开发实习生', '算法实习生（机器学习）', 'AI 应用开发实习生（大模型）', '测试开发实习生', '数据分析实习生', '内容运营实习生（新媒体）', '用户运营实习生', '活动运营实习生', '电商运营实习生', '产品运营实习生');
+UPDATE jobs SET is_deleted = 1 WHERE is_template = 1 AND title NOT IN ('后端开发实习生（Java）', '后端开发实习生（Python / Go）', '前端开发实习生', '算法实习生（机器学习）', 'AI 应用开发实习生（大模型）', '测试开发实习生', '数据分析实习生', '内容运营实习生（新媒体）', '用户运营实习生', '活动运营实习生', '电商运营实习生', '产品运营实习生', '会计实习生', '审计实习生（会计师事务所）', '财务分析实习生', '行业研究实习生（证券）');
 
 SET @raw = '岗位职责：
 1. 参与业务系统的后端开发，负责接口设计、编码实现和单元测试；
@@ -514,3 +549,83 @@ UPDATE jobs SET domain = 'ops', raw_text = @raw, requirements = @reqs, parse_sta
 INSERT INTO jobs (user_id, is_template, title, domain, raw_text, requirements, parse_status)
   SELECT NULL, 1, '产品运营实习生', 'ops', @raw, @reqs, 'success' FROM DUAL
   WHERE NOT EXISTS (SELECT 1 FROM jobs WHERE is_template = 1 AND title = '产品运营实习生');
+
+SET @raw = '岗位职责：
+1. 协助完成日常凭证的审核与录入，以及费用报销的审核；
+2. 参与月末结账，编制银行余额调节表，核对往来账款；
+3. 协助整理财务档案，配合准备纳税申报资料。
+
+任职要求：
+1. 本科及以上学历，会计学、财务管理等相关专业；
+2. 熟悉凭证、总账、应收应付等基础会计业务；
+3. 会用用友或金蝶等财务软件；
+4. 熟练使用 Excel，会用数据透视表和常用函数；
+5. 已取得初级会计证书者优先；
+6. 了解增值税、企业所得税等基本税务知识；
+7. 细心严谨，有责任心，每周可实习 4 天以上。';
+SET @reqs = '[{"id": 1, "req_type": "hard", "category": "education", "content": "本科及以上学历，会计学、财务管理等相关专业", "skill": null, "skill_id": null, "weight": 1.0, "quote": "本科及以上学历，会计学、财务管理等相关专业", "char_start": 97, "char_end": 118}, {"id": 2, "req_type": "hard", "category": "skill", "content": "熟悉凭证等基础会计业务", "skill": "凭证", "skill_id": null, "weight": 1.0, "quote": "熟悉凭证、总账、应收应付等基础会计业务", "char_start": 123, "char_end": 142}, {"id": 3, "req_type": "hard", "category": "skill", "content": "熟悉总账等基础会计业务", "skill": "总账", "skill_id": 216, "weight": 1.0, "quote": "熟悉凭证、总账、应收应付等基础会计业务", "char_start": 123, "char_end": 142}, {"id": 4, "req_type": "hard", "category": "skill", "content": "熟悉应收应付等基础会计业务", "skill": "应收应付", "skill_id": 217, "weight": 1.0, "quote": "熟悉凭证、总账、应收应付等基础会计业务", "char_start": 123, "char_end": 142}, {"id": 5, "req_type": "hard", "category": "skill", "content": "会用用友或金蝶等财务软件", "skill": null, "skill_id": null, "weight": 1.0, "quote": "会用用友或金蝶等财务软件", "char_start": 147, "char_end": 159}, {"id": 6, "req_type": "hard", "category": "skill", "content": "熟练使用 Excel", "skill": "Excel", "skill_id": 156, "weight": 1.0, "quote": "熟练使用 Excel，会用数据透视表和常用函数", "char_start": 164, "char_end": 187}, {"id": 7, "req_type": "hard", "category": "skill", "content": "会用常用函数", "skill": "常用函数", "skill_id": null, "weight": 1.0, "quote": "熟练使用 Excel，会用数据透视表和常用函数", "char_start": 164, "char_end": 187}, {"id": 8, "req_type": "plus", "category": "other", "content": "已取得初级会计证书", "skill": null, "skill_id": null, "weight": 0.5, "quote": "已取得初级会计证书者优先", "char_start": 192, "char_end": 204}, {"id": 9, "req_type": "hard", "category": "skill", "content": "了解增值税等基本税务知识", "skill": "增值税", "skill_id": null, "weight": 1.0, "quote": "了解增值税、企业所得税等基本税务知识", "char_start": 209, "char_end": 227}, {"id": 10, "req_type": "hard", "category": "skill", "content": "了解企业所得税等基本税务知识", "skill": "企业所得税", "skill_id": null, "weight": 1.0, "quote": "了解增值税、企业所得税等基本税务知识", "char_start": 209, "char_end": 227}, {"id": 11, "req_type": "soft", "category": "other", "content": "细心严谨，有责任心", "skill": null, "skill_id": null, "weight": 0.3, "quote": "细心严谨，有责任心", "char_start": 232, "char_end": 241}, {"id": 12, "req_type": "hard", "category": "experience", "content": "每周可实习 4 天以上", "skill": null, "skill_id": null, "weight": 1.0, "quote": "每周可实习 4 天以上", "char_start": 242, "char_end": 253}]';
+UPDATE jobs SET domain = 'finance', raw_text = @raw, requirements = @reqs, parse_status = 'success', is_deleted = 0
+  WHERE is_template = 1 AND title = '会计实习生';
+INSERT INTO jobs (user_id, is_template, title, domain, raw_text, requirements, parse_status)
+  SELECT NULL, 1, '会计实习生', 'finance', @raw, @reqs, 'success' FROM DUAL
+  WHERE NOT EXISTS (SELECT 1 FROM jobs WHERE is_template = 1 AND title = '会计实习生');
+
+SET @raw = '岗位职责：
+1. 参与年报审计和专项审计项目，执行函证、存货监盘、凭证抽查等审计程序；
+2. 编制审计底稿，整理客户提供的财务资料；
+3. 配合项目经理完成审计报告的数据核对。
+
+任职要求：
+1. 本科及以上学历，会计学、审计学、财务管理等相关专业；
+2. 了解审计基本流程，熟悉企业会计准则；
+3. 有函证、监盘或审计底稿编制经历者优先；
+4. 熟练使用 Excel 处理和核对数据；
+5. 正在备考 CPA 或已通过部分科目者优先；
+6. 能适应出差和项目期间的加班；
+7. 细心，有责任心，沟通能力好。';
+SET @reqs = '[{"id": 1, "req_type": "hard", "category": "education", "content": "本科及以上学历，会计学、审计学、财务管理等相关专业", "skill": null, "skill_id": null, "weight": 1.0, "quote": "本科及以上学历，会计学、审计学、财务管理等相关专业", "char_start": 99, "char_end": 124}, {"id": 2, "req_type": "hard", "category": "skill", "content": "了解审计基本流程", "skill": "审计基本流程", "skill_id": null, "weight": 1.0, "quote": "了解审计基本流程，熟悉企业会计准则", "char_start": 129, "char_end": 146}, {"id": 3, "req_type": "hard", "category": "skill", "content": "熟悉企业会计准则", "skill": "企业会计准则", "skill_id": 232, "weight": 1.0, "quote": "了解审计基本流程，熟悉企业会计准则", "char_start": 129, "char_end": 146}, {"id": 4, "req_type": "plus", "category": "experience", "content": "有函证、监盘或审计底稿编制经历", "skill": null, "skill_id": null, "weight": 0.5, "quote": "有函证、监盘或审计底稿编制经历者优先", "char_start": 151, "char_end": 169}, {"id": 5, "req_type": "hard", "category": "skill", "content": "熟练使用 Excel 处理和核对数据", "skill": "Excel", "skill_id": 156, "weight": 1.0, "quote": "熟练使用 Excel 处理和核对数据", "char_start": 174, "char_end": 192}, {"id": 6, "req_type": "plus", "category": "other", "content": "正在备考 CPA 或已通过部分科目", "skill": null, "skill_id": null, "weight": 0.5, "quote": "正在备考 CPA 或已通过部分科目者优先", "char_start": 197, "char_end": 217}, {"id": 7, "req_type": "hard", "category": "other", "content": "能适应出差和项目期间的加班", "skill": null, "skill_id": null, "weight": 1.0, "quote": "能适应出差和项目期间的加班", "char_start": 222, "char_end": 235}, {"id": 8, "req_type": "soft", "category": "other", "content": "细心", "skill": null, "skill_id": null, "weight": 0.3, "quote": "细心，有责任心，沟通能力好", "char_start": 240, "char_end": 253}]';
+UPDATE jobs SET domain = 'finance', raw_text = @raw, requirements = @reqs, parse_status = 'success', is_deleted = 0
+  WHERE is_template = 1 AND title = '审计实习生（会计师事务所）';
+INSERT INTO jobs (user_id, is_template, title, domain, raw_text, requirements, parse_status)
+  SELECT NULL, 1, '审计实习生（会计师事务所）', 'finance', @raw, @reqs, 'success' FROM DUAL
+  WHERE NOT EXISTS (SELECT 1 FROM jobs WHERE is_template = 1 AND title = '审计实习生（会计师事务所）');
+
+SET @raw = '岗位职责：
+1. 协助编制月度经营分析报告，跟踪收入、成本和费用的变化；
+2. 参与年度预算的编制，跟踪预算执行并分析差异；
+3. 搭建和维护经营数据看板，为管理层提供数据支持。
+
+任职要求：
+1. 本科及以上学历，财务管理、会计学、金融学等相关专业；
+2. 能读懂三张报表，会做财务比率分析和杜邦分析；
+3. 有预算编制或预算差异分析经历者优先；
+4. 熟练使用 Excel，会做数据透视表和财务模型；
+5. 会用 Power BI 或 SQL 者优先；
+6. 逻辑清晰，能把分析结论讲清楚；
+7. 对数字敏感，学习能力强。';
+SET @reqs = '[{"id": 1, "req_type": "hard", "category": "education", "content": "本科及以上学历，财务管理、会计学、金融学等相关专业", "skill": null, "skill_id": null, "weight": 1.0, "quote": "本科及以上学历，财务管理、会计学、金融学等相关专业", "char_start": 100, "char_end": 125}, {"id": 2, "req_type": "hard", "category": "skill", "content": "能读懂三张报表", "skill": "三张报表", "skill_id": null, "weight": 1.0, "quote": "能读懂三张报表", "char_start": 130, "char_end": 137}, {"id": 3, "req_type": "hard", "category": "skill", "content": "会做财务比率分析", "skill": "财务比率分析", "skill_id": 239, "weight": 1.0, "quote": "会做财务比率分析和杜邦分析", "char_start": 138, "char_end": 151}, {"id": 4, "req_type": "hard", "category": "skill", "content": "会做杜邦分析", "skill": "杜邦分析", "skill_id": 228, "weight": 1.0, "quote": "会做财务比率分析和杜邦分析", "char_start": 138, "char_end": 151}, {"id": 5, "req_type": "plus", "category": "experience", "content": "有预算编制或预算差异分析经历", "skill": null, "skill_id": null, "weight": 0.5, "quote": "有预算编制或预算差异分析经历者优先", "char_start": 156, "char_end": 173}, {"id": 6, "req_type": "hard", "category": "skill", "content": "熟练使用 Excel", "skill": "Excel", "skill_id": 156, "weight": 1.0, "quote": "熟练使用 Excel", "char_start": 178, "char_end": 188}, {"id": 7, "req_type": "hard", "category": "skill", "content": "会做财务模型", "skill": "财务模型", "skill_id": 229, "weight": 1.0, "quote": "会做数据透视表和财务模型", "char_start": 189, "char_end": 201}, {"id": 8, "req_type": "plus", "category": "skill", "content": "会用 Power BI 或 SQL", "skill": null, "skill_id": null, "weight": 0.5, "quote": "会用 Power BI 或 SQL 者优先", "char_start": 206, "char_end": 227}, {"id": 9, "req_type": "soft", "category": "other", "content": "逻辑清晰，能把分析结论讲清楚", "skill": null, "skill_id": null, "weight": 0.3, "quote": "逻辑清晰，能把分析结论讲清楚", "char_start": 232, "char_end": 246}, {"id": 10, "req_type": "soft", "category": "other", "content": "对数字敏感，学习能力强", "skill": null, "skill_id": null, "weight": 0.3, "quote": "对数字敏感，学习能力强", "char_start": 251, "char_end": 262}]';
+UPDATE jobs SET domain = 'finance', raw_text = @raw, requirements = @reqs, parse_status = 'success', is_deleted = 0
+  WHERE is_template = 1 AND title = '财务分析实习生';
+INSERT INTO jobs (user_id, is_template, title, domain, raw_text, requirements, parse_status)
+  SELECT NULL, 1, '财务分析实习生', 'finance', @raw, @reqs, 'success' FROM DUAL
+  WHERE NOT EXISTS (SELECT 1 FROM jobs WHERE is_template = 1 AND title = '财务分析实习生');
+
+SET @raw = '岗位职责：
+1. 跟踪所覆盖行业和上市公司的动态，整理财报和行业数据；
+2. 协助研究员搭建财务模型，完成公司估值；
+3. 参与撰写行业周报、公司点评等研究报告。
+
+任职要求：
+1. 本科及以上学历，金融学、经济学、会计学等相关专业，硕士优先；
+2. 会用 Wind 等金融终端查找和整理数据；
+3. 能搭建三张表联动的财务模型，掌握 DCF 估值和可比公司估值方法；
+4. 有研究报告撰写经历，文字表达好；
+5. 熟练使用 Excel，会 Python 者优先；
+6. 正在备考 CFA 或已通过一级者优先；
+7. 每周可实习 4 天以上，能保证 3 个月以上的实习期。';
+SET @reqs = '[{"id": 1, "req_type": "hard", "category": "education", "content": "本科及以上学历，金融学、经济学、会计学等相关专业", "skill": null, "skill_id": null, "weight": 1.0, "quote": "本科及以上学历，金融学、经济学、会计学等相关专业", "char_start": 92, "char_end": 116}, {"id": 2, "req_type": "plus", "category": "education", "content": "硕士学历优先", "skill": null, "skill_id": null, "weight": 0.5, "quote": "硕士优先", "char_start": 117, "char_end": 121}, {"id": 3, "req_type": "hard", "category": "skill", "content": "会用 Wind 等金融终端查找和整理数据", "skill": "Wind", "skill_id": 210, "weight": 1.0, "quote": "会用 Wind 等金融终端查找和整理数据", "char_start": 126, "char_end": 146}, {"id": 4, "req_type": "hard", "category": "skill", "content": "能搭建三张表联动的财务模型", "skill": "财务模型", "skill_id": 229, "weight": 1.0, "quote": "能搭建三张表联动的财务模型", "char_start": 151, "char_end": 164}, {"id": 5, "req_type": "hard", "category": "skill", "content": "掌握 DCF 估值方法", "skill": "DCF 估值", "skill_id": 230, "weight": 1.0, "quote": "掌握 DCF 估值和可比公司估值方法", "char_start": 165, "char_end": 183}, {"id": 6, "req_type": "hard", "category": "skill", "content": "掌握可比公司估值方法", "skill": "可比公司估值", "skill_id": 231, "weight": 1.0, "quote": "掌握 DCF 估值和可比公司估值方法", "char_start": 165, "char_end": 183}, {"id": 7, "req_type": "hard", "category": "experience", "content": "有研究报告撰写经历", "skill": null, "skill_id": null, "weight": 1.0, "quote": "有研究报告撰写经历", "char_start": 188, "char_end": 197}, {"id": 8, "req_type": "soft", "category": "other", "content": "文字表达好", "skill": null, "skill_id": null, "weight": 0.3, "quote": "文字表达好", "char_start": 198, "char_end": 203}, {"id": 9, "req_type": "hard", "category": "skill", "content": "熟练使用 Excel", "skill": "Excel", "skill_id": 156, "weight": 1.0, "quote": "熟练使用 Excel", "char_start": 208, "char_end": 218}, {"id": 10, "req_type": "plus", "category": "skill", "content": "会 Python", "skill": "Python", "skill_id": 2, "weight": 0.5, "quote": "会 Python 者优先", "char_start": 219, "char_end": 231}, {"id": 11, "req_type": "plus", "category": "other", "content": "正在备考 CFA 或已通过一级", "skill": null, "skill_id": null, "weight": 0.5, "quote": "正在备考 CFA 或已通过一级者优先", "char_start": 236, "char_end": 254}, {"id": 12, "req_type": "hard", "category": "experience", "content": "每周可实习 4 天以上，能保证 3 个月以上的实习期", "skill": null, "skill_id": null, "weight": 1.0, "quote": "每周可实习 4 天以上，能保证 3 个月以上的实习期", "char_start": 259, "char_end": 285}]';
+UPDATE jobs SET domain = 'finance', raw_text = @raw, requirements = @reqs, parse_status = 'success', is_deleted = 0
+  WHERE is_template = 1 AND title = '行业研究实习生（证券）';
+INSERT INTO jobs (user_id, is_template, title, domain, raw_text, requirements, parse_status)
+  SELECT NULL, 1, '行业研究实习生（证券）', 'finance', @raw, @reqs, 'success' FROM DUAL
+  WHERE NOT EXISTS (SELECT 1 FROM jobs WHERE is_template = 1 AND title = '行业研究实习生（证券）');

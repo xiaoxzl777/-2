@@ -69,7 +69,7 @@ DOCX         → 只收 PDF，上传 .docx 直接 41501
 
 | 编号 | 需求 | 说明 | 优先级 |
 |---|---|---|---|
-| FR-E1 | 求职方向 | 工作台第一步选方向（计算机 / 运营），存在岗位上（`jobs.domain`）；JD 解析、诊断、匹配、具体建议、面试都按岗位的方向取提示词与规则（领域包，04-design 4.16）；简历解析不分方向 | P1 |
+| FR-E1 | 求职方向 | 工作台第一步选方向（计算机 / 运营 / 财会金融），存在岗位上（`jobs.domain`）；JD 解析、诊断、匹配、具体建议、面试都按岗位的方向取提示词与规则（领域包，04-design 4.16）；简历解析不分方向 | P1 |
 | FR-E2 | JD 录入 | 粘贴原文（可填公司名）→ LLM 拆成 必须 / 加分 / 软素质 要求项；每条带 JD 原话，经 `locate_span` 定位，定位不到的丢弃；技能类回填 `skill_id` | P0 |
 | FR-E3 | 内置岗位模板 | 没有具体 JD 时选通用岗位：手写 9 份实习岗模板（计算机 7、运营 2），按方向列出，以 `jobs.is_template=1` 存 | P1 |
 | FR-E4 | **一键投递** | `POST /apply {resume_id, job_id}`：后台跑图 A（简历还没解析完就先等 → 诊断与匹配并行 → 初筛），SSE 推进度；诊断由此自动触发并带上岗位名 | P0 |
@@ -109,7 +109,7 @@ DOCX         → 只收 PDF，上传 .docx 直接 41501
 | FR-H1 | 对话模型可插拔：`llm/registry.py` 的注册表（目前只登记了 deepseek-chat）；向量 / 重排只是 config 里的模型名（`EMBEDDING_MODEL` / `RERANKER_MODEL`） | P0 |
 | FR-H2 | Prompt 版本化常量，落库 `prompt_version` | P0 |
 | FR-H3 | 调用审计：对话（`llm/client.py`）与向量 / 重排（`llm/embedding.py`）每次调用落库 `llm_calls`，缓存命中也记一行 | P1 |
-| FR-H4 | 评测 CLI：`gen_eval_set.py`（`--domain cs / ops` 生成计算机 / 运营评测集）；`run_eval.py`（`--task diagnose / match / interview`，`--set` 选评测集或题库，`--domain` 选领域包，`--repeat N`，绕过缓存）；面试评分题库 `interview_answers.py`（计算机）/ `interview_answers_ops.py`（运营） | P1 |
+| FR-H4 | 评测 CLI：`gen_eval_set.py`（`--domain cs / ops / finance` 生成计算机 / 运营 / 财会评测集）；`run_eval.py`（`--task diagnose / match / interview`，`--set` 选评测集或题库，`--domain` 选领域包，`--repeat N`，绕过缓存）；面试评分题库 `interview_answers.py`（计算机）/ `interview_answers_ops.py`（运营） | P1 |
 | FR-H5 | 数据种子：`scripts/dump_seed.py` 由 `data/skills_seed.csv`（技能词典）和 `data/job_templates.json`（岗位模板）生成 `backend/sql/seed.sql`（可重复执行；模板按标题更新）。`job_templates.json` 由 `scripts/build_job_templates.py` 解析 `data/job_templates/<方向>/*.txt`（`cs/`、`ops/`）生成 | P1 |
 
 ## 1.4 非功能需求

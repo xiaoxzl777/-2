@@ -12,8 +12,6 @@ from app.models import Job
 from tests.conftest import apply as _apply, jd_item, jd_reply
 from tests.prompt_cases import SNAPSHOT, render_all
 
-OPS = DOMAINS["ops"]
-
 
 def test_cs_prompts_are_byte_identical_to_before():
     """快照是改造前按同样的输入拍的。逐字一样，提示词版本号就不用升，缓存和 M8 的评测结果都还对得上。
@@ -23,12 +21,16 @@ def test_cs_prompts_are_byte_identical_to_before():
     assert render_all(DOMAINS["cs"]) == snapshot          # 明确传计算机
 
 
-def test_switching_direction_changes_every_prompt_and_leaves_no_marks():
-    snapshot, ops = json.loads(SNAPSHOT.read_text(encoding="utf-8")), render_all(OPS)
-    assert [k for k in snapshot if ops[k] == snapshot[k]] == []
-    assert not any("[[" in m[1] for msgs in ops.values() for m in msgs)
-    assert "运营岗位招聘官" in ops["diagnose"][0][1] and "专业技能与工具" in ops["jd_parse"][0][1]
-    assert "专业上说得对不对" in ops["interview_eval"][0][1] and "运营面试官" in ops["interview_ask"][0][1]
+@pytest.mark.parametrize("key, recruiter, skill_kind, interviewer", [
+    ("ops", "运营岗位招聘官", "专业技能与工具", "运营面试官"),
+    ("finance", "财会岗位招聘官", "专业技能与软件", "财会面试官"),
+])
+def test_switching_direction_changes_every_prompt_and_leaves_no_marks(key, recruiter, skill_kind, interviewer):
+    snapshot, other = json.loads(SNAPSHOT.read_text(encoding="utf-8")), render_all(DOMAINS[key])
+    assert [k for k in snapshot if other[k] == snapshot[k]] == []
+    assert not any("[[" in m[1] for msgs in other.values() for m in msgs)
+    assert recruiter in other["diagnose"][0][1] and skill_kind in other["jd_parse"][0][1]
+    assert "专业上说得对不对" in other["interview_eval"][0][1] and interviewer in other["interview_ask"][0][1]
 
 
 def test_no_escaped_braces_reach_the_model():
@@ -72,10 +74,11 @@ def test_interview_opening_line_follows_the_direction():
 
 def test_domains_endpoint_lists_the_dropdown(client):
     data = client.get("/api/v1/domains").json()["data"]               # 不用登录
-    assert [d["key"] for d in data] == list(DOMAINS) == ["cs", "ops"]
-    cs, ops = data
+    assert [d["key"] for d in data] == list(DOMAINS) == ["cs", "ops", "finance"]
+    cs, ops, finance = data
     assert (cs["name"], cs["interview_label"], cs["interviewer"]) == ("计算机", "技术面", "技术面试官")
     assert (ops["name"], ops["interview_label"], ops["interviewer"]) == ("运营", "运营面", "运营面试官")
+    assert (finance["name"], finance["interview_label"], finance["interviewer"]) == ("财会金融", "专业面", "财会面试官")
     assert all(d["sample_jd"]["title"] and len(d["sample_jd"]["text"]) >= 30 for d in data)
 
 

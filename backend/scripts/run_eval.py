@@ -1,7 +1,7 @@
 """诊断 / 匹配 / 面试评分评测：python scripts/run_eval.py [--task diagnose|match|interview] [--modes ...] [--repeat 1] [--limit N]
-                                                    [--set cs|ops] [--domain cs|ops]
+                                                    [--set cs|ops|finance] [--domain cs|ops|finance]
 （先跑 scripts/gen_eval_set.py 生成评测集；需要本机 MySQL、Redis 和 .env 里的 DeepSeek key）
---set 选评测集（计算机 / 运营的虚构简历），--domain 选诊断、匹配、面试评分用哪个方向的领域包（默认和评测集同一个方向）。
+--set 选评测集（计算机 / 运营 / 财会的虚构简历；财会没有面试评分题库），--domain 选诊断、匹配、面试评分用哪个方向的领域包（默认和评测集同一个方向）。
 同一份运营评测集分别用运营、计算机的领域包跑，就能看出领域包有没有用。
 
 流程：每份 PDF 先走一遍和线上一样的解析（走缓存：解析不是被测对象）；再按"模式 × 重复次数"在评测批次号下跑诊断 / 匹配图
@@ -348,6 +348,8 @@ def report_interview(s: dict) -> None:
 
 def run_interview(args, stamp: str) -> tuple[dict, dict]:
     llm = get_llm_client()
+    if args.set not in ANSWER_SETS:
+        raise SystemExit(f"{args.set} 方向没有面试评分的题库（财会方向只评了诊断和匹配）")
     answers, domain = ANSWER_SETS[args.set], DOMAINS[args.domain or args.set]
     questions = answers.QUESTIONS[:args.limit] if args.limit else answers.QUESTIONS
     runs = []
@@ -376,7 +378,7 @@ def main() -> None:
                         help="默认：diagnose 跑 rule_only / llm_only / hybrid，match 跑 dict_only / llm_fulltext / hybrid")
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--limit", type=int, default=None, help="只跑前 N 份底稿（interview：前 N 道题），试跑用")
-    parser.add_argument("--set", choices=list(POOLS), default="cs", help="评测集：计算机 / 运营的虚构简历（interview：题库）")
+    parser.add_argument("--set", choices=list(POOLS), default="cs", help="评测集：计算机 / 运营 / 财会的虚构简历（interview：题库，只有计算机、运营）")
     parser.add_argument("--domain", choices=list(DOMAINS), default=None, help="诊断、匹配、面试评分用哪个方向的领域包，默认同 --set")
     args = parser.parse_args()
     domain = args.domain or args.set

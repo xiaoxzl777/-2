@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
-from app.domains import cs, ops
+from app.domains import cs, finance, ops
 
 _MARK = re.compile(r"\[\[(\w+)\]\]")
 
@@ -40,7 +40,7 @@ def _load(module) -> Domain:
                   result_words=tuple(module.RESULT_WORDS))
 
 
-DOMAINS: dict[str, Domain] = {d.key: d for d in map(_load, (cs, ops))}   # 顺序就是下拉框里的顺序
+DOMAINS: dict[str, Domain] = {d.key: d for d in map(_load, (cs, ops, finance))}   # 顺序就是下拉框里的顺序
 DEFAULT = DOMAINS[cs.KEY]
 
 

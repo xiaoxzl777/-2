@@ -130,9 +130,9 @@ def test_match_requirements_follow_the_resume_content(key):
         assert {r["expect"] for r in reqs} == {"hit", "partial", "miss"}
 
 
-@POOL_KEYS
+@pytest.mark.parametrize("key", list(ANSWER_SETS))
 def test_interview_answers_are_built_as_designed(key):
-    """面试评分的 12 题（计算机、运营各一套）：每个项目 2 题；"具体"档带着简历那条描述的结果数字；
+    """面试评分的 12 题（计算机、运营各一套；财会没做面试评测）：每个项目 2 题；"具体"档带着简历那条描述的结果数字；
     "答错"和"具体"篇幅相近，"空泛"明显短。"""
     bullets = {name: [b for b, _ in items] for name, _, items in POOLS[key].projects}
     questions = ANSWER_SETS[key].QUESTIONS

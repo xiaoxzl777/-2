@@ -1,7 +1,7 @@
-"""生成诊断评测集（程序化降质）：python scripts/gen_eval_set.py [--domain cs|ops]
+"""生成诊断评测集（程序化降质）：python scripts/gen_eval_set.py [--domain cs|ops|finance]
 
-计算机方向 20 份虚构的"干净"底稿（运营方向 10 份，素材见 eval_set_ops.py），每份出 3 个版本，写进
-data/eval_set/（运营：data/eval_set_ops/；都不进仓库，随时可以重新生成）：
+计算机方向 20 份虚构的"干净"底稿（运营、财会方向各 10 份，素材见 eval_set_ops.py、eval_set_finance.py），每份出 3 个版本，写进
+data/eval_set/（运营：data/eval_set_ops/，财会：data/eval_set_finance/；都不进仓库，随时可以重新生成）：
   clean     干净底稿
   rule      规则类降质 4 处：删量化数字 / 「协助」弱动词 / 技能栏多写一个经历里没用过的技能 / 两段实习之间造 7 个月空窗
   semantic  语义类注入 3 处（接在某条描述后面）：夸大 / 前后矛盾 / 职责不清——只有模型通道能检出
@@ -27,6 +27,7 @@ BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
 
 from app.config import settings  # noqa: E402
+from scripts import eval_set_finance as fin  # noqa: E402
 from scripts import eval_set_ops as ops  # noqa: E402
 from scripts.eval_layout import squash  # noqa: E402
 from scripts.gen_layout_set import (CITIES, COMPANIES, GIVEN, SCHOOLS, SURNAMES, Content, Entry, H,  # noqa: E402
@@ -122,7 +123,7 @@ PROJECT_REQUIREMENTS = {
 
 @dataclass(frozen=True)
 class Pool:
-    """一个求职方向的底稿素材。两个方向的底稿结构、缺陷位置完全一样，只是内容不同。"""
+    """一个求职方向的底稿素材。各方向的底稿结构、缺陷位置完全一样，只是内容不同。"""
     key: str
     n_bases: int
     out_dir: Path
@@ -150,7 +151,10 @@ CS = Pool("cs", N_BASES, OUT_DIR, INTERNSHIPS, COMPANIES, PROJECTS, UNUSED_SKILL
 OPS = Pool("ops", 10, settings.DATA_DIR / "eval_set_ops", ops.INTERNSHIPS, ops.COMPANIES, ops.PROJECTS, ops.UNUSED,
            ops.EXAGGERATION, ops.INCOHERENT, ops.UNCLEAR, ops.SUMMARIES, "运营实习", ops.MAJORS, ops.AWARDS,
            "工具", "运营工具", ops.ALTERNATIVES, ops.ALTERNATIVE_TEXT, ops.PROJECT_REQUIREMENTS)
-POOLS = {p.key: p for p in (CS, OPS)}
+FINANCE = Pool("finance", 10, settings.DATA_DIR / "eval_set_finance", fin.INTERNSHIPS, fin.COMPANIES, fin.PROJECTS, fin.UNUSED,
+               fin.EXAGGERATION, fin.INCOHERENT, fin.UNCLEAR, fin.SUMMARIES, "财务实习", fin.MAJORS, fin.AWARDS,
+               "工具与方法", "财务技能", fin.ALTERNATIVES, fin.ALTERNATIVE_TEXT, fin.PROJECT_REQUIREMENTS)
+POOLS = {p.key: p for p in (CS, OPS, FINANCE)}
 
 
 def make_base(rng: random.Random, index: int, pool: Pool = CS) -> dict:

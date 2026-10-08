@@ -205,3 +205,38 @@ Axure,ops,Axure RP
 埋点,ops,埋点分析|数据埋点
 用户调研,ops,用户访谈|问卷调研
 企业微信,ops,企微|WeCom
+用友,finance,用友U8|用友NC|用友T3
+金蝶,finance,金蝶K3|金蝶云|金蝶云星空|金蝶KIS
+SAP,finance,SAP ERP|SAP FICO
+Wind,finance,万得|Wind金融终端
+iFinD,finance,同花顺iFinD
+Bloomberg,finance,彭博|彭博终端
+Power BI,data,PowerBI
+Tableau,data,
+VBA,tool,Excel VBA
+总账,finance,总账核算|总账管理
+应收应付,finance,应收账款|应付账款|往来账
+成本核算,finance,成本会计
+合并报表,finance,合并财务报表
+纳税申报,finance,报税|税务申报
+税务筹划,finance,纳税筹划|税收筹划
+审计底稿,finance,底稿编制
+函证,finance,询证函
+盘点,finance,存货监盘|监盘
+内部控制,finance,内控|内控测试
+预算管理,finance,全面预算|预算编制
+财务报表分析,finance,财报分析|报表分析
+杜邦分析,finance,杜邦分析法
+财务建模,finance,财务模型|三张表模型
+DCF 估值,finance,DCF|现金流折现
+可比公司估值,finance,可比公司法|相对估值
+企业会计准则,finance,会计准则
+IFRS,finance,国际财务报告准则
+银行对账,finance,银行余额调节表
+固定资产管理,finance,固定资产
+资金管理,finance,现金管理
+账龄分析,finance,
+差异分析,finance,预算差异分析
+财务比率分析,finance,比率分析
+行业研究,finance,行研
+研报撰写,finance,研究报告|研报
