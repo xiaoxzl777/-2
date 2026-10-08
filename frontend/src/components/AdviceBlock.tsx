@@ -14,8 +14,8 @@ export type AdviceSource = {
 
 const SECTION = /【(问题|改成|为什么|考察什么|怎么补|面试怎么答)】/g
 
-/** 按【段标题】切开；模型没按格式输出时整段作为一段 */
-function sections(text: string): [string, string][] {
+/** 按【段标题】切开；模型没按格式输出时整段作为一段（诊断报告也用） */
+export function sections(text: string): [string, string][] {
   const parts = text.split(SECTION)
   if (parts.length === 1) return text.trim() ? [['', text.trim()]] : []
   const out: [string, string][] = []
@@ -24,7 +24,7 @@ function sections(text: string): [string, string][] {
 }
 
 /** 最外层的【…】包成占位高亮（可以嵌套）；还没写完的半个占位先按普通文字显示 */
-function withPlaceholders(s: string): ReactNode[] {
+export function withPlaceholders(s: string): ReactNode[] {
   const out: ReactNode[] = []
   let buf = ''
   let depth = 0

@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>诊断报告预览 · 求职辅助</title>
+<style>
+  /* 打印页不跟配色走：导出的 PDF 要在哪都一样，黑白打印也分得清（问题 = 实线下划线，部分满足 = 虚线下划线） */
+  :root {
+    --ink: #1a1a1a; --ink-2: #4d4d4d; --ink-3: #666; --line: #d9d9d9; --soft: #f4f4f4;
+    --bad: #b3261e; --part: #8c5200; --screen: #e8e6e2;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; background: var(--screen); color: var(--ink);
+    font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif; font-size: 13px; line-height: 1.7; }
+
+  /* ── 屏幕上的操作条（打印时不出现） ── */
+  .bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+    background: #fff; box-shadow: 0 1px 0 var(--line); }
+  .bar .back { padding: 6px 14px; border: 1.5px solid var(--ink); border-radius: 999px; background: #fff; color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+  .bar .print { margin-left: auto; padding: 6px 12px; border: none; border-radius: 999px; background: none; color: var(--ink-2); font: inherit; font-size: 12px; cursor: pointer; }
+  .bar .print:hover { text-decoration: underline; }
+  .bar .dl { margin-left: auto; padding: 8px 18px; border: none; border-radius: 999px; background: #0a66c2; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+  .bar .dl:disabled { opacity: .6; cursor: default; }
+  .bar .tip { font-size: 12px; color: var(--ink-3); }
+
+  /* ── 纸面：屏幕上像一张 A4，打印时就是页面本身 ── */
+  .sheet { width: 210mm; max-width: calc(100% - 32px); margin: 24px auto 48px; padding: 16mm 16mm 14mm; background: #fff;
+    box-shadow: 0 2px 16px rgba(0,0,0,.12); }
+
+  /* 页头 */
+  .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding-bottom: 10px; border-bottom: 2px solid var(--ink); }
+  .head h1 { margin: 0; font-size: 22px; letter-spacing: 1px; }
+  .head .by { font-size: 11px; color: var(--ink-3); text-align: right; }
+  .meta { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 2px 12px; margin: 12px 0 14px; font-size: 12.5px; }
+  .meta dt { color: var(--ink-3); }
+  .meta dd { margin: 0; font-weight: 600; }
+
+  .verdict { display: grid; grid-template-columns: 1.3fr 2fr; gap: 12px; margin-bottom: 14px; }
+  .verdict .v { padding: 10px 14px; border: 1.5px solid var(--ink); border-radius: 8px; }
+  .verdict .v b { display: block; font-size: 16px; }
+  .verdict .v span { font-size: 12px; color: var(--ink-2); }
+  .scores { display: grid; grid-template-columns: repeat(5, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .scores div { padding: 8px 6px; text-align: center; border-left: 1px solid var(--line); }
+  .scores div:first-child { border-left: none; background: var(--soft); }
+  .scores b { display: block; font-size: 18px; line-height: 1.3; }
+  .scores span { font-size: 11px; color: var(--ink-3); }
+
+  .howto { margin: 0 0 16px; padding: 8px 14px; border-radius: 8px; background: var(--soft); font-size: 12px; color: var(--ink-2); }
+  .howto p { margin: 0; }
+  .key { display: inline-block; margin: 0 2px; padding: 0 3px; }
+  .key.bad { border-bottom: 2px solid var(--bad); }
+  .key.part { border-bottom: 2px dashed var(--part); }
+
+  h2 { display: flex; align-items: baseline; gap: 10px; margin: 18px 0 8px; font-size: 15px; break-after: avoid; }
+  h2 small { font-size: 12px; font-weight: 400; color: var(--ink-3); }
+
+  /* 标注版原文 */
+  .paper { padding: 10px 16px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; line-height: 1.6; }
+  .paper p { margin: 0; }
+  .paper .name { font-size: 16px; font-weight: 700; }
+  .paper .contact { color: var(--ink-2); }
+  .paper h4 { break-after: avoid; margin: 6px 0 2px; padding-bottom: 2px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+  .paper .entry { font-weight: 700; }
+  .m { padding-bottom: 1px; }
+  .m.bad { border-bottom: 2px solid var(--bad); }
+  .m.part { border-bottom: 2px dashed var(--part); }
+  .no { display: inline-block; min-width: 15px; height: 15px; margin: 0 1px 0 2px; padding: 0 3px; border-radius: 8px; background: var(--ink);
+    color: #fff; font-size: 9.5px; font-weight: 700; line-height: 15px; text-align: center; vertical-align: 2px; }
+
+  /* 问题清单 */
+  .item { display: grid; grid-template-columns: 24px 1fr; gap: 0 8px; padding: 9px 0; border-top: 1px solid var(--line); break-inside: avoid; }
+  .item > .no { margin: 3px 0 0; min-width: 20px; height: 20px; border-radius: 10px; font-size: 11px; line-height: 20px; }
+  .item .t { font-weight: 700; }
+  .tag { display: inline-block; margin-right: 6px; padding: 0 6px; border: 1px solid currentColor; border-radius: 4px; font-size: 11px; font-weight: 600; line-height: 17px; vertical-align: 1px; }
+  .tag.bad { color: var(--bad); }
+  .tag.part { color: var(--part); }
+  .tag.gray { color: var(--ink-3); }
+  .row { display: grid; grid-template-columns: 5.6em 1fr; gap: 8px; margin-top: 3px; font-size: 12px; }
+  .row .k { color: var(--ink-3); }
+  .row .q { padding-left: 8px; border-left: 2px solid var(--line); }
+  .advice { margin-top: 6px; padding: 6px 10px; border: 1px dashed var(--ink-3); border-radius: 6px; }
+  .advice .h { font-size: 11px; font-weight: 700; color: var(--ink-2); }
+  .advice .row { margin-top: 2px; }
+  .advice .rw { font-weight: 700; }
+  .ph { padding: 0 2px; border-bottom: 1.5px dotted var(--ink); }
+  .none { color: var(--ink-3); font-style: italic; }
+
+  .foot { margin-top: 18px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 11px; color: var(--ink-3); }
+
+  .html2pdf__container .sheet { width: auto; max-width: none; margin: 0; padding: 0; box-shadow: none; }
+
+  @media (max-width: 700px) {
+    .sheet { padding: 18px 16px; }
+    .meta { grid-template-columns: auto 1fr; }
+    .verdict { grid-template-columns: 1fr; }
+    .bar .tip { display: none; }
+  }
+
+  /* ── 打印 ── */
+  @page { size: A4; margin: 14mm 14mm 16mm; @bottom-center { content: "第 " counter(page) " 页 / 共 " counter(pages) " 页"; font-size: 9pt; color: #888;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif; } }
+  @media print {
+    body { background: #fff; font-size: 10.5pt; }
+    .bar { display: none; }
+    .sheet { width: auto; max-width: none; margin: 0; padding: 0; box-shadow: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <button class="back" type="button" onclick="history.back()">← 回到结果页</button>
+  <span class="tip">样稿：内容是虚构的示例数据。正式版从结果页的「预览报告」进来，结果页本身不变。</span>
+  <button class="dl" id="dl" type="button" onclick="download()">下载 PDF</button>
+</div>
+
+<main class="sheet">
+  <header class="head">
+    <h1>简历诊断报告</h1>
+    <div class="by">智能求职辅助系统<br>导出于 2026-10-08 14:20</div>
+  </header>
+
+  <dl class="meta">
+    <dt>目标岗位</dt><dd>后端开发实习生（Java）· 计算机方向</dd>
+    <dt>投递时间</dt><dd>2026-10-08 10:07</dd>
+    <dt>使用简历</dt><dd>简历-初版.pdf</dd>
+    <dt>岗位要求</dt><dd>15 条，满足 5 条</dd>
+  </dl>
+
+  <section class="verdict">
+    <div class="v"><b>差一点，这次没过初筛</b><span>匹配度 40，初筛线是 60。先补「对照岗位的差距」里的必须项，涨分最快。</span></div>
+    <div class="scores">
+      <div><b>40</b><span>匹配度</span></div>
+      <div><b>32</b><span>技能</span></div>
+      <div><b>100</b><span>学历</span></div>
+      <div><b>100</b><span>经验</span></div>
+      <div><b>50</b><span>其他</span></div>
+    </div>
+  </section>
+
+  <div class="howto"><p>
+    怎么看：原文里标了编号的句子，对应后面同一个编号的条目。
+    <span class="key bad">实线</span>是简历本身的问题，<span class="key part">虚线</span>是只满足了一部分的岗位要求；
+    没有标在原文里的，是简历里找不到相关内容的要求。【】里的内容请按你的实际情况填写。<br>
+    带「DeepSeek 生成」的是你在网页上点开过、针对那一句生成的建议；没有的，在网页上点开那一条就能生成。
+  </p></div>
+
+  <h2>一、简历原文（带标注）</h2>
+  <div class="paper">
+    <p class="name">徐欣怡</p>
+    <p class="contact">电话：138-0000-1000 | 邮箱：eval00@example.com | 江城</p>
+    <div class="keep">
+    <h4>教育背景</h4>
+    <p class="entry">北岭理工大学 计算机科学与技术 本科 2022.09-2026.06</p>
+    </div>
+    <p>● GPA 3.6/4.0，专业排名前 15%</p>
+    <div class="keep">
+    <h4>实习经历</h4>
+    <p class="entry"><span class="m bad">青木数据 测试开发实习生</span><span class="no">10</span> 2025.03-2025.06</p>
+    </div>
+    <p>● 搭建接口自动化测试流程，版本回归时间从 2 天缩短到半天</p>
+    <p>● 编写接口测试用例 150 余条，核心接口覆盖率提升到 90%</p>
+    <p>● 设计压测方案，定位出 3 个性能瓶颈，下单接口吞吐量提升 40%</p>
+    <p class="entry">云杉信息 数据开发实习生 2024.05-2024.08</p>
+    <p>● 开发每日用户留存报表任务，<span class="m bad">减少了人工整理时间</span><span class="no">7</span></p>
+    <p>● 重构订单数据清洗脚本，处理 30 万条数据的耗时从 40 分钟缩短到 6 分钟</p>
+    <p>● 搭建埋点数据校验流程，异常数据比例从 5% 降低到 0.5%</p>
+    <div class="keep">
+    <h4>项目经历</h4>
+    <p class="entry">秒杀系统 2024.09-2024.12</p>
+    </div>
+    <p>● <span class="m part">技术栈：Spring Boot、Redis、RabbitMQ</span><span class="no">1</span></p>
+    <p>● <span class="m bad">协助实现库存预扣与异步下单</span><span class="no">8</span>，压测下单成功率提升到 99.9%</p>
+    <p>● 设计用户限流与重复下单校验，异常请求拦截率达到 98%</p>
+    <p>● 优化库存扣减脚本，单机吞吐量从 800 提升到 3000 次每秒</p>
+    <p class="entry">课程推荐系统 2024.03-2024.06</p>
+    <p>● 技术栈：Python、Flask、scikit-learn</p>
+    <p>● 实现基于选课记录的协同过滤推荐，推荐点击率提升 15%</p>
+    <p>● 设计离线评估流程，3 种方案的召回率对比时间从 1 天缩短到 1 小时</p>
+    <p>● 开发推荐接口，平均响应时间降低到 80ms</p>
+    <div class="keep">
+    <h4>专业技能</h4>
+    <p>开发：Spring Boot、Redis、RabbitMQ、<span class="m bad">Kubernetes</span><span class="no">9</span></p>
+    </div>
+    <p>其他：Python、Flask、scikit-learn</p>
+    <div class="keep">
+    <h4>获奖情况</h4>
+    <p>2023 年 校级一等奖学金 · 2024 年 蓝桥杯省赛二等奖</p>
+    </div>
+    <div class="keep">
+    <h4>自我评价</h4>
+    <p><span class="m bad">对后端开发有浓厚兴趣，习惯先把问题拆清楚再动手</span><span class="no">11</span>，写代码注重可读性和测试。</p>
+    </div>
+  </div>
+
+  <div class="keep">
+  <h2>二、对照岗位的差距 <small>6 条没满足或只满足一部分 · 重要的在前</small></h2>
+  <div class="item">
+    <span class="no">1</span>
+    <div>
+      <span class="tag part">部分满足</span><span class="tag gray">必须项</span><span class="t">Java 基础扎实</span>
+      <div class="row"><span class="k">简历原文</span><span class="q">技术栈：Spring Boot、Redis、RabbitMQ</span></div>
+      <div class="row"><span class="k">判断</span><span>用了 Spring Boot，说明写过 Java，但没有一处直接体现 Java 本身的掌握程度。</span></div>
+    </div>
+  </div>
+  </div>
+
+  <div class="item">
+    <span class="no">2</span>
+    <div>
+      <span class="tag bad">缺失</span><span class="tag gray">必须项</span><span class="t">用过 MyBatis 或 JPA 等持久层框架</span>
+      <div class="row"><span class="k">简历原文</span><span class="none">没有找到相关内容</span></div>
+      <div class="advice">
+        <div class="h">针对这条要求的建议（DeepSeek 生成）</div>
+        <div class="row"><span class="k">考察什么</span><span>MyBatis / JPA 的映射写法、动态 SQL、#{} 与 ${} 的区别、一级 / 二级缓存、N+1 问题。</span></div>
+        <div class="row"><span class="k">怎么补</span><span>如果你在秒杀系统里用 MyBatis 写过库存和订单的增删改查，就写成「用 MyBatis 映射订单与库存表，编写动态 SQL 支持<span class="ph">【条件】</span>查询」；没做过就花一周给秒杀系统补上，再写进项目。</span></div>
+        <div class="row"><span class="k">面试怎么答</span><span>先讲项目里 Mapper 和映射怎么写，再主动讲 #{} 与 ${} 的区别、N+1 怎么避免。</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="item">
+    <span class="no">3</span>
+    <div>
+      <span class="tag bad">缺失</span><span class="tag gray">必须项</span><span class="t">熟悉 MySQL，了解索引和事务</span>
+      <div class="row"><span class="k">简历原文</span><span class="none">没有找到相关内容</span></div>
+    </div>
+  </div>
+
+  <div class="item">
+    <span class="no">4</span>
+    <div>
+      <span class="tag bad">缺失</span><span class="tag gray">必须项</span><span class="t">会用 Git 协作开发</span>
+      <div class="row"><span class="k">简历原文</span><span class="none">没有找到相关内容</span></div>
+    </div>
+  </div>
+
+  <div class="item">
+    <span class="no">5</span>
+    <div>
+      <span class="tag bad">缺失</span><span class="tag gray">必须项</span><span class="t">能在 Linux 环境下完成日常开发和部署</span>
+      <div class="row"><span class="k">简历原文</span><span class="none">没有找到相关内容</span></div>
+    </div>
+  </div>
+
+  <div class="item">
+    <span class="no">6</span>
+    <div>
+      <span class="tag bad">缺失</span><span class="tag gray">必须项</span><span class="t">数据结构与算法基础扎实</span>
+      <div class="row"><span class="k">简历原文</span><span class="none">没有找到相关内容</span></div>
+    </div>
+  </div>
+
+  <div class="keep">
+  <h2>三、简历本身的问题 <small>5 条 · 严重的在前</small></h2>
+  <div class="item">
+    <span class="no">7</span>
+    <div>
+      <span class="tag bad">高</span><span class="t">成果缺少量化数据</span>
+      <div class="row"><span class="k">原文</span><span class="q">开发每日用户留存报表任务，减少了人工整理时间</span></div>
+      <div class="advice">
+        <div class="h">针对这一句的建议（DeepSeek 生成）</div>
+        <div class="row"><span class="k">问题</span><span>只说「减少了人工整理时间」，没说原来多久、现在多久，看不出这个报表任务省了多少事。</span></div>
+        <div class="row"><span class="k">改成</span><span class="rw">开发每日用户留存报表任务，人工整理时间从<span class="ph">【原耗时】</span>减少到<span class="ph">【现耗时】</span></span></div>
+        <div class="row"><span class="k">为什么</span><span>后端岗看重你写的东西带来了多少效率提升。</span></div>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <div class="item">
+    <span class="no">8</span>
+    <div>
+      <span class="tag part">中</span><span class="t">弱动词，看不出本人的贡献</span>
+      <div class="row"><span class="k">原文</span><span class="q">协助实现库存预扣与异步下单</span></div>
+      <div class="row"><span class="k">问题</span><span>以「协助」开头，面试官看不出库存预扣和异步下单里哪部分是你做的。</span></div>
+      <div class="row"><span class="k">通用建议</span><span>写清楚你自己负责的部分；如果整块是你实现的，直接写「实现」。</span></div>
+    </div>
+  </div>
+
+  <div class="item">
+    <span class="no">9</span>
+    <div>
+      <span class="tag part">中</span><span class="t">技能栏写了，经历里没用过</span>
+      <div class="row"><span class="k">原文</span><span class="q">Kubernetes</span></div>
+      <div class="row"><span class="k">问题</span><span>技能栏写了 Kubernetes，但实习和项目里都没出现过，面试时最容易被追问。</span></div>
+      <div class="row"><span class="k">通用建议</span><span>用过就写进对应的项目经历；只是了解就删掉，或者改成「了解」。</span></div>
+    </div>
+  </div>
+
+  <div class="item">
+    <span class="no">10</span>
+    <div>
+      <span class="tag part">中</span><span class="t">两段实习之间有空窗</span>
+      <div class="row"><span class="k">原文</span><span class="q">青木数据 测试开发实习生</span></div>
+      <div class="row"><span class="k">问题</span><span>上一段实习 2024.08 结束，这一段 2025.03 开始，中间空了 7 个月。</span></div>
+      <div class="row"><span class="k">通用建议</span><span>如果这段时间在做项目、准备考试或上课，补一句说明，免得面试官猜。</span></div>
+    </div>
+  </div>
+
+  <div class="item">
+    <span class="no">11</span>
+    <div>
+      <span class="tag gray">低</span><span class="t">描述模糊</span>
+      <div class="row"><span class="k">原文</span><span class="q">对后端开发有浓厚兴趣，习惯先把问题拆清楚再动手</span></div>
+      <div class="row"><span class="k">问题</span><span>放在谁的简历里都成立，没有落到你做过的具体事情上。</span></div>
+      <div class="row"><span class="k">通用建议</span><span>换成一件能体现这个习惯的具体事，比如某次先拆问题再动手、结果怎样。</span></div>
+    </div>
+  </div>
+
+  <p class="foot">本报告由系统根据简历原文和岗位要求自动生成，仅供修改简历时参考。「DeepSeek 生成」的建议只用了你简历里已有的事实，【】里的数字和做法需要你按实际填写。</p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.14.0/dist/html2pdf.bundle.min.js"></script>
+<script>
+/** 下载 PDF：把纸面按 A4 分页截成图，拼成 PDF 直接下载（不弹打印窗口）。一条问题不拆到两页，标题不和内容分开 */
+async function download() {
+  const btn = document.getElementById('dl')
+  btn.disabled = true
+  btn.textContent = '正在生成…'
+  try {
+    const worker = html2pdf().set({
+      margin: [14, 14, 16, 14],
+      filename: '简历诊断报告-后端开发实习生（Java）-2026-10-08.pdf',
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css'], avoid: ['.keep', '.item', '.verdict', '.howto', '.paper p'] },
+    }).from(document.querySelector('.sheet')).toPdf()
+    const pdf = await worker.get('pdf')
+    const n = pdf.internal.getNumberOfPages()          // 页码用数字，jsPDF 自带字体写不了中文
+    for (let i = 1; i <= n; i++) {
+      pdf.setPage(i); pdf.setFontSize(9); pdf.setTextColor(136)
+      pdf.text(`${i} / ${n}`, 105, 290, { align: 'center' })
+    }
+    await worker.save()
+  } finally {
+    btn.disabled = false
+    btn.textContent = '下载 PDF'
+  }
+}
+</script>
+</body>
+</html>

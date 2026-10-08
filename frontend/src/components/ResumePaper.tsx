@@ -28,11 +28,11 @@ const PRIORITY: Record<Color, number> = { bad: 3, part: 2, good: 1 }
 export const located = (x: SheetItem) => x.start !== null && x.end !== null
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-type Seg = { start: number; end: number; keys: string[]; color: Color | null }
-type Para = { kind: 'h4' | 'name' | 'contact' | 'entry' | 'p'; segs: Seg[] }
+export type Seg = { start: number; end: number; keys: string[]; color: Color | null }
+export type Para = { kind: 'h4' | 'name' | 'contact' | 'entry' | 'p'; segs: Seg[] }
 
-/** 按块排版，每块在所有标注的起止处切开 */
-function layout(doc: SheetDoc, marks: SheetItem[]): Para[] {
+/** 按块排版，每块在所有标注的起止处切开（诊断报告 ApplyReport 也用它排原文） */
+export function layout(doc: SheetDoc, marks: SheetItem[]): Para[] {
   const headings = new Set(doc.sections.filter((s) => s.matched_by !== 'implicit').map((s) => s.block_start))
   const basics = doc.sections.find((s) => s.type === 'basics')
   const entries = new Set(doc.entryBlocks)

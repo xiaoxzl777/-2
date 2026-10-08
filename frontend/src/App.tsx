@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import ApplyReport from './pages/ApplyReport'
 import ApplyResult from './pages/ApplyResult'
 import Home from './pages/Home'
 import Interview from './pages/Interview'
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/app" element={<RequireAuth><Workbench /></RequireAuth>} />
         <Route path="/app/applies" element={<RequireAuth><MyApplies /></RequireAuth>} />
         <Route path="/app/apply/:id" element={<RequireAuth><ApplyResult /></RequireAuth>} />
+        <Route path="/app/apply/:id/report" element={<RequireAuth><ApplyReport /></RequireAuth>} />
         <Route path="/app/apply/:id/interview" element={<RequireAuth><InterviewSetup /></RequireAuth>} />
         <Route path="/app/interview/:id" element={<RequireAuth><Interview /></RequireAuth>} />
         <Route path="/app/interview/:id/report" element={<RequireAuth><InterviewReport /></RequireAuth>} />

@@ -734,6 +734,79 @@ button { cursor: pointer; }
   .rv-score { flex-wrap: wrap; gap: 20px; padding: 20px; }
   .rv-score .dims { min-width: 180px; } /* 再窄就把四项分换到圆环下面 */
 }
+/* 成绩单那排按钮最后的「预览报告」：不显眼的文字链接 */
+.rv-report { align-self: center; padding: 6px 4px; font-size: 14px; font-weight: 600; color: var(--color-accent-ink); text-decoration: none; }
+.rv-report:hover { text-decoration: underline; }
+.rv-report:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 4px; }
+
+/* ── 诊断报告：/app/apply/:id/report，排成 A4、可下载成 PDF。样稿：docs/design/诊断报告导出预览.html。类名都带 rpt- 前缀。
+   纸面用固定的黑白灰、不跟三套配色走（下载的 PDF 在哪打开都一样）；问题 = 实线下划线、部分满足 = 虚线，黑白打印也分得清 ── */
+.rpt { padding: 28px 0 64px; }
+.rpt-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; width: 210mm; max-width: 100%; margin: 0 auto 16px; }
+.rpt-bar .back { margin-bottom: 0; }
+.rpt-bar .btn { margin-left: auto; }
+.rpt-tip { font-size: 13px; color: var(--color-ink-3); }
+.rpt-err { width: 210mm; max-width: 100%; margin: 0 auto 12px; }
+.rpt-msg { width: 210mm; max-width: 100%; margin: 24px auto; font-size: 15px; color: var(--color-ink-2); }
+.rpt-sheet {
+  --r-ink: #1a1a1a; --r-ink-2: #4d4d4d; --r-ink-3: #666; --r-line: #d9d9d9; --r-soft: #f4f4f4; --r-bad: #b3261e; --r-part: #8c5200;
+  width: 210mm; max-width: 100%; margin: 0 auto; padding: 16mm; border-radius: 4px; background: #fff; color: var(--r-ink);
+  box-shadow: 0 2px 18px rgba(0, 0, 0, 0.12); font-size: 13px; line-height: 1.7;
+}
+/* 生成 PDF 时，html2pdf 把纸面复制进自己的容器（宽度 = A4 去掉页边距）：纸面自己的宽度、内边距、阴影都不要 */
+.html2pdf__container .rpt-sheet { width: auto; max-width: none; padding: 0; border-radius: 0; box-shadow: none; }
+.rpt-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding-bottom: 10px; border-bottom: 2px solid var(--r-ink); }
+.rpt-sheet h1, .rpt-sheet h2, .rpt-sheet h4 { font-weight: 700; } /* Tailwind 的基础样式把标题的粗细清掉了 */
+.rpt-head h1 { margin: 0; font-size: 22px; letter-spacing: 1px; }
+.rpt-head .by { font-size: 11px; color: var(--r-ink-3); text-align: right; }
+.rpt-meta { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 12px 0 14px; font-size: 12.5px; }
+.rpt-meta dt { color: var(--r-ink-3); }
+.rpt-meta dd { margin: 0; font-weight: 600; }
+.rpt-verdict { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 2fr); gap: 12px; margin-bottom: 14px; }
+.rpt-verdict .v { padding: 10px 14px; border: 1.5px solid var(--r-ink); border-radius: 8px; }
+.rpt-verdict .v b { display: block; font-size: 16px; }
+.rpt-verdict .v span { font-size: 12px; color: var(--r-ink-2); }
+.rpt-verdict .scores { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--r-line); border-radius: 8px; overflow: hidden; }
+.rpt-verdict .scores div { padding: 8px 6px; text-align: center; border-left: 1px solid var(--r-line); }
+.rpt-verdict .scores div:first-child { border-left: none; background: var(--r-soft); }
+.rpt-verdict .scores b { display: block; font-size: 18px; line-height: 1.3; }
+.rpt-verdict .scores span { font-size: 11px; color: var(--r-ink-3); }
+.rpt-howto { margin-bottom: 16px; padding: 8px 14px; border-radius: 8px; background: var(--r-soft); font-size: 12px; color: var(--r-ink-2); }
+.rpt-howto .key { display: inline-block; margin: 0 2px; padding: 0 3px; }
+.rpt-howto .key.bad, .rpt-m.bad { border-bottom: 2px solid var(--r-bad); }
+.rpt-howto .key.part, .rpt-m.part { border-bottom: 2px dashed var(--r-part); }
+.rpt-sheet h2 { display: flex; align-items: baseline; gap: 10px; margin: 18px 0 8px; font-size: 15px; }
+.rpt-sheet h2 small { font-size: 12px; font-weight: 400; color: var(--r-ink-3); }
+.rpt-paper { padding: 10px 16px; border: 1px solid var(--r-line); border-radius: 8px; font-size: 12px; line-height: 1.6; }
+.rpt-paper p { margin: 0; }
+.rpt-paper .name { font-size: 16px; font-weight: 700; }
+.rpt-paper .contact { color: var(--r-ink-2); }
+.rpt-paper h4 { margin: 6px 0 2px; padding-bottom: 2px; border-bottom: 1px solid var(--r-line); font-size: 12.5px; }
+.rpt-paper .entry { font-weight: 700; }
+.rpt-m { padding-bottom: 1px; }
+.rpt-no { display: inline-block; min-width: 15px; height: 15px; margin: 0 1px 0 2px; padding: 0 3px; border-radius: 8px; background: var(--r-ink);
+  color: #fff; font-size: 9.5px; font-weight: 700; line-height: 15px; text-align: center; vertical-align: 2px; }
+.rpt-item { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 0 8px; padding: 9px 0; border-top: 1px solid var(--r-line); }
+.rpt-item > .rpt-no { min-width: 20px; height: 20px; margin: 3px 0 0; border-radius: 10px; font-size: 11px; line-height: 20px; }
+.rpt-item .t b { font-weight: 700; }
+.rpt-tag { display: inline-block; margin-right: 6px; padding: 0 6px; border: 1px solid currentColor; border-radius: 4px; font-size: 11px; font-weight: 600; line-height: 17px; vertical-align: 1px; }
+.rpt-tag.bad { color: var(--r-bad); }
+.rpt-tag.part { color: var(--r-part); }
+.rpt-tag.gray { color: var(--r-ink-3); }
+.rpt-row { display: grid; grid-template-columns: 5.6em minmax(0, 1fr); gap: 8px; margin-top: 3px; font-size: 12px; }
+.rpt-row .k { color: var(--r-ink-3); }
+.rpt-q { padding-left: 8px; border-left: 2px solid var(--r-line); }
+.rpt-none { color: var(--r-ink-3); font-style: italic; }
+.rpt-advice { margin-top: 6px; padding: 6px 10px; border: 1px dashed var(--r-ink-3); border-radius: 6px; }
+.rpt-advice .h { font-size: 11px; font-weight: 700; color: var(--r-ink-2); }
+.rpt-advice .rw { font-weight: 700; }
+.rpt-sheet .ph { padding: 0 2px; border-radius: 0; background: none; color: inherit; font-weight: inherit; border-bottom: 1.5px dotted var(--r-ink); } /* 【】占位：盖掉全局 .ph 的彩色底 */
+.rpt-foot { margin: 18px 0 0; padding-top: 8px; border-top: 1px solid var(--r-line); font-size: 11px; color: var(--r-ink-3); }
+@media (max-width: 760px) {
+  .rpt-sheet { padding: 18px 16px; }
+  .rpt-verdict { grid-template-columns: minmax(0, 1fr); }
+  .rpt-tip { display: none; }
+}
 
 /* ── 模拟面试：准备页、面试页（左边话题进度，右边对话）、报告页。样稿：docs/design/模拟面试预览.html。类名都带 iv- 前缀，首页演示卡里已有 .chat / .msg ── */
 .tag b.pr { background: var(--color-accent); }
