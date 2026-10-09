@@ -1,6 +1,6 @@
 # 三、接口设计
 
-统一前缀 `/api/v1`。除了 `POST /auth/register`、`POST /auth/login`、`GET /domains`、`GET /health`，其余接口都要登录：请求头带 `Authorization: Bearer <token>`（JWT，有效期 `JWT_EXPIRE_HOURS`，默认 24 小时）。流式接口也带这个头，所以前端用 fetch 读流，不用 EventSource（它带不了请求头，也发不了 POST），见 `frontend/src/api/client.ts`。
+统一前缀 `/api/v1`。除了 `POST /auth/register`、`POST /auth/login`、`GET /domains`、`GET /health`、`GET /system/llm`，其余接口都要登录：请求头带 `Authorization: Bearer <token>`（JWT，有效期 `JWT_EXPIRE_HOURS`，默认 24 小时）。流式接口也带这个头，所以前端用 fetch 读流，不用 EventSource（它带不了请求头，也发不了 POST），见 `frontend/src/api/client.ts`。
 
 统一响应 `{ "code": 0, "message": "success", "data": {...} }`。出错时 `data` 为 null，`message` 是给用户看的中文说明，HTTP 状态码取 code 的前三位（`GET /health` 例外，见 3.2）。
 
@@ -22,7 +22,7 @@
 | 42201 | 篇幅超限 | 页数超过 `MAX_PDF_PAGES`（10 页） | 422 |
 | 42901 | 〔未使用〕请求过于频繁 | 只在 `errors.py` 里定义，没有地方抛。限流管的是调模型，不是接口请求：每次调模型（对话、向量、重排）前，在 Redis 里按服务商、按分钟占一个名额（`DEEPSEEK_RPM` / `SILICONFLOW_RPM`，各 300），满了就等到下一分钟；最多等 120 秒，超时或 Redis 不通都按模型调用失败处理，同步接口返回 50002，后台任务按各自的失败或降级逻辑处理 | 429 |
 | 50001 | 服务器内部错误 | 没接住的异常 | 500 |
-| 50002 | 模型调用失败 | 同步调模型的接口失败：JD 解析、建面试时定话题；具体建议、面试流里的 error 事件也用这个 code | 500 |
+| 50002 | 模型调用失败 | 同步调模型的接口失败：JD 解析、建面试时定话题；具体建议、面试流里的 error 事件也用这个 code。模型服务调不通（余额不足、密钥无效、连不上、服务端 429 / 5xx）时 message 是「模型服务暂时不可用……」，其余失败是「……请稍后重试」 | 500 |
 | 50003 | 简历解析失败 | 简历解析已经失败，还去读它的块 / 结构，或拿它投递；message 按失败原因给（扫描件、加密、模型失败、服务重启打断等） | 500 |
 
 后台任务（解析、投递分析）里的失败不走错误码，落成记录的 failed 状态，通过 SSE 的 error 事件或轮询状态告诉前端（3.3）。
@@ -30,6 +30,8 @@
 ## 3.2 接口清单（30 个；已实现 28 个，标〔未实现〕的留给后续里程碑）
 
 另有 `GET /api/v1/health`，不计入 30 个，不用登录。它是运行时探针：逐项探测 MySQL、Redis，返回 `{mysql, redis, version}`，每项为 `ok` 或 `error: <异常类型>`；任一依赖异常时 code 为 50001、HTTP 503。部署出问题时先看它。启动时的检查是另一回事：在 `main.py` 的 lifespan 里，连不上 MySQL、缺表、连不上 Redis 都直接报错退出。
+
+还有 `GET /api/v1/system/llm`，也不计入 30 个、不用登录：模型服务现在能不能用，返回 `{available}`，登录后页面顶上的横幅按它显示。后端问 DeepSeek 的余额接口（不花钱），结论在 Redis 里存 1 分钟（04-design 4.6）。故意不放进 `/health`：余额用完不该让容器被判成不健康，网站别的部分照常能用。
 
 ```
 认证 3    POST /auth/register  {username, password, email?}  → 令牌 + 用户（注册成功直接登录）；不用登录
@@ -68,8 +70,9 @@
                        interviews[] 每项 {id, mode, status, topic_count, current_topic, overall, verdict, created_at}
                        （schemas.ApplyInterviewBrief）：current_topic 进行中时从 1 起，其他状态为 0；overall / verdict 结束后才有
 
-方向 1    GET  /domains    不用登录 → [{key, name, icon, desc, rule_hint, interview_hint, interview_label, interviewer, sample_jd}]
-                       工作台第一步「选方向」的下拉框；顺序即下拉顺序（app/domains，目前 cs 计算机 / ops 运营）
+方向 1    GET  /domains    不用登录 → [{key, name, icon, desc, rule_hint, interview_hint, interview_label, interviewer, sample_jd, note}]
+                       工作台第一步「选方向」的下拉框；顺序即下拉顺序（app/domains，目前 cs 计算机 / ops 运营 / finance 财会金融 / general 其他）；
+                       note 只有 general 有（「结果可能不够准」，页面上照原文显示），其余为空
                        interview_label / interviewer 是页面上对面试的称呼（技术面 / 运营面、技术面试官 / 运营面试官）
 
 岗位 4    POST /jobs   {title, company?, raw_text, domain?}  同步解析（一次模型调用，约 2–4 秒）→ 岗位 + requirements[]

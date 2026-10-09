@@ -56,6 +56,7 @@ _PARSE_ERROR_MESSAGES = {
     "encrypted_pdf": "文件已加密，请上传未加密的 PDF",
     "interrupted": "解析被服务重启中断，请重新上传同一文件以重试",
     "llm_failed": "调用大模型失败，请稍后重新上传同一文件以重试",
+    "llm_unavailable": "模型服务暂时不可用，恢复后重新上传同一文件即可",
 }
 
 

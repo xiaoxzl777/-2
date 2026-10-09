@@ -21,8 +21,8 @@ PROVIDERS: dict[str, str] = {"deepseek-chat": "deepseek"}
 
 
 @cache
-def _http_client() -> httpx.Client:
-    # 全进程共用一个（线程安全）：每次新建要重新加载证书（实测约 0.23 秒）、重新握手，诊断时十几个并行调用都要付一遍
+def http_client() -> httpx.Client:
+    # 全进程共用一个（线程安全；llm/status.py 问余额也用它）：每次新建要重新加载证书（实测约 0.23 秒）、重新握手，诊断时十几个并行调用都要付一遍
     # 本机若配了 HTTP(S)_PROXY，国内模型服务走代理反而慢数倍；默认直连
     return httpx.Client(trust_env=settings.LLM_USE_SYSTEM_PROXY, timeout=settings.LLM_TIMEOUT_SECONDS)
 
@@ -36,7 +36,7 @@ def _deepseek(temperature: float) -> BaseChatModel:
         max_retries=3,                      # openai 客户端内置指数退避（NFR-3）
         stream_usage=True,                  # 流式调用时最后一个分块带 token 用量，记账要用
         timeout=settings.LLM_TIMEOUT_SECONDS,
-        http_client=_http_client(),
+        http_client=http_client(),
     )
 
 

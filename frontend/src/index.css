@@ -351,6 +351,12 @@ button { cursor: pointer; }
 
 .top-progress { position: relative; z-index: 1; height: 3px; background: rgba(var(--ink-rgb), 0.06); }
 .top-progress i { display: block; height: 100%; background: var(--color-accent); transition: width 0.8s var(--ease); }
+/* 模型服务调不通时，登录后每个页面内容最上面一条横幅（components/LlmBanner.tsx，样稿 docs/design/模型不可用提示预览.html） */
+.llm-down { display: flex; align-items: flex-start; gap: 12px; margin: 20px 0 0; padding: 14px 18px; border-radius: 16px; background: rgba(var(--bad-rgb), 0.06);
+  box-shadow: inset 0 0 0 1.5px rgba(var(--bad-rgb), 0.3); font-size: 14px; line-height: 1.7; color: var(--color-ink-2); }
+.llm-down .i { flex: none; display: grid; place-items: center; width: 24px; height: 24px; margin-top: 1px; border-radius: 50%; background: var(--color-bad); color: #fff;
+  font-size: 14px; font-weight: 800; font-style: normal; }
+.llm-down b { display: block; font-size: 15px; color: var(--color-ink); }
 
 .screen { display: grid; grid-template-columns: 1fr 1.05fr; gap: 64px; align-items: center; min-height: calc(100vh - 83px); padding: 40px 0 80px; }
 /* 工具页的标题比首页小一号（和初筛结果页一样大）：原来最大 64px，压得右边的卡片和下面的说明都往下挤 */
@@ -395,7 +401,7 @@ button { cursor: pointer; }
 .screen.stack h1 { margin: 20px 0 14px; }
 .screen.stack h1 .line { display: inline-block; }
 .screen.stack .sub { margin: 0 auto 30px; max-width: 520px; text-wrap: balance; word-break: keep-all; } /* 居中的两行别一长一短；只在标点处折，别把「诊断」拆成两行 */
-.screen.stack .stage { order: 1; width: 100%; text-align: left; }
+.screen.stack .stage { order: 1; position: relative; z-index: 2; width: 100%; text-align: left; } /* 排在按钮后面画：下拉菜单展开时要盖住下面的「下一步」 */
 .screen.stack .cta { order: 2; justify-content: center; margin-top: 30px; }
 .dsel-label { display: block; margin: 0 0 10px 4px; font-size: 13px; font-weight: 700; color: var(--color-ink-2); }
 .dsel { position: relative; }
@@ -426,6 +432,14 @@ button { cursor: pointer; }
 .dir-info b { color: var(--color-ink); }
 .dir-info ul { margin: 6px 0 0; padding-left: 18px; list-style: disc; }
 .dirs-note { margin: 14px 4px 0; font-size: 13px; color: var(--color-ink-3); }
+/* 通用方向（「其他」）：下拉菜单里和专门方向隔一条虚线；「结果可能不够准」的提醒（components/GeneralNote.tsx）放在说明框里、结果页分数卡底下。
+   样稿：docs/design/通用方向预览.html */
+.dsel-opt.gen { position: relative; margin-top: 6px; }
+.dsel-opt.gen::before { content: ""; position: absolute; left: 12px; right: 12px; top: -4px; border-top: 1px dashed var(--line); }
+.gen-note { display: flex; align-items: flex-start; gap: 10px; margin: 0; font-size: 13px; line-height: 1.7; color: var(--color-ink-2); }
+.gen-note .i { flex: none; display: grid; place-items: center; width: 20px; height: 20px; margin-top: 2px; border-radius: 50%; background: var(--color-ink); color: var(--color-bg);
+  font-size: 12px; font-weight: 800; font-style: normal; }
+.dir-info .gen-note { margin-top: 12px; padding-top: 12px; border-top: 1px dashed rgba(var(--ink-rgb), 0.18); }
 /* 选岗位卡片左上角：当前方向，点「换」回到上一步 */
 .dir-chip { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border: none; border-radius: 999px; background: var(--color-bg-2);
   font-size: 13px; font-weight: 700; color: var(--color-ink-2); white-space: nowrap; transition: box-shadow 0.2s; }
@@ -716,7 +730,8 @@ button { cursor: pointer; }
 .rv-score .score-ring .num { font-size: 30px; }
 .rv-score .dims { max-width: none; gap: 12px 28px; }
 /* 成绩单里的面试记录：分数下面隔一条虚线；标签一列、胶囊一列，折行后胶囊上下对齐。样稿：docs/design/结果页面试场次预览.html */
-.rv-score.has-iv { flex-wrap: wrap; row-gap: 18px; }
+.rv-score.has-iv, .rv-score.has-note { flex-wrap: wrap; row-gap: 18px; }
+.rv-score .gen-note { flex-basis: 100%; padding-top: 16px; border-top: 1px dashed var(--line); } /* 和面试记录同一种隔法 */
 .rv-iv { flex-basis: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; align-items: start; padding-top: 16px; border-top: 1px dashed var(--line); }
 .rv-iv .k { display: flex; flex-direction: column; gap: 8px; font-size: 12px; font-weight: 700; line-height: 34px; letter-spacing: 1px; color: var(--color-ink-3); white-space: nowrap; }
 .rv-iv .more { letter-spacing: 0; font-weight: 600; color: var(--color-accent-ink); text-decoration: none; } /* 和第二颗胶囊对齐 */
@@ -836,6 +851,8 @@ button { cursor: pointer; }
 .rpt-sheet .ph { padding: 0 2px; border-radius: 0; background: none; color: inherit; font-weight: inherit; border-bottom: 1.5px dotted var(--r-ink); } /* 【】占位：盖掉全局 .ph 的彩色底 */
 .rpt-foot { margin: 18px 0 0; padding-top: 8px; border-top: 1px solid var(--r-line); font-size: 11px; color: var(--r-ink-3); }
 .rpt-disclaimer { margin: 8px 0 0; font-size: 11px; line-height: 1.6; color: var(--r-ink-3); } /* 第一页标题下面：发给别人一打开就能看到 */
+.rpt-general { margin: 8px 0 0; padding: 6px 10px; border: 1px dashed #999; border-radius: 6px; font-size: 11.5px; line-height: 1.6; color: var(--r-ink-2); } /* 通用方向：结果可能不够准 */
+.rpt-general b { color: var(--r-ink); }
 .rpt-foot b, .rpt-disclaimer b { color: var(--r-ink-2); }
 @media (max-width: 760px) {
   .rpt-sheet { padding: 18px 16px; }

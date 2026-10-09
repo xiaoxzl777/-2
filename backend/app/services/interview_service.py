@@ -38,7 +38,7 @@ from app.graphs.interview_graph import PlanError, build_interview_graph
 from app.interview.materials import build_materials
 from app.interview.report import build_report
 from app.llm import prompts
-from app.llm.client import LLMClient, LLMError
+from app.llm.client import LLM_DOWN, LLMClient, LLMError
 from app.models import InterviewSession, InterviewTurn, Job, User
 from app.parser.pii import mask_resume
 from app.retrieval.context_store import ContextStore
@@ -104,7 +104,7 @@ def create_interview(db: Session, user: User, *, apply_id: int, company_name: st
         logger.warning("生成面试话题失败 session_id=%s：%s", session.id, e)
         _discard(session.id, context_mode, store, checkpointer)
         db.rollback()
-        raise ApiError(LLM_FAILED, "生成面试话题失败，请稍后重试") from e
+        raise ApiError(LLM_FAILED, LLM_DOWN if getattr(e, "unavailable", None) else "生成面试话题失败，请稍后重试") from e
 
     values = graph.get_state(config).values
     session.plan = {"topics": values["plan"], "materials": materials}
@@ -208,9 +208,11 @@ def _advance(session_id: int, answer: dict | None, llm: LLMClient, store: Contex
             for node, fields in chunk.items():
                 if node not in ("__interrupt__", "retrieve_context", "wait_answer"):
                     yield from _on_update(node, fields or {}, current, session_id, mode, plan, session_factory)
-    except Exception:                               # noqa: BLE001 —— 模型失败、输出坏掉都走这里；检查点停在失败的那一步
+    except Exception as e:                          # noqa: BLE001 —— 模型失败、输出坏掉都走这里；检查点停在失败的那一步
         logger.exception("面试推进失败 session_id=%s", session_id)
-        yield "error", {"code": LLM_FAILED, "message": "面试官这边出了点问题，请重试"}
+        down = isinstance(e, LLMError) and e.unavailable
+        yield "error", {"code": LLM_FAILED,
+                        "message": "模型服务暂时不可用，恢复后点重试，会从这一题接着面" if down else "面试官这边出了点问题，请重试"}
         return
     if "finished" in current:                       # 图整个跑完（最后一个检查点也写了）才删线程，删早了会被写回来
         _discard(session_id, current["finished"], store, checkpointer)

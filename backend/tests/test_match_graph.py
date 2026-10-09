@@ -43,6 +43,31 @@ def test_claims_without_locatable_evidence_are_voided():
     assert out["hallucination_count"] == 2 and "作废" in out["items"][2].reason
 
 
+# Java 只写在技能清单里（规则会判部分满足，hybrid 交给模型复核）；订单系统那段是项目经历
+LISTED = [_req(1, "skill", "熟悉 Java", skill_id=1, skill="Java")]
+WITH_PROJECT = {**STRUCTURE, "projects": [{"name": "订单系统", "char_start": TEXT.index(LINES[2]), "char_end": len(TEXT)}]}
+
+
+def _run_listed(mode, quote):
+    llm = FakeLLM({"_FulltextOut": [_full((1, "hit", quote))]})
+    state = initial_state(requirements=LISTED, structure=WITH_PROJECT, full_text=TEXT, masked_text=TEXT, mode=mode)
+    return build_match_graph(llm).invoke(state)["items"][0]
+
+
+def test_model_saying_a_listed_only_skill_is_met_by_the_skills_line_is_downgraded():
+    item = _run_listed("hybrid", "熟悉 Java、Redis、Docker")       # 模型：专业技能中列出了 Java → 满足
+    assert (item.status, item.matched_by) == ("partial", "dict") and "只出现在技能清单里" in item.reason
+    assert item.evidence_quote == LINES[1]
+
+
+def test_model_evidence_inside_an_experience_entry_is_kept():
+    # 依据落在项目经历里：模型找到了没写出字面的用法（如 Spring Boot 项目用的就是 Java），照模型的
+    item = _run_listed("hybrid", "订单系统 后端开发")
+    assert (item.status, item.matched_by) == ("hit", "fulltext")
+    # 只用模型的对照组不加这道规则
+    assert _run_listed("llm_fulltext", "熟悉 Java、Redis、Docker").status == "hit"
+
+
 def test_dict_only_never_calls_the_model():
     llm, out = _run("dict_only", {})
     assert llm.calls == {} and out["llm_item_count"] == 0 and out["cost"] == 0

@@ -25,7 +25,8 @@ def test_job_templates_json_matches_txt():
 def test_job_templates_are_valid():
     templates, skills = load_templates(), skill_dict()
     assert len({t["title"] for t in templates}) == len(templates)
-    assert {t["domain"] for t in templates} == set(DOMAINS), "每个求职方向都要有内置模板（工作台按方向列模板）"
+    # 通用方向不放模板：什么专业都可能选它，挑不出代表性的岗位，用户自己贴 JD
+    assert {t["domain"] for t in templates} == set(DOMAINS) - {"general"}, "每个专门方向都要有内置模板（工作台按方向列模板）"
     for t in templates:
         reqs = t["requirements"]
         assert [r["id"] for r in reqs] == list(range(1, len(reqs) + 1)), t["title"]

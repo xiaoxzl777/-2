@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.domains import DEFAULT, DOMAINS
 from app.errors import BAD_REQUEST, LLM_FAILED, NOT_FOUND, ApiError
-from app.llm.client import LLMClient, LLMError
+from app.llm.client import LLM_DOWN, LLMClient, LLMError
 from app.matching.jd_parser import parse_jd
 from app.models import Job, User
 from app.parser.extract import clean_text
@@ -39,7 +39,7 @@ def create_job(db: Session, user: User, title: str, company: str | None, raw_tex
                           domain=DOMAINS[domain])
     except LLMError as e:
         db.rollback()
-        raise ApiError(LLM_FAILED, "调用大模型解析岗位失败，请稍后重试") from e
+        raise ApiError(LLM_FAILED, LLM_DOWN if e.unavailable else "调用大模型解析岗位失败，请稍后重试") from e
     if result.error:
         db.rollback()
         raise ApiError(LLM_FAILED, "大模型返回的结果无法使用，请稍后重试")

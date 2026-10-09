@@ -152,6 +152,14 @@ def test_model_failure_sends_an_error_saves_nothing_and_can_be_retried(client, a
         assert db.get(Finding, fid).rewrite["text"] == events[-1][1]["text"]
 
 
+def test_a_down_model_service_is_named_in_the_error(client, auth_headers, resume_and_job, fake_llm):
+    result = _applied(client, auth_headers, resume_and_job, fake_llm)
+    fid = next(f["id"] for f in result["resume_issues"])
+    fake_llm.replies["rewrite"] = [LLMError("rewrite 调用失败", unavailable="余额不足（402）")]
+    events = _events(client.post(f"/api/v1/findings/{fid}/advice", headers=auth_headers).text)
+    assert events[-1] == ("error", {"code": 50002, "message": "模型服务暂时不可用，请稍后再试"})
+
+
 def test_rejections(client, auth_headers, resume_and_job, fake_llm, db_session_factory):
     result = _applied(client, auth_headers, resume_and_job, fake_llm)
     fid = result["resume_issues"][0]["id"]

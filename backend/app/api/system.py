@@ -1,4 +1,4 @@
-"""系统接口：健康检查。"""
+"""系统接口：健康检查、模型服务能不能用。"""
 from __future__ import annotations
 
 from fastapi import APIRouter
@@ -9,6 +9,8 @@ from app import __version__
 from app.cache import redis_client
 from app.database import engine
 from app.errors import INTERNAL
+from app.llm import status as llm_status
+from app.schemas import ApiResponse, LlmStatusOut, ok
 
 router = APIRouter(tags=["system"])
 
@@ -37,3 +39,10 @@ def health() -> JSONResponse:
         "data": {**status, "version": __version__},
     }
     return JSONResponse(body, status_code=200 if healthy else 503)
+
+
+@router.get("/system/llm", response_model=ApiResponse[LlmStatusOut])
+def llm_available():
+    """模型服务现在能不能用：登录后页面顶上的横幅按它显示。不用登录；结论存 1 分钟（llm/status.py）。
+    不进 /health：余额用完不该让容器被判成不健康，网站别的部分照常能用。原因只记日志、不返回。"""
+    return ok(LlmStatusOut(available=llm_status.unavailable_reason() is None))

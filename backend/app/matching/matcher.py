@@ -74,6 +74,25 @@ def _match_skill(req: dict, structure: dict, full_text: str) -> MatchItem | None
         evidence_quote=full_text[span[0]:span[1]], char_start=span[0], char_end=span[1])
 
 
+def recheck_listed_only(item: MatchItem, req: dict, structure: dict, full_text: str) -> MatchItem:
+    """模型复核之后再用规则把一次关。hybrid 把"只写在技能栏"的技能也交给模型（技能栏里的 Java 可能就是 Spring Boot 项目里在用的），
+    但模型常常看到"专业技能中列出了 X"就判满足，和提示词里"只是提到、没有实际使用 = 部分满足"相反（05 5.3 (2)(7)(8)）。
+    所以：规则知道这项技能只出现在经历以外的地方、模型说满足、给的依据又不在任何一段项目 / 工作经历里 → 照规则记部分满足。
+    依据落在经历里的（模型找到了没写字面的用法）照模型的。"""
+    if item.status != "hit" or not req.get("skill_id") or item.char_start is None:
+        return item
+    rule = _match_skill(req, structure, full_text)
+    if rule is None or rule.status != "partial" or _in_experience(structure, item.char_start, item.char_end):
+        return item
+    return rule
+
+
+def _in_experience(structure: dict, start: int, end: int) -> bool:
+    """区间和某段项目 / 工作经历有重叠。"""
+    return any(e.get("char_start") is not None and e["char_start"] < end and start < e["char_end"]
+               for key in _EXPERIENCE_SECTIONS for e in structure.get(key, []))
+
+
 def _is_plain_skill_requirement(req: dict) -> bool:
     """要求是否只是"会某项技能"：去掉技能名后剩下的字很少（"熟悉 Redis" 剩 2 个字）。
     剩得多说明另有限定（"熟悉 Redis 缓存穿透、击穿、雪崩的解决方案"），光看到技能名不能算满足。"""

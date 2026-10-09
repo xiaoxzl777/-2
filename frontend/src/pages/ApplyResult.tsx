@@ -8,6 +8,7 @@ import { jobsApi } from '../api/jobs'
 import { resumesApi, type ResumeStructure } from '../api/resumes'
 import { AdviceBlock } from '../components/AdviceBlock'
 import { AppShell } from '../components/AppShell'
+import { GeneralNote } from '../components/GeneralNote'
 import { MagneticButton, useCountUp, useMedia } from '../components/effects'
 import { Headline, Mark } from '../components/Headline'
 import { InterviewPill, isLive } from '../components/InterviewPill'
@@ -16,6 +17,7 @@ import { NotFound, notFoundText } from '../components/NotFound'
 import { Pipeline, useApplyTracker, type PipeState } from '../components/Pipeline'
 import { located, ResumePaper, type SheetDoc } from '../components/ResumePaper'
 import { ResumeSheet } from '../components/ResumeSheet'
+import { useDomain } from '../store/domains'
 import { DIMENSIONS, entryBlocksOf, sheetItems, verdictSub, type ListItem } from './applyItems'
 
 const RING = 314.2 // 2π × r(50)
@@ -26,6 +28,8 @@ export default function ApplyResult() {
   const applyId = Number(id)
   const [data, setData] = useState<Result | null>(null)
   const [jobTitle, setJobTitle] = useState('')
+  const [jobDomain, setJobDomain] = useState<string | null>(null)
+  const note = useDomain(jobDomain)?.note
   const [error, setError] = useState<string | null>(null)
   const { pipe, track } = useApplyTracker()
 
@@ -35,7 +39,9 @@ export default function ApplyResult() {
       let r = await applyApi.get(applyId)
       if (cancelled) return
       setData(r)
-      jobsApi.get(r.job_id).then((j) => { if (!cancelled) setJobTitle(j.title) }).catch(() => { /* 岗位删了就不显示名字 */ })
+      jobsApi.get(r.job_id).then((j) => {
+        if (!cancelled) { setJobTitle(j.title); setJobDomain(j.domain) }
+      }).catch(() => { /* 岗位删了就不显示名字 */ })
       if (!isRunning(r)) return
       await track(applyId, { stage: r.stage === 'parsing' ? 'parsing' : 'analyzing' })
       r = await applyApi.get(applyId)
@@ -53,7 +59,7 @@ export default function ApplyResult() {
   else if (!data) body = <section className="rv"><p className="hint">加载中…</p></section>
   else if (isRunning(data)) body = <Analyzing pipe={pipe} jobTitle={jobTitle} />
   else if (data.status === 'failed' || !data.gate) body = <Failed data={data} jobTitle={jobTitle} />
-  else body = <Outcome key={data.id} data={data} gate={data.gate} jobTitle={jobTitle} />
+  else body = <Outcome key={data.id} data={data} gate={data.gate} jobTitle={jobTitle} note={note} />
   return <AppShell progress={100}>{body}</AppShell>
 }
 
@@ -61,7 +67,7 @@ export default function ApplyResult() {
 
 // 顶部成绩单，下面左边问题清单、右边常驻原文（整页一套两列网格，各边对齐）。样稿：docs/design/结果页面试场次预览.html（「改后」）
 // 宽屏：点开一条，右边原文就定位到它；点原文里的高亮，左边展开对应的那条。窄屏放不下两栏：原文照旧从右侧滑出
-function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Result['gate']>; jobTitle: string }) {
+function Outcome({ data, gate, jobTitle, note }: { data: Result; gate: NonNullable<Result['gate']>; jobTitle: string; note?: string }) {
   const navigate = useNavigate()
   const wide = useMedia('(min-width: 1001px)') // 和 index.css 里 .rv 的断点一致
   // ?open=finding:12 / requirement:4：从面试报告点过来，展开那一条并滚过去
@@ -202,7 +208,7 @@ function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Res
             </div>
           </div>
         </div>
-        <div className={`rv-score fade d2${data.interviews.length ? ' has-iv' : ''}`}>
+        <div className={`rv-score fade d2${data.interviews.length ? ' has-iv' : ''}${note ? ' has-note' : ''}`}>
           <div className="score-ring" role="img" aria-label={`匹配度 ${overall ?? '无'}，初筛线 ${gate.threshold}`}>
             <svg viewBox="0 0 120 120" aria-hidden="true">
               <circle className="arc-track" cx="60" cy="60" r="50" />
@@ -218,6 +224,8 @@ function Outcome({ data, gate, jobTitle }: { data: Result; gate: NonNullable<Res
               </div>
             ))}
           </div>
+          {/* 通用方向：分数底下说一句「可能不够准」，有面试记录时在它上面（样稿：docs/design/通用方向预览.html） */}
+          {note && <GeneralNote text={note} />}
           {data.interviews.length > 0 && (
             // 这次投递面过的场次，和分数放在一起（样稿：docs/design/结果页面试场次预览.html）
             <div className="rv-iv">
@@ -331,17 +339,20 @@ function Analyzing({ pipe, jobTitle }: { pipe: PipeState; jobTitle: string }) {
 
 function Failed({ data, jobTitle }: { data: Result; jobTitle: string }) {
   const navigate = useNavigate()
-  // 简历解析失败（如扫描件）时重投同一份没用，要换简历
-  const badResume = (data.error_msg ?? '').includes('简历解析失败')
+  // 模型服务调不通（后端 apply_service.LLM_DOWN_PREFIX）：不是简历或岗位的问题，恢复后重投；简历解析失败（如扫描件）时重投同一份没用，要换简历
+  const llmDown = (data.error_msg ?? '').startsWith('模型服务不可用')
+  const badResume = !llmDown && (data.error_msg ?? '').includes('简历解析失败')
   return (
     <section className="rv">
       <div className="rv-band top">
         <div>
           <Headline badge="分析失败" label={jobTitle || '岗位'} lines={['这次分析', <>没能<Mark>完成</Mark>。</>]} />
           <p className="rv-sub fade d2">
-            {badResume
-              ? <>这份简历没能解析出来（比如是扫描件）。<br />换一份文本版 PDF 再投这个岗位吧。</>
-              : <>多半是大模型服务一时没响应。<br />岗位和简历都还在，重新投一次就好。</>}
+            {llmDown
+              ? <>模型服务暂时不可用，不是简历或岗位的问题。<br />岗位和简历都还在，等恢复后重新投递就好。</>
+              : badResume
+                ? <>这份简历没能解析出来（比如是扫描件）。<br />换一份文本版 PDF 再投这个岗位吧。</>
+                : <>多半是大模型服务一时没响应。<br />岗位和简历都还在，重新投一次就好。</>}
           </p>
           <div className="cta fade d3">
             {badResume ? (

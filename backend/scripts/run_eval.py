@@ -1,8 +1,8 @@
 """诊断 / 匹配 / 面试评分评测：python scripts/run_eval.py [--task diagnose|match|interview] [--modes ...] [--repeat 1] [--limit N]
-                                                    [--set cs|ops|finance] [--domain cs|ops|finance]
+                                                    [--set cs|ops|finance] [--domain cs|ops|finance|general]
 （先跑 scripts/gen_eval_set.py 生成评测集；需要本机 MySQL、Redis 和 .env 里的 DeepSeek key）
 --set 选评测集（计算机 / 运营 / 财会的虚构简历；财会没有面试评分题库），--domain 选诊断、匹配、面试评分用哪个方向的领域包（默认和评测集同一个方向）。
-同一份运营评测集分别用运营、计算机的领域包跑，就能看出领域包有没有用。
+同一份运营评测集分别用运营、计算机的领域包跑，就能看出领域包有没有用；用 general（通用包）跑，就能看出没有专门方向时差多少。
 
 流程：每份 PDF 先走一遍和线上一样的解析（走缓存：解析不是被测对象）；再按"模式 × 重复次数"在评测批次号下跑诊断 / 匹配图
 （绕过缓存，llm_calls 里每次调用都带 run_id，事后能查）。

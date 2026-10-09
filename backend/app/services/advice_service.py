@@ -20,7 +20,7 @@ from app.deps import load_owned_report
 from app.domains import Domain, get_domain
 from app.errors import LLM_FAILED, NOT_FOUND, ApiError
 from app.llm import prompts
-from app.llm.client import LLMClient, LLMError
+from app.llm.client import LLM_DOWN, LLMClient, LLMError
 from app.models import Diagnosis, Finding, Job, MatchReport, Resume, User
 from app.parser.pii import mask_resume
 from app.rewrite.advice import AdvicePrompt, finding_prompt, fix_numbers, gap_prompt
@@ -110,9 +110,9 @@ def run(task: AdviceTask, llm: LLMClient, session_factory: SessionFactory) -> It
                                 ref=task.ref, temperature=TEMPERATURE):
             text += piece
             yield "delta", {"text": piece}
-    except LLMError:
+    except LLMError as e:
         logger.exception("生成建议失败 %s", task.ref)
-        yield "error", {"code": LLM_FAILED, "message": "调用大模型失败，请稍后重试"}
+        yield "error", {"code": LLM_FAILED, "message": LLM_DOWN if e.unavailable else "调用大模型失败，请稍后重试"}
         return
     if not text.strip():
         yield "error", {"code": LLM_FAILED, "message": "大模型没有返回内容，请稍后重试"}

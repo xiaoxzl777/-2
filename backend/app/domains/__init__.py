@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
-from app.domains import cs, finance, ops
+from app.domains import cs, finance, general, ops
 
 _MARK = re.compile(r"\[\[(\w+)\]\]")
 
@@ -31,16 +31,17 @@ class Domain:
     texts: MappingProxyType      # 提示词片段：[[key]] → 文字
     disabled_rules: frozenset[str] = field(default_factory=frozenset)   # 这个方向不跑的规则（rule_code）
     result_words: tuple[str, ...] = ()   # 规则判断"写没写结果"时，在通用的结果词之外这个方向还认的词
+    note: str = ""               # 页面上提醒「结果可能不够准」的一句话：只有通用方向有，专门方向为空、页面不显示
 
 
 def _load(module) -> Domain:
     return Domain(key=module.KEY, name=module.NAME, icon=module.ICON, desc=module.DESC, rule_hint=module.RULE_HINT,
                   interview_hint=module.INTERVIEW_HINT, interview_label=module.INTERVIEW_LABEL, sample_jd=module.SAMPLE_JD,
                   texts=MappingProxyType(module.TEXTS), disabled_rules=frozenset(module.DISABLED_RULES),
-                  result_words=tuple(module.RESULT_WORDS))
+                  result_words=tuple(module.RESULT_WORDS), note=getattr(module, "NOTE", ""))
 
 
-DOMAINS: dict[str, Domain] = {d.key: d for d in map(_load, (cs, ops, finance))}   # 顺序就是下拉框里的顺序
+DOMAINS: dict[str, Domain] = {d.key: d for d in map(_load, (cs, ops, finance, general))}   # 顺序就是下拉框里的顺序，通用的放最后
 DEFAULT = DOMAINS[cs.KEY]
 
 

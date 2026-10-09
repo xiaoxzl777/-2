@@ -24,6 +24,7 @@ def test_cs_prompts_are_byte_identical_to_before():
 @pytest.mark.parametrize("key, recruiter, skill_kind, interviewer", [
     ("ops", "运营岗位招聘官", "专业技能与工具", "运营面试官"),
     ("finance", "财会岗位招聘官", "专业技能与软件", "财会面试官"),
+    ("general", "资深招聘官", "专业技能与工具", "的面试官"),
 ])
 def test_switching_direction_changes_every_prompt_and_leaves_no_marks(key, recruiter, skill_kind, interviewer):
     snapshot, other = json.loads(SNAPSHOT.read_text(encoding="utf-8")), render_all(DOMAINS[key])
@@ -67,6 +68,7 @@ def test_rules_turned_off_for_a_direction_are_skipped():
 def test_interview_opening_line_follows_the_direction():
     assert asker.intro({"company": None}, 5) == "你好，我是这次的技术面试官，今天大概聊 5 个话题。\n"
     assert asker.intro({"company": "示例传媒", "domain": "ops"}, 4).startswith("你好，我是示例传媒的运营面试官")
+    assert asker.intro({"company": None, "domain": "general"}, 5).startswith("你好，我是这次的面试官")
 
 
 # ───────────── 接口 ─────────────
@@ -74,11 +76,13 @@ def test_interview_opening_line_follows_the_direction():
 
 def test_domains_endpoint_lists_the_dropdown(client):
     data = client.get("/api/v1/domains").json()["data"]               # 不用登录
-    assert [d["key"] for d in data] == list(DOMAINS) == ["cs", "ops", "finance"]
-    cs, ops, finance = data
+    assert [d["key"] for d in data] == list(DOMAINS) == ["cs", "ops", "finance", "general"]
+    cs, ops, finance, general = data
     assert (cs["name"], cs["interview_label"], cs["interviewer"]) == ("计算机", "技术面", "技术面试官")
     assert (ops["name"], ops["interview_label"], ops["interviewer"]) == ("运营", "运营面", "运营面试官")
     assert (finance["name"], finance["interview_label"], finance["interviewer"]) == ("财会金融", "专业面", "财会面试官")
+    assert (general["name"], general["interview_label"], general["interviewer"]) == ("其他", "专业面", "面试官")
+    assert [d["key"] for d in data if d["note"]] == ["general"]          # 「可能不够准」只有通用方向说
     assert all(d["sample_jd"]["title"] and len(d["sample_jd"]["text"]) >= 30 for d in data)
 
 

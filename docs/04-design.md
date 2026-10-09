@@ -121,6 +121,17 @@ invoke_json(llm, scene, messages, schema, prompt_version, …) → (parsed | Non
 成本上限：诊断 `DIAGNOSE_COST_LIMIT` ¥0.05，plan_review 按每个单元 ¥0.002（`UNIT_COST_EST`）× 1.5（给重试留余量）预检，超出的单元不送审、诊断记为 partial；
 面试 `INTERVIEW_COST_LIMIT` ¥0.3，到顶就提前结束并出报告（`interview/policy.py` 的 decide）。实测花费见 05-evaluation-and-plan 5.3（诊断、匹配）、5.4（面试）。
 
+模型服务调不通（`llm/status.py`）：
+
+```
+认出来   client.py 把服务商的错误分成两类：402 余额不足 / 401、403 密钥无效 / 429、5xx 服务繁忙 / 连不上、超时 → LLMError.unavailable = 原因；
+         其余（请求本身的问题等）unavailable = None。前一类再试也没用，页面上统一说「模型服务暂时不可用……」，后一类照旧「请稍后重试」
+记下来   碰上前一类就把原因写进 Redis 的 llm:status（存 60 秒）；GET /system/llm 先看它，没有就问 DeepSeek 的 GET /user/balance
+         （不花钱：is_available=false → 余额不足，401 → 密钥无效，连不上 → 连不上），结论同样存 60 秒；余额接口自己出状况按能用处理
+页面上   登录后每个页面内容最上面一条横幅，每分钟问一次；投递失败时 error_msg 写成「模型服务不可用：<原因>」，结果页、我的投递按这个前缀单独说；
+         简历解析时调不通记成 parse_error=llm_unavailable，投递等到它时也按模型服务不可用报（不叫用户换简历）
+```
+
 ### 4.7 面试 Prompt 骨架（`prompts.INTERVIEW_*`，interview-v2）
 
 `[[interviewer]]` 计算机方向为「技术面试官」、运营为「运营面试官」；`[[interview_name]]` 为「技术面试 / 运营岗面试」；其余标记同样按方向替换（4.16）。
@@ -266,6 +277,9 @@ JD 要求项 ↔ 简历：
            至今的算到 today，日期不完整的跳过；≥ N → hit，≥ N/2 → partial，否则 miss
   ③ 模型路：其余要求项连同掩码后的简历全文一次交给 LLM，逐条输出 {status, evidence_quote, reason}；
      hit/partial 的 evidence_quote 须经 locate_span 定位，定位失败 → 计入 hallucination_count 并按 miss；模型漏答的也按 miss；matched_by='fulltext'
+  ④ 技能栏复核（hybrid，recheck_listed_only）：词典知道这项技能只出现在经历以外（①会判 partial）、模型却判 hit，
+     且依据不和任何一段 work / projects 条目重叠 → 改用①的结论（partial，matched_by='dict'）；依据落在经历里的照模型的。
+     模型常因"专业技能中列出了 X"判满足，和提示词里"只是提到 = 部分满足"相反（05 5.3 (2)）
 匹配度 = 100 × Σ(weight × v) / Σ weight，v：hit 1 / partial 0.5 / miss 0；另按 skill / education / experience / other 各算一个（JD 里没有这类要求 → null）
 初筛：匹配度 ≥ SCREEN_THRESHOLD（60）通过（图 A 的 gate）
 mode：dict_only / llm_fulltext / hybrid 见 06-workflows 6.2「match 子图」；为什么不用 RAG 见 06-workflows 6.5
@@ -305,7 +319,7 @@ links（和简历问题的关联）= 得分 < 60、来源是简历问题或岗�
 
 ### 4.16 求职方向（领域包，`app/domains/`）
 
-同一套流程（解析 → 诊断 ∥ 匹配 → 初筛 → 建议 → 面试）服务不同专业：工作台第一步选方向（计算机 / 运营 / 财会金融……），
+同一套流程（解析 → 诊断 ∥ 匹配 → 初筛 → 建议 → 面试）服务不同专业：工作台第一步选方向（计算机 / 运营 / 财会金融 / 其他），
 方向存在岗位上（`jobs.domain`），之后各环节按岗位的方向取一个「领域包」。**加一个方向 = 加一套规则和数据，流程代码不改。**
 
 ```
@@ -316,6 +330,7 @@ links（和简历问题的关联）= 得分 < 60、来源是简历问题或岗�
   RESULT_WORDS   规则判断「写没写结果」时，在通用结果词（提升、降低、缩短……偏技术）之外这个方向还认的词；计算机为空，
                  运营 21 个，只收指标名（涨粉、阅读量、转化率、留存率、GMV……），不收单独出现时多半在说做了什么的「留存、转化」
   页面文案       名称、图标、一行说明、诊断标准 / 面试内容提示、面试称呼（技术面 / 运营面）、示例 JD（GET /domains 给前端）
+  NOTE           「结果可能不够准」的提醒，只有通用包有；前端有就显示（选方向的说明框、结果页分数卡、诊断报告），专门方向不写
 ```
 
 - **哪些不进领域包**：简历解析（上传时还不知道投哪个岗位，章节词典、结构化抽取只能是全集）；技能词典（不同专业的词不冲突，
@@ -327,6 +342,7 @@ links（和简历问题的关联）= 得分 < 60、来源是简历问题或岗�
 - **加一个方向的步骤**：照 `cs.py` 写 `domains/<key>.py`（片段要和 cs 一一对应，测试会查）→ 在 `DOMAINS` 登记 → `skills_seed.csv` 加词条
   → `data/job_templates/<key>/*.txt` 写模板 → `build_job_templates.py`（只解析新的或改过的模板）→ `dump_seed.py` → 导入 seed.sql。
 - 现状：计算机（默认）、运营、财会金融三个方向。运营 5 份模板（内容、用户、活动、电商、产品）、51 个词条；财会 4 份模板（会计、审计、财务分析、行业研究）、35 个词条（软件和业务方法，**证书不进词典**：证书多半写在「技能证书」一栏，解析时归到技能，「技能栏写了、经历里没用过」这条规则会对每个证书报一次；JD 里的证书要求记成 other，交给模型判断）。两套评测集的结果见 05-evaluation-and-plan 5.3 (7)(8)。
+- 「其他」（`general.py`，通用包）：方向少，别的专业（设计、教育、法律、医药……）也要能测，就给一个不带行业的包兜底，排在下拉框最后。说法写成中性的（招聘官 / 面试官，示例用办公软件、毕业设计、职业资格证），结果词取运营和财会的并集，没有模板；规则照常跑，模型只凭常识和岗位原文判断，所以页面上明说「可能不够准，仅供参考」。和专门包差多少见 05 5.3 (9)。
 
 ## 后端设计
 
@@ -336,7 +352,7 @@ links（和简历问题的关联）= 得分 < 60、来源是简历问题或岗�
 
 ```
 ① 对话模型结果缓存（面试的调用不缓存；向量 / 重排不缓存）   ② 限流（按分钟固定窗口计数）   ③ 后台任务 SSE pub/sub
-④ LangGraph checkpoint：不用 Redis；图 B 用 `SqliteSaver`（`data/checkpoints.sqlite`）
+④ LangGraph checkpoint：不用 Redis；图 B 用 `SqliteSaver`（`data/checkpoints.sqlite`）   ⑤ 模型服务状态 llm:status（60 秒，4.6）
 Redis 与 MySQL 同为必需依赖，启动 ping 失败即退出。运行期：llm_cache get/set 异常按 miss；
 限流占位失败（Redis 不通、排队超时）按模型调用失败处理（LLMError），走各调用方的失败路径。
 ```

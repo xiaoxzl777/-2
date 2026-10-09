@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Domain } from '../api/domains'
 import { TiltCard } from './effects'
+import { GeneralNote } from './GeneralNote'
 
 export function DirectionPicker({ domains, value, onChange }: {
   domains: Domain[] | null
@@ -44,7 +45,7 @@ export function DirectionPicker({ domains, value, onChange }: {
         <div className="dsel-menu" role="listbox" aria-labelledby="dsel-label">
           {domains?.map((d) => (
             <button key={d.key} type="button" role="option" aria-selected={d.key === value} tabIndex={open ? 0 : -1}
-              className={`dsel-opt ${d.key === value ? 'on' : ''}`} onClick={() => { onChange(d.key); setOpen(false) }}>
+              className={`dsel-opt ${d.key === value ? 'on' : ''}${d.note ? ' gen' : ''}`} onClick={() => { onChange(d.key); setOpen(false) }}>
               <span className="ic">{d.icon}</span>
               <span className="txt"><span className="t">{d.name}</span><span className="s">{d.desc}</span></span>
               <span className="ok" aria-hidden="true">✓</span>
@@ -61,6 +62,7 @@ export function DirectionPicker({ domains, value, onChange }: {
               <li>简历按{current.rule_hint}诊断</li>
               <li>模拟{current.interview_hint}</li>
             </ul>
+            {current.note && <GeneralNote text={current.note} />}
           </>
         ) : '不同方向的岗位模板、简历诊断标准、模拟面试问的问题都不一样，先选一个。'}
       </div>

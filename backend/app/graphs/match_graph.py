@@ -8,6 +8,7 @@
     dict_only     只用规则，判不了的直接记 miss，不调模型      基线
     llm_fulltext  跳过规则，全部要求交给模型                   对照：只用模型
     hybrid        规则只判十拿九稳的，其余交给模型              线上默认
+                  （模型判完再过一道规则：只写在技能栏的技能，模型说满足、依据又不在经历里 → 部分满足）
 
 为什么不用 RAG：简历只有一两千字，全文放进 prompt 毫无压力。实测（单份样本）"逐条检索再判断"要几十次调用，
 更贵更慢，还会因为检索漏掉片段而误判；"全文一次判断"只要一次调用。检索留给真正资料多的地方（面试材料）。
@@ -22,7 +23,7 @@ from app.domains import get_domain
 from app.graphs.state import MatchState
 from app.llm.client import LLMClient
 from app.matching.llm_judge import judge_with_fulltext
-from app.matching.matcher import MatchItem, match_by_rules, score_match
+from app.matching.matcher import MatchItem, match_by_rules, recheck_listed_only, score_match
 
 
 def _rule_match(state: MatchState) -> dict:
@@ -59,7 +60,11 @@ def build_match_graph(llm: LLMClient):
         r = judge_with_fulltext(state["pending"], state["full_text"], state["masked_text"], llm,
                                 model=state.get("model"), ref=ref,      # pending 为空时不会调模型
                                 domain=get_domain(state.get("domain")))
-        return {"judged": r.items, "llm_item_count": len(state["pending"]),
+        judged = r.items
+        if state["mode"] == "hybrid":    # llm_fulltext 是"只用模型"的对照组，不加规则
+            reqs = {q["id"]: q for q in state["pending"]}
+            judged = [recheck_listed_only(i, reqs[i.requirement_id], state["structure"], state["full_text"]) for i in judged]
+        return {"judged": judged, "llm_item_count": len(state["pending"]),
                 "hallucination_count": r.hallucinations, "cost": r.cost}
 
     graph = StateGraph(MatchState)

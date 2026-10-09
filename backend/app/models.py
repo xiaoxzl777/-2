@@ -100,7 +100,7 @@ class Resume(Base):
         nullable=False,
         server_default="pending",
     )
-    parse_error: Mapped[str | None] = mapped_column(String(100), comment="scanned_pdf / encrypted_pdf / llm_failed / interrupted / exception:<异常类型>")
+    parse_error: Mapped[str | None] = mapped_column(String(100), comment="scanned_pdf / encrypted_pdf / llm_failed / llm_unavailable / interrupted / exception:<异常类型>")
     layout_type: Mapped[str] = mapped_column(
         Enum("single", "double", "sidebar", "table", "unknown", name="layout_type"),
         nullable=False,

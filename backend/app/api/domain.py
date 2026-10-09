@@ -14,4 +14,4 @@ def list_domains():
     """不用登录：只是静态配置（app/domains）。顺序就是下拉框里的顺序。"""
     return ok([DomainOut(key=d.key, name=d.name, icon=d.icon, desc=d.desc, rule_hint=d.rule_hint,
                          interview_hint=d.interview_hint, interview_label=d.interview_label,
-                         interviewer=d.texts["interviewer"], sample_jd=d.sample_jd) for d in DOMAINS.values()])
+                         interviewer=d.texts["interviewer"], sample_jd=d.sample_jd, note=d.note) for d in DOMAINS.values()])

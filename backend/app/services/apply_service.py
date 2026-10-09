@@ -17,7 +17,7 @@ from app.cache.pubsub import Publish
 from app.deps import parse_error_message
 from app.errors import ApiError
 from app.graphs.apply_graph import build_apply_graph
-from app.llm.client import LLMClient
+from app.llm.client import LLM_DOWN, LLMClient, LLMError
 from app.models import Diagnosis, Finding, InterviewSession, Job, MatchReport, Resume, User
 from app.parser.pii import mask_resume
 from app.services import diagnose_service, match_service
@@ -26,6 +26,7 @@ from app.services.parse_service import SessionFactory
 logger = logging.getLogger("app.apply")
 
 PARSE_WAIT_SECONDS = 120        # 刚上传就点了投递：等后台解析完成的最长时间
+LLM_DOWN_PREFIX = "模型服务不可用："  # error_msg 这样开头 = 模型服务调不通（前端结果页也按它分开说）
 MAX_RESUME_ISSUES = 8           # 未通过说明里最多列几条简历自身的问题
 # 图 A 每完成一个节点推一次进度
 _PROGRESS = {"diagnose": (60, "简历诊断完成"), "match": (85, "岗位匹配完成"), "gate": (95, "初筛判定完成")}
@@ -70,11 +71,12 @@ def run_apply(report_id: int, session_factory: SessionFactory, llm: LLMClient, p
         except Exception as e:  # noqa: BLE001 —— 后台任务必须落成失败状态，不能把异常抛丢
             logger.exception("投递失败 match_report_id=%s", report_id)
             db.rollback()
-            message = f"{type(e).__name__}: {e}"[:200]
+            down = isinstance(e, LLMError) and e.unavailable
+            message = f"{LLM_DOWN_PREFIX}{e.unavailable}" if down else f"{type(e).__name__}: {e}"[:200]
             for row in (report, diagnosis):
                 row.status, row.error_msg, row.finished_at = "failed", message, datetime.now()
             db.commit()
-            publish(task_id, "error", {"message": "分析失败，请稍后重试"})
+            publish(task_id, "error", {"message": LLM_DOWN if down else "分析失败，请稍后重试"})
             return
 
         publish(task_id, "done", {"id": report.id, "status": report.status, "passed": result["passed"]})
@@ -90,6 +92,8 @@ def _wait_until_parsed(db: Session, resume: Resume) -> None:
         # 读到的都是事务开始时的快照，永远看不到解析任务后来提交的状态
         db.commit()
         db.refresh(resume)
+    if resume.parse_error == "llm_unavailable":       # 不是简历的问题：按模型服务不可用报，结果页不会叫用户换简历
+        raise LLMError("解析简历时模型服务不可用", unavailable="解析简历时调不通")
     if resume.parse_status != "success":
         raise RuntimeError(f"简历解析失败：{resume.parse_error}")
 
@@ -129,6 +133,8 @@ def failure_of(report: MatchReport, resume: Resume) -> str | None:
     """失败时给用户看的一句话。error_msg 是给开发者排查的技术报错，不直接展示。"""
     if report.status != "failed":
         return None
+    if (report.error_msg or "").startswith(LLM_DOWN_PREFIX):
+        return "模型服务暂时不可用，恢复后再投一次"
     return parse_error_message(resume) if resume.parse_status == "failed" else "分析时出错了，可以再投一次"
 
 

@@ -220,6 +220,19 @@ def test_restart_resends_the_pending_question_and_answers_are_checked(client, au
     assert client.get(f"{API}/{sid}", headers=auth_headers).json()["data"]["turns"][0]["answer"] == A1
 
 
+def test_a_down_model_service_is_named_when_starting_and_mid_interview(client, auth_headers, applied, fake_llm, env):
+    down = LLMError("调用失败", unavailable="余额不足（402）")
+    fake_llm.replies["_PlanOut"] = [down]
+    r = create(client, auth_headers, applied())
+    assert (r["code"], r["message"]) == (50002, "模型服务暂时不可用，请稍后再试")
+
+    script(fake_llm, evals=[down])
+    sid = create(client, auth_headers, applied())["data"]["id"]
+    sse(client.post(f"{API}/{sid}/start", headers=auth_headers))
+    failed = sse(client.post(f"{API}/{sid}/answer", headers=auth_headers, json={"text": A1}))
+    assert failed[-1] == ("error", {"code": 50002, "message": "模型服务暂时不可用，恢复后点重试，会从这一题接着面"})
+
+
 def test_a_failed_step_can_be_continued(client, auth_headers, applied, fake_llm, env, db_session_factory):
     script(fake_llm, evals=[LLMError("上游超时")])
     sid = create(client, auth_headers, applied())["data"]["id"]

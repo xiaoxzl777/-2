@@ -93,7 +93,7 @@ function Report({ data, gate, doc, resumeTitle, hits, total, job, onBack }: Load
     return (e?.status === 'done' ? e.text : null) ?? x.advice?.cached?.text ?? null
   }
 
-  const domainName = domains?.find((d) => d.key === job?.domain)?.name
+  const domain = domains?.find((d) => d.key === job?.domain)
   const overall = gate.overall_match === null ? null : Math.round(gate.overall_match)
   const dims = DIMENSIONS.flatMap(([key, label]) => {
     const v = data.dimension_scores?.[key]
@@ -203,8 +203,9 @@ function Report({ data, gate, doc, resumeTitle, hits, total, job, onBack }: Load
           <div className="by">智能求职辅助系统<br />导出于 {minute(now)}</div>
         </header>
         <p className="rpt-disclaimer"><b>免责声明</b>：本报告由系统自动生成，初筛结论是模拟的，不代表任何企业的真实招聘结果；修改建议仅供参考。</p>
+        {domain?.note && <p className="rpt-general"><b>说明</b>：{domain.note}</p>}
         <dl className="rpt-meta">
-          <dt>目标岗位</dt><dd>{job?.title ?? '（岗位已删除）'}{domainName ? ` · ${domainName}方向` : ''}</dd>
+          <dt>目标岗位</dt><dd>{job?.title ?? '（岗位已删除）'}{domain ? ` · ${domain.name}方向` : ''}</dd>
           <dt>使用简历</dt><dd>{resumeTitle || '—'}</dd>
           <dt>岗位要求</dt><dd>{total ? `${total} 条，满足 ${hits} 条` : '—'}</dd>
         </dl>

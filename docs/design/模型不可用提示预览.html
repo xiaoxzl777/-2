@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>模型不可用提示 · 求职辅助</title>
+<style>
+  /* 色板同 index.css 开头（三套配色） */
+  :root, :root[data-pal="linkedin"] {
+    --bg: #f4f2ee; --bg-2: #e9e5df; --paper: #fff; --ink: #191919; --ink-rgb: 25,25,25; --ink-2: #4d4d4d; --ink-3: #626262;
+    --accent: #0a66c2; --accent-rgb: 10,102,194; --accent-ink: #004182; --bad: #cc1016; --bad-rgb: 204,16,22; --line: rgba(25,25,25,.1); --sh-rgb: 0,0,0;
+  }
+  :root[data-pal="red"] { --bg: #fbfaf8; --bg-2: #f0eeea; --paper: #fff; --ink: #141414; --ink-rgb: 20,20,20; --ink-2: #4d4d4d; --ink-3: #6b6b6b;
+    --accent: #c8341f; --accent-rgb: 200,52,31; --accent-ink: #a3291a; --bad: #c42f22; --bad-rgb: 196,47,34; --line: rgba(20,20,20,.1); --sh-rgb: 20,20,20; }
+  :root[data-pal="green"] { --bg: #f2f0e9; --bg-2: #e6e3d7; --paper: #fbfaf5; --ink: #1b231f; --ink-rgb: 27,35,31; --ink-2: #4a524c; --ink-3: #5a625c;
+    --accent: #2d5e4c; --accent-rgb: 45,94,76; --accent-ink: #22493b; --bad: #b33f2c; --bad-rgb: 179,63,44; --line: rgba(27,35,31,.1); --sh-rgb: 35,45,35; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "PingFang SC","Microsoft YaHei",sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+  .label { margin: 36px 0 14px; font-size: 13px; font-weight: 700; letter-spacing: 1px; color: var(--ink-3); }
+  .label b { padding: 2px 8px; margin-right: 8px; border-radius: 999px; background: var(--ink); color: var(--bg); }
+  .frame { border-radius: 20px; background: var(--bg); box-shadow: 0 0 0 1px var(--line), 0 20px 40px -24px rgba(var(--sh-rgb),.3); overflow: hidden; }
+
+  /* 导航（照抄 Nav） */
+  .nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 28px; border-bottom: 1px solid var(--line); }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+  .logo i { width: 30px; height: 30px; border-radius: 10px; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-style: normal; font-size: 15px; }
+  .links { display: flex; gap: 28px; font-size: 15px; color: var(--ink-2); }
+  .links b { color: var(--ink); }
+  .pals { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--bg-2); }
+  .pals button { height: 30px; padding: 0 12px; border: none; border-radius: 999px; background: none; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .pals button.on { background: var(--paper); color: var(--ink); box-shadow: 0 2px 8px rgba(var(--sh-rgb),.12); }
+  .inner { padding: 20px 28px 32px; }
+
+  /* ══ 新：模型不可用的横幅，登录后每个页面最上面（导航下面） ══ */
+  .llm-down { display: flex; align-items: flex-start; gap: 12px; margin: 0 0 20px; padding: 14px 18px; border-radius: 16px;
+    background: rgba(var(--bad-rgb),.06); box-shadow: inset 0 0 0 1.5px rgba(var(--bad-rgb),.3); font-size: 14px; line-height: 1.7; color: var(--ink-2); }
+  .llm-down .i { flex: none; display: grid; place-items: center; width: 24px; height: 24px; margin-top: 1px; border-radius: 50%; background: var(--bad); color: #fff; font-size: 14px; font-weight: 800; font-style: normal; }
+  .llm-down b { display: block; color: var(--ink); font-size: 15px; }
+
+  /* 工作台步骤条（照抄 Steps） */
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; font-size: 13px; color: var(--ink-3); padding: 4px 0 20px; }
+  .steps span::before { content: attr(data-n); display: block; width: 24px; height: 24px; margin: 0 auto 6px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line); line-height: 24px; font-weight: 700; font-size: 12px; }
+  .steps span.on { color: var(--ink); font-weight: 700; }
+  .steps span.on::before { background: var(--accent); color: #fff; box-shadow: none; }
+  .ghost-h { margin: 6px 0 0; text-align: center; font-size: clamp(28px, 3.4vw, 44px); font-weight: 800; letter-spacing: -.5px; opacity: .9; }
+
+  /* 结果页「分析失败」（照抄 .rv-band.top） */
+  .band { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.08fr); column-gap: 28px; align-items: start; }
+  .tag { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 999px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); font-size: 13px; color: var(--ink-2); }
+  .tag b { padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 12px; }
+  h1 { margin: 16px 0 12px; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.2; letter-spacing: -1px; }
+  .sub { margin: 0 0 22px; font-size: 16px; line-height: 1.7; color: var(--ink-2); }
+  .sub del { color: var(--ink-3); }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn { height: 50px; padding: 0 24px; border-radius: 999px; border: none; font-size: 16px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+  .btn.accent { background: var(--accent); color: #fff; }
+  .btn.outline { background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .card { padding: 22px 24px; border-radius: 20px; background: var(--paper); box-shadow: 0 0 0 1px var(--line), 0 24px 44px -26px rgba(var(--sh-rgb),.35); }
+  .card .hint { font-size: 12px; color: var(--ink-3); }
+  .tech { margin: 8px 0 0; font-family: Consolas, monospace; font-size: 13px; color: var(--ink-2); word-break: break-all; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.6; background: var(--paper); border-radius: 16px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
+  th, td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+  th { font-size: 12px; color: var(--ink-3); font-weight: 700; background: var(--bg); }
+  td.old { color: var(--ink-3); }
+  tr:last-child td { border-bottom: none; }
+  .err { color: var(--bad); font-weight: 600; }
+
+  .notes { margin: 28px 0 0; padding: 0 0 60px 20px; font-size: 14px; line-height: 1.9; color: var(--ink-2); max-width: 960px; }
+  @media (max-width: 900px) { .band { grid-template-columns: minmax(0,1fr); row-gap: 22px; } .links { display: none; } }
+  @media (max-width: 560px) { .wrap { padding: 0 16px; } .nav, .inner { padding-left: 16px; padding-right: 16px; } table { font-size: 13px; } th, td { padding: 8px 10px; } }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <p class="label"><b>①</b>登录后每个页面：导航下面一条横幅（模型服务调不通时才有，恢复后自动消失）</p>
+  <div class="frame">
+    <div class="nav">
+      <div class="logo"><i>求</i>求职辅助</div>
+      <div class="links"><b>新的投递</b><span>我的投递</span></div>
+      <div class="pals" id="pals"><button data-pal="linkedin" class="on">领英蓝</button><button data-pal="red">朱红</button><button data-pal="green">墨绿</button></div>
+    </div>
+    <div class="inner">
+      <div class="llm-down" role="status">
+        <i class="i" aria-hidden="true">!</i>
+        <span><b>模型服务暂时不可用</b>投递分析、修改建议、模拟面试都要用到它，恢复之前会失败；以前的结果和诊断报告照常能看。恢复后这条提示会自动消失。</span>
+      </div>
+      <div class="steps"><span class="on" data-n="1">方向</span><span data-n="2">岗位</span><span data-n="3">简历</span><span data-n="4">投递</span></div>
+      <p class="ghost-h">你想找哪类工作？</p>
+    </div>
+  </div>
+
+  <p class="label"><b>②</b>结果页「分析失败」：模型服务的问题单独说清楚</p>
+  <div class="frame"><div class="inner">
+    <section class="band">
+      <div>
+        <span class="tag"><b>分析失败</b>后端开发实习生（Java）</span>
+        <h1>这次分析没能完成。</h1>
+        <p class="sub">模型服务暂时不可用，不是简历或岗位的问题。<br>岗位和简历都还在，等恢复后重新投递就好。</p>
+        <div class="cta"><a class="btn accent">重新投递 →</a><a class="btn outline">换个岗位</a></div>
+      </div>
+      <div class="card"><span class="hint">技术信息（排查用）</span><p class="tech">模型服务不可用：余额不足（402）</p></div>
+    </section>
+  </div></div>
+
+  <p class="label"><b>③</b>其余几处：只改出错时的那句话</p>
+  <table>
+    <tr><th style="width:22%">哪里</th><th style="width:36%">现在</th><th>改成（模型服务调不通时）</th></tr>
+    <tr><td>粘贴 JD → 解析要求</td><td class="old">调用大模型解析岗位失败，请稍后重试</td><td class="err">模型服务暂时不可用，请稍后再试</td></tr>
+    <tr><td>上传简历（解析失败）</td><td class="old">调用大模型失败，重新上传即可</td><td class="err">模型服务暂时不可用，恢复后重新上传即可</td></tr>
+    <tr><td>结果页点开一条 → 生成建议</td><td class="old">调用大模型失败，请稍后重试</td><td class="err">模型服务暂时不可用，请稍后再试</td></tr>
+    <tr><td>开始模拟面试</td><td class="old">生成面试话题失败，请稍后重试</td><td class="err">模型服务暂时不可用，请稍后再试</td></tr>
+    <tr><td>面试中出题 / 评分</td><td class="old">面试官这边出了点问题，请重试</td><td class="err">模型服务暂时不可用，恢复后点重试，会从这一题接着面</td></tr>
+    <tr><td>我的投递（失败的那条）</td><td class="old">分析时出错了，可以再投一次</td><td class="err">模型服务暂时不可用，恢复后再投一次</td></tr>
+  </table>
+
+  <ul class="notes">
+    <li>怎么知道调不通：后端问一下模型服务商的余额接口（不花钱），1 分钟最多问一次；余额用完、密钥不对、连不上，都算「暂时不可用」。真正调用时碰上同样的错误，横幅也马上出来。</li>
+    <li>横幅只在登录后的页面显示（首页、登录不需要模型）。不拦按钮：用户照样能点，只是先知道会失败。</li>
+    <li>别的错误（模型偶尔返回坏格式、程序出错）照旧说「请稍后重试」——这种重试多半就好了；模型服务不可用时再试也没用，所以单独说。</li>
+    <li>「技术信息（排查用）」那张卡保留，内容换成人能看懂的一句（原来是 <code>LLMError: match 调用 deepseek-chat 失败：APIStatusError</code>）。</li>
+  </ul>
+</main>
+<script>
+document.getElementById('pals').addEventListener('click', (e) => {
+  const t = e.target.closest('button'); if (!t) return
+  document.documentElement.dataset.pal = t.dataset.pal
+  t.parentElement.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === t))
+})
+</script>
+</body>
+</html>

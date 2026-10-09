@@ -56,9 +56,9 @@ def parse_resume(resume_id: int, session_factory: SessionFactory, llm: LLMClient
             _mark_failed(db, resume, "scanned_pdf")
         except EncryptedPdfError:
             _mark_failed(db, resume, "encrypted_pdf")
-        except LLMError:
+        except LLMError as e:
             logger.exception("结构化抽取调用模型失败 resume_id=%s", resume_id)
-            _mark_failed(db, resume, "llm_failed")
+            _mark_failed(db, resume, "llm_unavailable" if e.unavailable else "llm_failed")
         except Exception as e:  # noqa: BLE001 —— 后台任务不能把异常抛丢，必须落成失败状态
             logger.exception("解析失败 resume_id=%s", resume_id)
             _mark_failed(db, resume, f"exception:{type(e).__name__}")

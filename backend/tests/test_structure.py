@@ -198,6 +198,16 @@ def test_model_outage_fails_the_parse_with_a_readable_reason(client, auth_header
     assert client.get(f"/api/v1/resumes/{rid}", headers=auth_headers).json()["data"]["parse_status"] == "success"
 
 
+def test_model_service_down_during_parsing_says_so(client, auth_headers, fake_llm, single_column_pdf):
+    from app.llm.client import LLMError
+    from tests.conftest import upload_pdf
+
+    fake_llm.replies["_EducationOut"] = [LLMError("connection reset", unavailable="余额不足（402）")]
+    rid = upload_pdf(client, auth_headers, single_column_pdf).json()["data"]["id"]
+    assert client.get(f"/api/v1/resumes/{rid}", headers=auth_headers).json()["data"]["parse_error"] == "llm_unavailable"
+    assert "模型服务暂时不可用" in client.get(f"/api/v1/resumes/{rid}/structure", headers=auth_headers).json()["message"]
+
+
 def test_section_classification_failure_is_recorded_but_the_parse_succeeds(client, auth_headers, fake_llm, tmp_path):
     from app.llm.client import LLMError
     from tests.conftest import make_pdf, upload_pdf

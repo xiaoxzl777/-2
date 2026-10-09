@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS resumes (
   file_size INTEGER NOT NULL, 
   file_hash CHAR(64) NOT NULL COMMENT 'SHA-256', 
   parse_status ENUM('pending','parsing','success','failed') NOT NULL DEFAULT 'pending', 
-  parse_error VARCHAR(100) COMMENT 'scanned_pdf / encrypted_pdf / llm_failed / interrupted / exception:<异常类型>', 
+  parse_error VARCHAR(100) COMMENT 'scanned_pdf / encrypted_pdf / llm_failed / llm_unavailable / interrupted / exception:<异常类型>', 
   layout_type ENUM('single','double','sidebar','table','unknown') NOT NULL COMMENT '第 1 页判定；DOCX 恒 single' DEFAULT 'unknown', 
   layout_confidence FLOAT COMMENT '各页最小值；<0.7 表示有规则拿不准的页（不做 LLM 兜底，理由见 05-evaluation-and-plan 5.2）', 
   layout_detail JSON COMMENT '[{page_no, layout_type, confidence, gap}]', 

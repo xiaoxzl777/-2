@@ -71,6 +71,17 @@ def test_a_failure_in_either_branch_fails_both_records(client, auth_headers, res
     assert _apply(client, auth_headers, rid, jid, match_mode="dict_only", diagnose_mode="rule_only")["code"] == 0
 
 
+def test_a_down_model_service_is_reported_as_such(client, auth_headers, resume_and_job, fake_llm, events):
+    rid, jid = resume_and_job
+    fake_llm.replies["_FulltextOut"] = [LLMError("match 调用失败", unavailable="余额不足（402）")]
+    aid = _apply(client, auth_headers, rid, jid)["data"]["id"]
+    detail = client.get(f"{API}/{aid}", headers=auth_headers).json()["data"]
+    assert detail["error_msg"] == "模型服务不可用：余额不足（402）"                     # 结果页按这个前缀分开说
+    assert events[-1][2] == {"message": "模型服务暂时不可用，请稍后再试"}
+    listed = client.get(API, headers=auth_headers).json()["data"]["items"][0]
+    assert listed["failure"] == "模型服务暂时不可用，恢复后再投一次"
+
+
 def test_a_failure_while_saving_does_not_leave_records_running(client, auth_headers, resume_and_job, events,
                                                                 db_session_factory, monkeypatch):
     from app.services import match_service

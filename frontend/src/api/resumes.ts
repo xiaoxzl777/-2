@@ -42,6 +42,7 @@ export function parseErrorText(code: string | null): string {
     case 'encrypted_pdf': return '文件已加密'
     case 'interrupted': return '解析被中断，重新上传即可'
     case 'llm_failed': return '调用大模型失败，重新上传即可'
+    case 'llm_unavailable': return '模型服务暂时不可用，恢复后重新上传即可'
     default: return '解析失败'
   }
 }

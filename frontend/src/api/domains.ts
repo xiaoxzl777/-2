@@ -11,6 +11,7 @@ export type Domain = {
   interview_label: string // 技术面 / 运营面
   interviewer: string // 技术面试官 / 运营面试官
   sample_jd: { title: string; company: string; text: string }
+  note: string // 「结果可能不够准」的提醒：只有通用方向有，空就不显示
 }
 
 export const domainsApi = {

@@ -206,6 +206,12 @@ class DomainOut(BaseModel):
     interview_label: str                    # 技术面 / 运营面
     interviewer: str                        # 技术面试官 / 运营面试官
     sample_jd: dict                         # {title, company, text}：「填一份示例 JD」
+    note: str = ""                          # 「结果可能不够准」的提醒：只有通用方向有，空就不显示
+
+
+class LlmStatusOut(BaseModel):
+    """GET /system/llm：模型服务能不能用（余额用完、密钥不对、连不上都算不能用）。"""
+    available: bool
 
 
 class JobIn(BaseModel):

@@ -21,11 +21,13 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Protocol, TypeVar
 
+import openai
 from pydantic import BaseModel, ValidationError
 
 from app.cache import llm_cache, ratelimit
 from app.config import settings
 from app.llm import audit, prompts, registry
+from app.llm import status as llm_status
 
 Message = tuple[str, str]  # (role, content)；role ∈ system / user / assistant
 T = TypeVar("T", bound=BaseModel)
@@ -36,8 +38,35 @@ current_run_id: ContextVar[str | None] = ContextVar("current_run_id", default=No
 _CODE_FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.I)
 
 
+# 模型服务调不通时给用户看的话：这种情况再试也没用，和"请稍后重试"分开说
+LLM_DOWN = "模型服务暂时不可用，请稍后再试"
+
+
 class LLMError(Exception):
-    """模型调用失败（网络、鉴权、超时等，已含客户端内置的重试）。"""
+    """模型调用失败（网络、鉴权、超时等，已含客户端内置的重试）。
+
+    unavailable：模型服务调不通的原因（余额不足、密钥无效、连不上……），排查用；其余失败（请求本身的问题等）为 None。
+    """
+
+    def __init__(self, message: str, unavailable: str | None = None):
+        super().__init__(message)
+        self.unavailable = unavailable
+
+
+def unavailable_reason(e: Exception) -> str | None:
+    """服务商返回的错误里，哪些算"模型服务暂时不可用"。"""
+    if isinstance(e, openai.APIStatusError):
+        code = e.status_code
+        if code == 402:
+            return "余额不足（402）"
+        if code in (401, 403):
+            return f"密钥无效（{code}）"
+        if code == 429 or code >= 500:
+            return f"服务繁忙（{code}）"
+        return None
+    if isinstance(e, openai.APIConnectionError):     # 超时也是它的子类
+        return f"连不上模型服务（{type(e).__name__}）"
+    return None
 
 
 class Cache(Protocol):
@@ -80,11 +109,13 @@ class LLMClient:
         cache: Cache = llm_cache,
         acquire: Callable[[str, int], None] = ratelimit.acquire,
         write_audit: Callable[[dict], None] = audit.write_llm_call,
+        mark_down: Callable[[str], None] = llm_status.mark_down,
     ):
         self._chat_factory = chat_factory
         self._cache = cache
         self._acquire = acquire
         self._write_audit = write_audit
+        self._mark_down = mark_down
 
     def invoke(
         self,
@@ -121,7 +152,7 @@ class LLMClient:
             latency = int((time.perf_counter() - started) * 1000)
             self._write_audit({**base_record, "success": False, "latency_ms": latency,
                                "error_msg": f"{type(e).__name__}: {e}"[:500]})
-            raise LLMError(f"{scene} 调用 {model} 失败：{type(e).__name__}") from e
+            raise self._failure(scene, model, e) from e
         latency = int((time.perf_counter() - started) * 1000)
 
         text = reply.content if isinstance(reply.content, str) else str(reply.content)
@@ -188,7 +219,7 @@ class LLMClient:
             raise
         except Exception as e:
             self._write_audit(failed(f"{type(e).__name__}: {e}"))
-            raise LLMError(f"{scene} 调用 {model} 失败：{type(e).__name__}") from e
+            raise self._failure(scene, model, e) from e
 
         token_in, token_out = usage.get("input_tokens", 0), usage.get("output_tokens", 0)
         cost = registry.estimate_cost(model, token_in, token_out)
@@ -199,6 +230,13 @@ class LLMClient:
                            "latency_ms": int((time.perf_counter() - started) * 1000)})
         if stats is not None:
             stats.update(cost=cost, token_input=token_in, token_output=token_out, cache_hit=False)
+
+    def _failure(self, scene: str, model: str, e: Exception) -> LLMError:
+        """调用失败转成 LLMError；是服务调不通的，顺手记下来，页面顶上的横幅马上就能出来。"""
+        reason = unavailable_reason(e)
+        if reason:
+            self._mark_down(reason)
+        return LLMError(f"{scene} 调用 {model} 失败：{type(e).__name__}", unavailable=reason)
 
     def _take_slot(self, model: str, base_record: dict) -> None:
         """限流占位。Redis 不通、排队超时也按调用失败处理：调用方的降级逻辑只认 LLMError。"""

@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>其他方向 · 求职辅助</title>
+<style>
+  /* 色板同 index.css 开头（三套配色） */
+  :root, :root[data-pal="linkedin"] {
+    --bg: #f4f2ee; --bg-2: #e9e5df; --paper: #fff; --field: #fff; --ink: #191919; --ink-rgb: 25,25,25; --ink-2: #4d4d4d; --ink-3: #626262;
+    --accent: #0a66c2; --accent-rgb: 10,102,194; --accent-ink: #004182; --line: rgba(25,25,25,.1); --sh-rgb: 0,0,0;
+    --ease: cubic-bezier(.22,1,.36,1); --spring: cubic-bezier(.34,1.56,.64,1);
+  }
+  :root[data-pal="red"] { --bg: #fbfaf8; --bg-2: #f0eeea; --paper: #fff; --field: #fff; --ink: #141414; --ink-rgb: 20,20,20; --ink-2: #4d4d4d; --ink-3: #6b6b6b;
+    --accent: #c8341f; --accent-rgb: 200,52,31; --accent-ink: #a3291a; --line: rgba(20,20,20,.1); --sh-rgb: 20,20,20; }
+  :root[data-pal="green"] { --bg: #f2f0e9; --bg-2: #e6e3d7; --paper: #fbfaf5; --field: #fff; --ink: #1b231f; --ink-rgb: 27,35,31; --ink-2: #4a524c; --ink-3: #5a625c;
+    --accent: #2d5e4c; --accent-rgb: 45,94,76; --accent-ink: #22493b; --line: rgba(27,35,31,.1); --sh-rgb: 35,45,35; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "PingFang SC","Microsoft YaHei",sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+  nav { padding: 18px 0; }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+  .logo i { width: 30px; height: 30px; border-radius: 10px; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-style: normal; font-size: 15px; }
+  .pals { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--bg-2); }
+  .pals button { height: 30px; padding: 0 12px; border: none; border-radius: 999px; background: none; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .pals button.on { background: var(--paper); color: var(--ink); box-shadow: 0 2px 8px rgba(var(--sh-rgb),.12); }
+  .label { margin: 36px 0 14px; font-size: 13px; font-weight: 700; letter-spacing: 1px; color: var(--ink-3); }
+  .label b { padding: 2px 8px; margin-right: 8px; border-radius: 999px; background: var(--ink); color: var(--bg); }
+
+  /* ══ 新：「不够准」的提示，三处共用一句话（后端领域包里的 note，专门方向为空就不显示） ══ */
+  .gen-note { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.7; color: var(--ink-2); }
+  .gen-note .i { flex: none; display: grid; place-items: center; width: 20px; height: 20px; margin-top: 2px; border-radius: 50%; background: var(--ink); color: var(--bg); font-size: 12px; font-weight: 800; font-style: normal; }
+  .gen-note b { color: var(--ink); }
+
+  /* ── ① 工作台第一步（照抄 .dsel / .dir-info） ── */
+  .step { max-width: 560px; margin: 0 auto; }
+  .card { padding: 24px; border-radius: 28px; background: var(--paper); box-shadow: 0 30px 60px -20px rgba(var(--sh-rgb),.25), 0 0 0 1px var(--line); }
+  .dsel-label { display: block; margin: 0 0 10px 4px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+  .dsel { position: relative; }
+  .dsel-btn { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 76px; padding: 12px 20px 12px 14px; border: none; border-radius: 20px; background: var(--field); text-align: left; box-shadow: inset 0 0 0 1.5px var(--line); }
+  .dsel-btn:hover, .dsel.open .dsel-btn { box-shadow: inset 0 0 0 2px var(--ink); }
+  .ic { display: grid; place-items: center; flex: none; width: 48px; height: 48px; border-radius: 14px; background: var(--bg-2); font-size: 14px; font-weight: 800; color: var(--ink-2); }
+  .dsel-btn .ic { background: var(--ink); color: var(--bg); }
+  .txt { display: flex; flex-direction: column; min-width: 0; }
+  .dsel-btn .t { font-size: 20px; font-weight: 800; }
+  .dsel-btn .s { margin-top: 2px; font-size: 13px; color: var(--ink-2); }
+  .caret { flex: none; width: 18px; height: 18px; margin-left: auto; color: var(--ink-2); transition: transform .35s var(--spring); }
+  .dsel.open .caret { transform: rotate(180deg); }
+  .menu { position: absolute; left: 0; right: 0; top: calc(100% + 8px); z-index: 30; padding: 6px; border-radius: 20px; background: var(--paper);
+    box-shadow: 0 18px 40px rgba(var(--sh-rgb),.18), inset 0 0 0 1px var(--line); opacity: 0; transform: translateY(-6px) scale(.98); pointer-events: none; transition: opacity .2s, transform .35s var(--spring); }
+  .dsel.open .menu { opacity: 1; transform: none; pointer-events: auto; }
+  .opt { display: flex; align-items: center; gap: 14px; width: 100%; padding: 10px 12px; border: none; border-radius: 14px; background: none; text-align: left; }
+  .opt:hover { background: var(--bg); }
+  .opt .ic { width: 40px; height: 40px; border-radius: 12px; font-size: 12px; }
+  .opt.on .ic { background: var(--ink); color: var(--bg); }
+  .opt .t { font-size: 16px; font-weight: 700; }
+  .opt .s { margin-top: 2px; font-size: 12px; color: var(--ink-3); }
+  .opt .ok { margin-left: auto; opacity: 0; font-weight: 800; color: var(--accent); }
+  .opt.on .ok { opacity: 1; }
+  .opt.gen { margin-top: 6px; position: relative; }
+  .opt.gen::before { content: ""; position: absolute; left: 12px; right: 12px; top: -4px; border-top: 1px dashed var(--line); } /* 和专门方向隔开 */
+  .dir-info { margin-top: 16px; padding: 16px 18px; border-radius: 18px; background: var(--bg); font-size: 14px; line-height: 1.8; color: var(--ink-2); }
+  .dir-info b { color: var(--ink); }
+  .dir-info ul { margin: 6px 0 0; padding-left: 18px; }
+  .dir-info .gen-note { margin-top: 12px; padding-top: 12px; border-top: 1px dashed rgba(var(--ink-rgb),.18); }
+  .dirs-note { margin: 14px 4px 0; font-size: 13px; color: var(--ink-3); }
+
+  /* ── ② 结果页成绩单（照抄 .rv-band / .rv-score） ── */
+  .band { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.08fr); column-gap: 28px; align-items: end; }
+  .tag { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 999px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); font-size: 13px; color: var(--ink-2); }
+  .tag b { padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 12px; }
+  h1 { margin: 16px 0 12px; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.2; letter-spacing: -1px; }
+  .sub { margin: 0 0 22px; font-size: 16px; line-height: 1.7; color: var(--ink-2); }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn { height: 50px; padding: 0 24px; border-radius: 999px; border: none; font-size: 16px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+  .btn.accent { background: var(--accent); color: #fff; }
+  .btn.outline { background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .score { display: flex; flex-wrap: wrap; align-items: center; gap: 18px 28px; padding: 22px 28px; border-radius: 20px; background: var(--paper); box-shadow: 0 0 0 1px var(--line), 0 24px 44px -26px rgba(var(--sh-rgb),.35); }
+  .ring { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; font-size: 30px; font-weight: 800; box-shadow: inset 0 0 0 8px var(--accent); }
+  .dims { flex: 1; min-width: 180px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; font-size: 13px; color: var(--ink-2); }
+  .dims b { float: right; color: var(--ink); }
+  .dims i { display: block; height: 4px; margin-top: 6px; border-radius: 4px; background: var(--ink); }
+  .score .gen-note { flex-basis: 100%; padding-top: 16px; border-top: 1px dashed var(--line); } /* 和「面试记录」同一种隔法，有面试记录时排在它上面 */
+
+  /* ── ③ 诊断报告头部（照抄 .rpt-sheet，固定黑白灰） ── */
+  .sheet { --r-ink: #1a1a1a; --r-ink-2: #4d4d4d; --r-ink-3: #666; max-width: 210mm; margin: 0 auto; padding: 16mm 16mm 10mm; border-radius: 4px; background: #fff; color: var(--r-ink); box-shadow: 0 2px 18px rgba(0,0,0,.12); font-size: 13px; line-height: 1.7; }
+  .rpt-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding-bottom: 10px; border-bottom: 2px solid var(--r-ink); }
+  .rpt-head h2 { margin: 0; font-size: 22px; letter-spacing: 1px; }
+  .rpt-head .by { font-size: 11px; color: var(--r-ink-3); text-align: right; }
+  .rpt-disclaimer { margin: 8px 0 0; font-size: 11px; line-height: 1.6; color: var(--r-ink-3); }
+  .rpt-disclaimer b { color: var(--r-ink-2); }
+  .rpt-general { margin: 8px 0 0; padding: 6px 10px; border: 1px dashed #999; border-radius: 6px; font-size: 11.5px; line-height: 1.6; color: var(--r-ink-2); }
+  .rpt-general b { color: var(--r-ink); }
+  .rpt-meta { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 12px 0 0; font-size: 12.5px; }
+  .rpt-meta dt { color: var(--r-ink-3); }
+  .rpt-meta dd { margin: 0; font-weight: 600; }
+  .fade-more { height: 40px; margin-top: 10px; background: linear-gradient(#eee, #fff); border-radius: 4px; }
+
+  .notes { margin: 40px 0 0; padding: 0 0 60px 20px; font-size: 14px; line-height: 1.9; color: var(--ink-2); max-width: 900px; }
+  @media (max-width: 1000px) { .band { grid-template-columns: minmax(0,1fr); row-gap: 22px; } }
+  @media (max-width: 560px) { .wrap { padding: 0 16px; } .card { padding: 18px; border-radius: 22px; } .score { padding: 20px; } .sheet { padding: 20px; } }
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <div class="logo"><i>求</i>求职辅助</div>
+  <div class="pals" id="pals"><button data-pal="linkedin" class="on">领英蓝</button><button data-pal="red">朱红</button><button data-pal="green">墨绿</button></div>
+</div></nav>
+
+<main class="wrap">
+  <p class="label"><b>①</b>工作台第一步：下拉框最后多一项「其他」，选中后说明里多一段提示（点下拉框能换成别的方向对比）</p>
+  <div class="step">
+    <div class="card">
+      <span class="dsel-label">求职方向</span>
+      <div class="dsel" id="dsel">
+        <button class="dsel-btn" id="dsel-btn"></button>
+        <div class="menu" id="menu"></div>
+      </div>
+      <div class="dir-info" id="info"></div>
+      <p class="dirs-note">选错了也没关系，下一步点「← 上一步」就能回来换。</p>
+    </div>
+  </div>
+
+  <p class="label"><b>②</b>结果页成绩单：分数卡底下隔一条虚线，写同一句话（只有「其他」方向的投递才有）</p>
+  <section class="band">
+    <div>
+      <span class="tag"><b>初筛结果</b>UI 设计实习生</span>
+      <h1>差一点，这次没过初筛。</h1>
+      <p class="sub">匹配度 52，初筛线是 60。<br>先补「对照岗位」里的必须项，涨分最快；简历本身的问题顺手改掉。</p>
+      <div class="cta"><a class="btn accent">改完简历，再投这个岗位 →</a><a class="btn outline">以练习模式面试</a></div>
+    </div>
+    <div class="score">
+      <div class="ring">52</div>
+      <div class="dims"><span>技能<b>45</b><i style="width:45%"></i></span><span>学历<b>100</b><i></i></span><span>经验<b>60</b><i style="width:60%"></i></span><span>其他<b>50</b><i style="width:50%"></i></span></div>
+      <p class="gen-note" data-note></p>
+    </div>
+  </section>
+
+  <p class="label"><b>③</b>诊断报告：免责声明下面加一个虚线框，下载的 PDF 里也有</p>
+  <div class="sheet">
+    <header class="rpt-head"><h2>简历诊断报告</h2><span class="by">求职辅助 · 导出于 2026-10-09 15:20</span></header>
+    <p class="rpt-disclaimer"><b>免责声明</b>：本报告由系统自动生成，初筛结论是模拟的，不代表任何企业的真实招聘结果；修改建议仅供参考。</p>
+    <p class="rpt-general"><b>说明</b>：<span data-note-plain></span></p>
+    <dl class="rpt-meta"><dt>目标岗位</dt><dd>UI 设计实习生 · 其他方向</dd><dt>简历</dt><dd>设计作品集简历.pdf</dd><dt>要求</dt><dd>共 9 条，满足 5 条</dd></dl>
+    <div class="fade-more"></div>
+  </div>
+
+  <ul class="notes">
+    <li>「其他」是第四个方向：还没单独做的专业都选它（设计、教育、法律、医药……）。规则照常跑；给模型的提示词换成不带行业的说法，模型只凭常识和岗位原文判断，所以说「可能不够准」。</li>
+    <li>三处用的是同一句话，写在后端领域包里；计算机、运营、财会这句话为空，页面就不显示，以后加方向不用改页面。</li>
+    <li>「其他」没有岗位模板：选岗位那一步「模板」页签里照旧写「这个方向暂时没有内置模板」，上面那行指引去掉「去模板里挑」半句。</li>
+    <li>选岗位那一步左上角显示「其他方向 换」，提示语照旧；面试页不加提示（面试本来就是练习）。</li>
+  </ul>
+</main>
+
+<script>
+const NOTE = '这个方向还没有专门的诊断标准，按通用标准分析，结果可能不够准，仅供参考。更多求职方向正在陆续开发，敬请期待。'
+const DOMAINS = [
+  { key: 'cs', icon: '计算', name: '计算机', desc: '后端 · 前端 · 算法 · 测试 · 数据', rule: '技术岗的标准（比如技能栏写的技术，要在项目里用过）', iv: '面试问技术实现、方案取舍' },
+  { key: 'ops', icon: '运营', name: '运营', desc: '内容 · 用户 · 活动 · 电商 · 产品', rule: '运营岗的标准（比如活动、内容要写出数据结果）', iv: '面试问活动策划、数据复盘' },
+  { key: 'finance', icon: '财会', name: '财会金融', desc: '会计 · 审计 · 财务分析 · 税务 · 证券研究', rule: '财会岗的标准（比如做过的账务、审计工作要写出规模和结果）', iv: '面试问会计处理、报表分析' },
+  { key: 'general', icon: '通用', name: '其他', desc: '设计 · 教育 · 法律 · 医药 · 其他还没单独做的方向', rule: '通用标准（经历要写清做了什么、结果怎样），不带行业知识', iv: '面试按岗位要求和你的经历提问', note: NOTE },
+]
+let cur = 'general'
+function render() {
+  const d = DOMAINS.find((x) => x.key === cur)
+  document.getElementById('dsel-btn').innerHTML = `<span class="ic">${d.icon}</span><span class="txt"><span class="t">${d.name}</span><span class="s">${d.desc}</span></span>
+    <svg class="caret" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l5 5 5-5"/></svg>`
+  document.getElementById('menu').innerHTML = DOMAINS.map((x) => `<button class="opt ${x.key === cur ? 'on' : ''} ${x.note ? 'gen' : ''}" data-k="${x.key}">
+    <span class="ic">${x.icon}</span><span class="txt"><span class="t">${x.name}</span><span class="s">${x.desc}</span></span><span class="ok">✓</span></button>`).join('')
+  document.getElementById('info').innerHTML = `选了「<b>${d.name}</b>」之后：<ul><li>常见岗位：${d.desc.split(' · ').join('、')}</li><li>简历按${d.rule}诊断</li><li>模拟${d.iv}</li></ul>`
+    + (d.note ? `<p class="gen-note"><i class="i">!</i><span>${d.note}</span></p>` : '')
+}
+document.querySelectorAll('[data-note]').forEach((el) => { el.innerHTML = `<i class="i">!</i><span>${NOTE}</span>` })
+document.querySelector('[data-note-plain]').textContent = NOTE
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('button')
+  const dsel = document.getElementById('dsel')
+  if (!t) { dsel.classList.remove('open'); return }
+  if (t.closest('#pals')) { document.documentElement.dataset.pal = t.dataset.pal; t.parentElement.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === t)); return }
+  if (t.id === 'dsel-btn') { dsel.classList.toggle('open'); return }
+  if (t.dataset.k) { cur = t.dataset.k; dsel.classList.remove('open'); render() }
+})
+render()
+</script>
+</body>
+</html>

@@ -81,6 +81,7 @@ export function JobPicker({ domain, selected, onPick, onChangeDomain }: {
   const inDomain = jobs?.filter((j) => j.domain === domain.key) ?? null
   const mine = inDomain?.filter((j) => !j.is_template) ?? null
   const templates = inDomain?.filter((j) => j.is_template) ?? null
+  const noTemplates = templates?.length === 0 // 通用方向没有模板：指引里不提「去模板里挑」
 
   return (
     <TiltCard>
@@ -93,7 +94,7 @@ export function JobPicker({ domain, selected, onPick, onChangeDomain }: {
 
       {tab === 'mine' && (
         <>
-          <p className="jp-guide">贴过的岗位都存在下面，下次直接选；没有具体岗位，可以去「模板」里挑一个。</p>
+          <p className="jp-guide">贴过的岗位都存在下面，下次直接选{noTemplates ? '。' : '；没有具体岗位，可以去「模板」里挑一个。'}</p>
           <button type="button" className={`jp-add${open ? ' open' : ''}`} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
             <span className="plus" aria-hidden="true">+</span>粘贴新的招聘 JD
             <span className="hint">{open ? '收起' : '贴进来自动拆成一条条要求'}</span>
@@ -146,7 +147,7 @@ export function JobPicker({ domain, selected, onPick, onChangeDomain }: {
               <JobList jobs={mine} selected={selected} onPick={onPick} onRemoved={removed} newId={parsed?.id} />
             </>
           ) : !open && (
-            <p className="empty jp-list-gap">还没有保存的岗位。点上面「＋ 粘贴新的招聘 JD」贴一份，或者去「模板」里挑一个。</p>
+            <p className="empty jp-list-gap">还没有保存的岗位。点上面「＋ 粘贴新的招聘 JD」贴一份{noTemplates ? '。' : '，或者去「模板」里挑一个。'}</p>
           )}
         </>
       )}
