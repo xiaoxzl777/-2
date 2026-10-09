@@ -73,6 +73,23 @@ def test_me_rejects_missing_bad_and_expired_tokens(client, auth_headers):
     assert client.get(f"{API}/me", headers={"Authorization": f"Bearer {ghost}"}).status_code == 401
 
 
+def test_change_password(client, auth_headers):
+    def change(old, new, headers=auth_headers):
+        r = client.post(f"{API}/password", headers=headers, json={"old_password": old, "new_password": new})
+        return r.status_code, r.json()["code"], r.json()["message"]
+
+    assert change("wrong-password", "brand-new-1")[:2] == (400, 40001)                 # 不是 401：前端收到 401 会直接退出
+    assert change("wrong-password", "brand-new-1")[2] == "当前密码不对"
+    assert change("secret123", "secret123")[2] == "新密码不能和当前密码一样"
+    assert change("secret123", "short")[1] == 40001                                    # 规则和注册一样：至少 6 位
+    assert change("secret123", "brand-new-1", headers={})[1] == 40101
+    assert change("secret123", "brand-new-1") == (200, 0, "success")
+
+    login = lambda pw: client.post(f"{API}/login", json={"username": "tester", "password": pw}).json()["code"]
+    assert login("secret123") == 40101 and login("brand-new-1") == 0
+    assert client.get(f"{API}/me", headers=auth_headers).json()["code"] == 0              # 这台设备照常登录
+
+
 def test_password_hash_is_salted_and_verifiable():
     h1, h2 = hash_password("secret123"), hash_password("secret123")
     assert h1 != h2 and h1.startswith("$2")

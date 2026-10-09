@@ -44,6 +44,19 @@ class LoginIn(_Credentials):
     pass
 
 
+class PasswordIn(BaseModel):
+    """POST /auth/password：先输对当前密码，新密码的规则和注册一样。"""
+    old_password: str = Field(min_length=1, max_length=64)
+    new_password: str = Field(min_length=6, max_length=64)
+
+    @field_validator("new_password")
+    @classmethod
+    def _fits_bcrypt(cls, v: str) -> str:
+        if len(v.encode("utf-8")) > BCRYPT_MAX_BYTES:
+            raise ValueError("密码过长")
+        return v
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

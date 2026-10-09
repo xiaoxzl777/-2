@@ -1,4 +1,4 @@
-"""认证：注册、登录、当前用户。"""
+"""认证：注册、登录、当前用户、修改密码。"""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.errors import CONFLICT, UNAUTHORIZED, ApiError
+from app.errors import BAD_REQUEST, CONFLICT, UNAUTHORIZED, ApiError
 from app.models import User
-from app.schemas import ApiResponse, LoginIn, RegisterIn, TokenOut, UserOut, ok
+from app.schemas import ApiResponse, LoginIn, PasswordIn, RegisterIn, TokenOut, UserOut, ok
 from app.security import (
     create_access_token,
     dummy_hash,
@@ -55,3 +55,16 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
 @router.get("/me", response_model=ApiResponse[UserOut])
 def me(user: User = Depends(get_current_user)):
     return ok(UserOut.model_validate(user))
+
+
+@router.post("/password", response_model=ApiResponse[None])
+def change_password(body: PasswordIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """改密码：先输对当前密码。改完这台设备照常登录；别的设备上已经发出去的令牌不作废，到期（JWT_EXPIRE_HOURS）自然失效。
+    当前密码不对用 40001，不用 40101：前端收到 401 会当成登录失效、直接退出。"""
+    if not verify_password(body.old_password, user.password_hash):
+        raise ApiError(BAD_REQUEST, "当前密码不对")
+    if body.new_password == body.old_password:
+        raise ApiError(BAD_REQUEST, "新密码不能和当前密码一样")
+    user.password_hash = hash_password(body.new_password)
+    db.commit()
+    return ok()

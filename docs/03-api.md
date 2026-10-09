@@ -27,16 +27,18 @@
 
 后台任务（解析、投递分析）里的失败不走错误码，落成记录的 failed 状态，通过 SSE 的 error 事件或轮询状态告诉前端（3.3）。
 
-## 3.2 接口清单（30 个；已实现 28 个，标〔未实现〕的留给后续里程碑）
+## 3.2 接口清单（31 个；已实现 29 个，标〔未实现〕的留给后续里程碑）
 
-另有 `GET /api/v1/health`，不计入 30 个，不用登录。它是运行时探针：逐项探测 MySQL、Redis，返回 `{mysql, redis, version}`，每项为 `ok` 或 `error: <异常类型>`；任一依赖异常时 code 为 50001、HTTP 503。部署出问题时先看它。启动时的检查是另一回事：在 `main.py` 的 lifespan 里，连不上 MySQL、缺表、连不上 Redis 都直接报错退出。
+另有 `GET /api/v1/health`，不计入 31 个，不用登录。它是运行时探针：逐项探测 MySQL、Redis，返回 `{mysql, redis, version}`，每项为 `ok` 或 `error: <异常类型>`；任一依赖异常时 code 为 50001、HTTP 503。部署出问题时先看它。启动时的检查是另一回事：在 `main.py` 的 lifespan 里，连不上 MySQL、缺表、连不上 Redis 都直接报错退出。
 
-还有 `GET /api/v1/system/llm`，也不计入 30 个、不用登录：模型服务现在能不能用，返回 `{available}`，登录后页面顶上的横幅按它显示。后端问 DeepSeek 的余额接口（不花钱），结论在 Redis 里存 1 分钟（04-design 4.6）。故意不放进 `/health`：余额用完不该让容器被判成不健康，网站别的部分照常能用。
+还有 `GET /api/v1/system/llm`，也不计入 31 个、不用登录：模型服务现在能不能用，返回 `{available}`，登录后页面顶上的横幅按它显示。后端问 DeepSeek 的余额接口（不花钱），结论在 Redis 里存 1 分钟（04-design 4.6）。故意不放进 `/health`：余额用完不该让容器被判成不健康，网站别的部分照常能用。
 
 ```
-认证 3    POST /auth/register  {username, password, email?}  → 令牌 + 用户（注册成功直接登录）；不用登录
+认证 4    POST /auth/register  {username, password, email?}  → 令牌 + 用户（注册成功直接登录）；不用登录
           POST /auth/login     {username, password}          → {access_token, token_type, expires_in, user}；不用登录
           GET  /auth/me        当前用户（前端刷新页面时用它恢复登录态）
+          POST /auth/password  {old_password, new_password}  → null；当前密码不对 / 新旧一样 40001（不用 40101：前端收到 401 会直接退出）；
+                               新密码规则同注册；这台设备照常登录，别的设备上已发出的令牌到期才失效
 
 简历 7    POST   /resumes      multipart：file（PDF，≤20MB，≤10 页）+ title?
                                → {id, task_id:"parse:{id}", parse_status, deduplicated}；立即返回，解析在后台跑
