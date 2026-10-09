@@ -19,6 +19,8 @@ logger = logging.getLogger("app.llm")
 
 KEY = "llm:status"
 TTL_SECONDS = 60
+PROBE_TRIES = 2          # 连不上时再试一次：偶尔一次网络抖动（10-09 实测碰上过 ConnectTimeout）不该让横幅误报一分钟，真正的调用本来也会重试
+PROBE_TIMEOUT = 10       # 余额接口有时要 3–5 秒才返回
 _OK = ""                 # Redis 里存空串 = 能用
 
 
@@ -52,11 +54,14 @@ def _remember(reason: str | None) -> None:
 def _probe() -> str | None:
     if not settings.DEEPSEEK_API_KEY:
         return "没有配置 DEEPSEEK_API_KEY"
-    try:
-        r = http_client().get(f"{settings.DEEPSEEK_BASE_URL.rstrip('/')}/user/balance", timeout=5,
-                              headers={"Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}"})
-    except httpx.HTTPError as e:
-        return f"连不上模型服务（{type(e).__name__}）"
+    for attempt in range(PROBE_TRIES):
+        try:
+            r = http_client().get(f"{settings.DEEPSEEK_BASE_URL.rstrip('/')}/user/balance", timeout=PROBE_TIMEOUT,
+                                  headers={"Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}"})
+            break
+        except httpx.HTTPError as e:
+            if attempt == PROBE_TRIES - 1:
+                return f"连不上模型服务（{type(e).__name__}）"
     if r.status_code in (401, 403):
         return f"密钥无效（{r.status_code}）"
     try:

@@ -57,11 +57,13 @@ class FakeRedis:
 
 
 class FakeHttp:
-    def __init__(self, reply):
-        self.reply, self.calls = reply, 0
+    def __init__(self, reply, flaky=0):
+        self.reply, self.calls, self.flaky = reply, 0, flaky        # flaky：前几次连不上
 
     def get(self, url, **_):
         self.calls += 1
+        if self.calls <= self.flaky:
+            raise httpx.ConnectTimeout("timed out")
         if isinstance(self.reply, Exception):
             raise self.reply
         code, body = self.reply
@@ -70,8 +72,8 @@ class FakeHttp:
 
 @pytest.fixture
 def probe(monkeypatch):
-    def setup(reply, redis=None):
-        http, redis = FakeHttp(reply), redis or FakeRedis()
+    def setup(reply, redis=None, flaky=0):
+        http, redis = FakeHttp(reply, flaky), redis or FakeRedis()
         monkeypatch.setattr(status, "redis_client", redis)
         monkeypatch.setattr(status, "http_client", lambda: http)
         monkeypatch.setattr(status.settings, "DEEPSEEK_API_KEY", "sk-test")
@@ -89,6 +91,13 @@ def probe(monkeypatch):
 def test_balance_probe(probe, reply, reason):
     probe(reply)
     assert status.unavailable_reason() == reason
+
+
+def test_one_network_hiccup_does_not_raise_the_banner(probe):
+    http, _ = probe((200, {"is_available": True}), flaky=1)
+    assert status.unavailable_reason() is None and http.calls == 2
+    http, _ = probe((200, {"is_available": True}), flaky=2)                # 两次都连不上才算
+    assert status.unavailable_reason() == "连不上模型服务（ConnectTimeout）"
 
 
 def test_the_answer_is_kept_for_a_minute_and_a_failed_call_overrides_it(probe):

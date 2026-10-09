@@ -127,7 +127,7 @@ invoke_json(llm, scene, messages, schema, prompt_version, …) → (parsed | Non
 认出来   client.py 把服务商的错误分成两类：402 余额不足 / 401、403 密钥无效 / 429、5xx 服务繁忙 / 连不上、超时 → LLMError.unavailable = 原因；
          其余（请求本身的问题等）unavailable = None。前一类再试也没用，页面上统一说「模型服务暂时不可用……」，后一类照旧「请稍后重试」
 记下来   碰上前一类就把原因写进 Redis 的 llm:status（存 60 秒）；GET /system/llm 先看它，没有就问 DeepSeek 的 GET /user/balance
-         （不花钱：is_available=false → 余额不足，401 → 密钥无效，连不上 → 连不上），结论同样存 60 秒；余额接口自己出状况按能用处理
+         （不花钱：is_available=false → 余额不足，401 → 密钥无效，连不上 → 连不上；超时 10 秒，连不上再试一次），结论同样存 60 秒；余额接口自己出状况按能用处理
 页面上   登录后每个页面内容最上面一条横幅，每分钟问一次；投递失败时 error_msg 写成「模型服务不可用：<原因>」，结果页、我的投递按这个前缀单独说；
          简历解析时调不通记成 parse_error=llm_unavailable，投递等到它时也按模型服务不可用报（不叫用户换简历）
 ```
