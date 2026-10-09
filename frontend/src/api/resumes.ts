@@ -80,3 +80,18 @@ export const resumesApi = {
     return request<UploadOut>('/resumes', { method: 'POST', body: form })
   },
 }
+
+/** 选了文件先在前端挡一下（和后端的上传校验一致）；没问题返回 null */
+export function fileProblem(file: File): string | null {
+  if (!/\.pdf$/i.test(file.name)) return '目前只支持 PDF'
+  if (file.size > MAX_UPLOAD_MB * 1024 * 1024) return `文件不能超过 ${MAX_UPLOAD_MB}MB`
+  return null
+}
+
+/** 上传并取回这一条（工作台选简历、我的简历共用） */
+export async function uploadResume(file: File): Promise<Resume> {
+  const out = await resumesApi.upload(file)
+  const fresh = await resumesApi.get(out.id)
+  // 同一文件上次解析失败：后端已经重新排队解析，只是状态还没来得及改
+  return out.deduplicated && fresh.parse_status === 'failed' ? { ...fresh, parse_status: 'pending', parse_error: null } : fresh
+}

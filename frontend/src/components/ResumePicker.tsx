@@ -2,11 +2,10 @@
 // 解析在后台进行；解析中的也能选（投递会等它解析完），解析失败的不能选。每份都能删（解析失败的也能）。
 import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { ApiError } from '../api/client'
-import { isParsing, MAX_UPLOAD_MB, parseErrorText, RESUME_LIST_MAX, resumesApi, type Resume } from '../api/resumes'
+import { fileProblem, isParsing, MAX_UPLOAD_MB, parseErrorText, RESUME_LIST_MAX, resumesApi, uploadResume, type Resume } from '../api/resumes'
 import { TiltCard } from './effects'
 import { PickRow } from './PickRow'
-
-const POLL_MS = 1500
+import { useParsingPoll } from './useParsingPoll'
 
 function statusText(r: Resume): string {
   if (r.parse_status === 'failed') return `解析失败：${parseErrorText(r.parse_error)}`
@@ -31,30 +30,18 @@ export function ResumePicker({ selected, onPick }: { selected: Resume | null; on
   }, [])
 
   // 解析中的简历定时刷新状态；选中的那份解析失败了就取消选中
-  const parsingIds = (resumes ?? []).filter(isParsing).map((r) => r.id).join(',')
-  useEffect(() => {
-    if (!parsingIds) return
-    const timer = window.setInterval(() => {
-      for (const id of parsingIds.split(',').map(Number)) {
-        resumesApi.get(id).then((fresh) => {
-          setResumes((list) => list?.map((r) => (r.id === id ? { ...r, ...fresh } : r)) ?? null)
-          if (selectedRef.current?.id === id) onPick(fresh.parse_status === 'failed' ? null : fresh)
-        }).catch(() => { /* 下一轮再试 */ })
-      }
-    }, POLL_MS)
-    return () => window.clearInterval(timer)
-  }, [parsingIds, onPick])
+  useParsingPoll(resumes, (fresh) => {
+    setResumes((list) => list?.map((r) => (r.id === fresh.id ? { ...r, ...fresh } : r)) ?? null)
+    if (selectedRef.current?.id === fresh.id) onPick(fresh.parse_status === 'failed' ? null : fresh)
+  })
 
   const send = async (file: File | undefined) => {
     if (!file) return
-    if (!/\.pdf$/i.test(file.name)) return setUpload({ name: file.name, error: '目前只支持 PDF' })
-    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) return setUpload({ name: file.name, error: `文件不能超过 ${MAX_UPLOAD_MB}MB` })
+    const problem = fileProblem(file)
+    if (problem) return setUpload({ name: file.name, error: problem })
     setUpload({ name: file.name })
     try {
-      const out = await resumesApi.upload(file)
-      let fresh = await resumesApi.get(out.id)
-      // 同一文件上次解析失败：后端已经重新排队解析，只是状态还没来得及改
-      if (out.deduplicated && fresh.parse_status === 'failed') fresh = { ...fresh, parse_status: 'pending', parse_error: null }
+      const fresh = await uploadResume(file)
       setResumes((list) => {
         const prev = list?.find((r) => r.id === fresh.id) // 同一文件传过：沿用列表里的投递次数
         return [{ ...prev, ...fresh }, ...(list ?? []).filter((r) => r.id !== fresh.id)]

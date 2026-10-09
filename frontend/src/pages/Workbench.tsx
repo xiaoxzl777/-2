@@ -38,12 +38,18 @@ export default function Workbench() {
   useEffect(() => () => window.clearTimeout(leaveTimer.current), [])
   const domain = domains?.find((d) => d.key === domainKey) ?? null
 
-  // 从结果页回来：?job= 带着岗位（方向跟着岗位）直接到第 ③ 步；再带 &resume= 就直接到第 ④ 步（重新投递）
+  // 从结果页回来：?job= 带着岗位（方向跟着岗位）直接到第 ③ 步；再带 &resume= 就直接到第 ④ 步（重新投递）。
+  // 只带 ?resume=（「我的简历」里的「用它投递」）：简历先选好，照常从第 ① 步选方向开始
   useEffect(() => {
     const jobId = Number(params.get('job'))
     const resumeId = Number(params.get('resume'))
-    if (!jobId) return
+    if (!jobId && !resumeId) return
     let cancelled = false
+    setParams({}, { replace: true })
+    if (!jobId) {
+      resumesApi.get(resumeId).then((r) => { if (!cancelled && r.parse_status !== 'failed') setResume(r) }).catch(() => { /* 删掉了就不选 */ })
+      return () => { cancelled = true }
+    }
     void (async () => {
       try {
         const j = await jobsApi.get(jobId)
@@ -61,7 +67,6 @@ export default function Workbench() {
         /* 岗位已经删掉了：留在第 ① 步重新选 */
       }
     })()
-    setParams({}, { replace: true })
     return () => { cancelled = true }
   }, []) // 只在进入页面时读一次
 
