@@ -87,7 +87,7 @@ export default function MyResumes() {
 
         <label className={`mr-up fade d3${over ? ' over' : ''}`} onDragEnter={dragOver} onDragOver={dragOver} onDragLeave={dragEnd}
           onDrop={(e) => { dragEnd(e); void send(e.dataTransfer.files[0]) }}>
-          <input type="file" accept=".pdf,application/pdf" hidden onChange={(e) => { void send(e.target.files?.[0]); e.target.value = '' }} />
+          <input type="file" accept=".pdf,application/pdf" className="file-input" onChange={(e) => { void send(e.target.files?.[0]); e.target.value = '' }} />
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M12 15V3M7 8l5-5 5 5" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
           </svg>

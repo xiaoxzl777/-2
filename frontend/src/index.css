@@ -484,7 +484,7 @@ button { cursor: pointer; }
 .hint { font-size: 12px; color: var(--color-ink-3); }
 .link { padding: 0; border: none; background: none; font-size: 14px; font-weight: 600; color: var(--color-accent-ink); }
 .link:hover { text-decoration: underline; }
-.back:focus-visible, .link:focus-visible, .tabs button:focus-visible, .pick-item:focus-visible, .issue-row:focus-visible, .drop:focus-within { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.back:focus-visible, .link:focus-visible, .tabs button:focus-visible, .pick-item:focus-visible, .issue-row:focus-visible, .drop:has(.file-input:focus-visible), .mr-up:has(.file-input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
 /* 右侧操作卡：随鼠标倾斜。原来周围还有漂浮小卡，压着卡片内容，2026-10-07 去掉了（工作台改成顶上的步骤条） */
 .stage { position: relative; perspective: 1200px; }
@@ -588,7 +588,9 @@ button { cursor: pointer; }
 .empty { margin: 0; padding: 22px 16px; border-radius: 16px; background: var(--color-field); box-shadow: inset 0 0 0 1.5px var(--line); font-size: 14px; line-height: 1.7; color: var(--color-ink-3); text-align: center; }
 
 /* ② 上传 */
-.drop { display: grid; place-items: center; gap: 8px; margin-bottom: 16px; padding: 30px 16px; border: 2px dashed rgba(var(--ink-rgb), 0.18); border-radius: 20px; background: var(--color-field); text-align: center; cursor: pointer; transition: border-color 0.25s, background 0.25s; }
+/* 上传框里的文件输入框：看不见，但 Tab 能到、回车 / 空格能打开选文件的窗口。原来用 hidden 属性（display: none），键盘到不了，只能用鼠标或拖拽 */
+.file-input { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); border: 0; white-space: nowrap; }
+.drop { position: relative; display: grid; place-items: center; gap: 8px; margin-bottom: 16px; padding: 30px 16px; border: 2px dashed rgba(var(--ink-rgb), 0.18); border-radius: 20px; background: var(--color-field); text-align: center; cursor: pointer; transition: border-color 0.25s, background 0.25s; }
 .drop:hover, .card.over .drop { border-color: var(--color-accent); background: rgba(var(--accent-rgb), 0.06); }
 .drop svg { color: var(--color-accent); transition: transform 0.5s var(--spring); }
 .drop:hover svg, .card.over .drop svg { transform: translateY(-6px); }
@@ -1104,7 +1106,7 @@ button { cursor: pointer; }
 .ap-more.up:hover .ar { transform: translateY(-2px); }
 .ap-note { padding: 30px 16px; border-radius: 18px; background: var(--color-field); box-shadow: inset 0 0 0 1.5px var(--line); font-size: 14px; color: var(--color-ink-3); text-align: center; }
 /* ── 我的简历：/app/resumes（pages/MyResumes.tsx，类名 mr- 前缀；页头、统计、空状态沿用 ap-）。样稿：docs/design/我的简历预览.html 方案 B ── */
-.mr-up { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; padding: 14px 16px 14px 18px; border-radius: 20px; background: rgba(var(--accent-rgb), 0.05);
+.mr-up { position: relative; display: flex; align-items: center; gap: 14px; margin-bottom: 16px; padding: 14px 16px 14px 18px; border-radius: 20px; background: rgba(var(--accent-rgb), 0.05);
   box-shadow: inset 0 0 0 1.5px rgba(var(--accent-rgb), 0.3); cursor: pointer; transition: background 0.2s, box-shadow 0.2s; }
 .mr-up:hover, .mr-up.over { background: rgba(var(--accent-rgb), 0.1); }
 .mr-up.over { box-shadow: inset 0 0 0 2px var(--color-accent); }
