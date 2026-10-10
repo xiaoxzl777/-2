@@ -48,13 +48,19 @@ export default function MyApplies() {
     return () => { cancelled = true }
   }, [])
 
-  // 还有在分析的：过一会儿再取一次，直到都出结果
+  // 还有在分析的：每隔几秒取一次，直到都出结果。用 setInterval：某一次没取到（网络抖了、后端在重启）下一轮照样会取；
+  // 原来是「取到了再约下一次」，失败一次就再也不刷新，那条投递一直转「分析中」
   const running = data?.items.some(isRunning) ?? false
   useEffect(() => {
     if (!running) return
-    const t = setTimeout(() => { applyApi.list().then(setData).catch(() => { /* 下次再试 */ }) }, POLL_MS)
-    return () => clearTimeout(t)
-  }, [data, running])
+    let busy = false // 上一次还没回来就不叠着发
+    const t = window.setInterval(() => {
+      if (busy) return
+      busy = true
+      applyApi.list().then(setData).catch(() => { /* 这一轮没取到，下一轮接着取 */ }).finally(() => { busy = false })
+    }, POLL_MS)
+    return () => window.clearInterval(t)
+  }, [running])
 
   const items = data?.items ?? []
   const shown = items.filter(FILTERS.find((f) => f[0] === filter)![2])
