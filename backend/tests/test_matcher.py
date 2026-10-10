@@ -75,6 +75,15 @@ def test_education(content, status):
     assert (item.status, item.matched_by, item.evidence_quote) == (status, "profile", LINES[0])
 
 
+def test_the_bar_is_the_lowest_degree_named_and_the_quote_is_only_a_fallback():
+    # 简历是本科。"本科或硕士在读"的门槛是本科；JD 原话里的"硕士优先"是加分项，不能当门槛
+    assert _match(_req(1, "education", "本科或硕士在读")).status == "hit"
+    assert _match(_req(1, "education", "本科及以上学历", quote="本科及以上学历，硕士优先")).status == "hit"
+    assert _match(_req(1, "education", "学历要求", quote="硕士及以上学历")).status == "miss"        # content 没写学历才看原话
+    item = _match(_req(1, "education", "博士研究生"))
+    assert item.status == "miss" and "低于要求的博士" in item.reason                               # "博士研究生"不是硕士
+
+
 def test_education_is_undecided_without_a_degree_on_either_side():
     assert _match(_req(1, "education", "计算机相关专业")) is None
     assert _match(_req(1, "education", "本科及以上"), {**STRUCTURE, "education": [{"degree": None}]}) is None

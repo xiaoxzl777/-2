@@ -18,7 +18,7 @@ STATUS_VALUE = {"hit": 1.0, "partial": 0.5, "miss": 0.0}
 CATEGORIES = ("skill", "education", "experience", "other")
 _EXPERIENCE_SECTIONS = ("work", "projects")
 
-_DEGREES = [(4, re.compile(r"博士|ph\.?d", re.I)), (3, re.compile(r"硕士|研究生|master", re.I)),
+_DEGREES = [(4, re.compile(r"博士|ph\.?d", re.I)), (3, re.compile(r"硕士|(?<!博士)研究生|master", re.I)),   # "博士研究生"只算博士
             (2, re.compile(r"本科|学士|bachelor", re.I)), (1, re.compile(r"大专|专科"))]
 _DEGREE_NAMES = {4: "博士", 3: "硕士", 2: "本科", 1: "大专"}
 _YEARS = re.compile(r"(\d{1,2})\s*年")
@@ -101,7 +101,7 @@ def _is_plain_skill_requirement(req: dict) -> bool:
 
 
 def _match_education(req: dict, structure: dict, full_text: str) -> MatchItem | None:
-    required = degree_level(f"{req['content']} {req.get('quote', '')}")
+    required = _required_degree(req)
     entries = [(degree_level(e.get("degree") or ""), e) for e in structure.get("education", [])]
     entries = [(level, e) for level, e in entries if level]
     if not required or not entries:
@@ -128,7 +128,21 @@ def _match_years(req: dict, structure: dict, today: date) -> MatchItem | None:
 
 def degree_level(text: str) -> int:
     """文字里出现的最高学历层次：博士 4 / 硕士 3 / 本科 2 / 大专 1；没有则 0。"""
-    return next((level for level, pattern in _DEGREES if pattern.search(text)), 0)
+    return max(_degree_levels(text), default=0)
+
+
+def _degree_levels(text: str) -> list[int]:
+    return [level for level, pattern in _DEGREES if pattern.search(text)]
+
+
+def _required_degree(req: dict) -> int:
+    """要求的学历门槛 = 要求里提到的最低一档："本科或硕士在读"的门槛是本科，不是硕士。
+    先只看模型复述的 content；JD 原话（quote）里常带"硕士优先"这类加分项，content 里没写学历时才看它。"""
+    for text in (req["content"], req.get("quote") or ""):
+        levels = _degree_levels(text)
+        if levels:
+            return min(levels)
+    return 0
 
 
 def experience_years(structure: dict, today: date) -> float:
