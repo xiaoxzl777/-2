@@ -5,6 +5,7 @@ import { EMAIL_RE, PASSWORD_MAX, PASSWORD_MIN, USERNAME_RE } from '../api/auth'
 import { ApiError } from '../api/client'
 import { useAuth } from '../store/auth'
 import { AuthDeco } from './AuthDeco'
+import { useOverlay } from './useOverlay'
 
 export type AuthMode = 'login' | 'register'
 export type Origin = { x: number; y: number }
@@ -33,20 +34,14 @@ export function AuthDialog({ open, mode, origin, onModeChange, onClose }: {
 
   const isLogin = mode === 'login'
 
-  // 打开时：锁滚动、聚焦用户名、Esc 关闭
+  // 打开时：锁滚动、Esc 关闭、关掉后焦点回到打开它的按钮（useOverlay）；展开动画播完后聚焦用户名
+  useOverlay(open, onClose)
   useEffect(() => {
     if (!open) return
     setError(null)
-    document.body.style.overflow = 'hidden'
     const focus = window.setTimeout(() => userRef.current?.focus(), 450)
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => {
-      document.body.style.overflow = ''
-      clearTimeout(focus)
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [open, onClose])
+    return () => clearTimeout(focus)
+  }, [open])
 
   useEffect(() => { setError(null) }, [mode])
 

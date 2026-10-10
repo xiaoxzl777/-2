@@ -12,7 +12,9 @@ export function UserMenu() {
   const [open, setOpen] = useState(false)
   const [pwd, setPwd] = useState(false)
   const box = useRef<HTMLDivElement>(null)
-  const closePwd = useCallback(() => setPwd(false), [])
+  const btn = useRef<HTMLButtonElement>(null)
+  // 弹窗是从菜单项打开的，菜单项这时已经收起来了：关掉后把焦点放回头像按钮
+  const closePwd = useCallback(() => { setPwd(false); btn.current?.focus() }, [])
 
   useEffect(() => {
     if (!open) return
@@ -33,7 +35,7 @@ export function UserMenu() {
 
   return (
     <div className={`um${open ? ' open' : ''}`} ref={box}>
-      <button type="button" className="um-btn" aria-haspopup="menu" aria-expanded={open} aria-label={`账号 ${user.username}`} onClick={() => setOpen((o) => !o)}>
+      <button type="button" ref={btn} className="um-btn" aria-haspopup="menu" aria-expanded={open} aria-label={`账号 ${user.username}`} onClick={() => setOpen((o) => !o)}>
         <span className="avatar">{user.username.slice(0, 1).toUpperCase()}</span>
         <span className="uname">{user.username}</span>
         <svg className="um-caret" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M2 4l3 3 3-3" /></svg>

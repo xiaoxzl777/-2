@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { AdviceBlock } from './AdviceBlock'
 import { located, ResumePaper, type SheetDoc, type SheetItem, type SheetList } from './ResumePaper'
+import { useOverlay } from './useOverlay'
 
 const LIST_NAME: Record<SheetList, string> = { gap: '对照岗位', self: '简历本身', hit: '满足的要求' }
 
@@ -32,21 +33,18 @@ export function ResumeSheet({ open, title, doc, loadError, items, focusKey, onFo
   const stepRef = useRef(step)
   stepRef.current = step
 
-  // 打开时锁住页面滚动；Esc 关闭，← → 切换
+  // 打开时锁住页面滚动、Esc 关闭、焦点放到关闭按钮上（useOverlay）；← → 切换
+  const closeRef = useRef<HTMLButtonElement>(null)
+  useOverlay(open, onClose, closeRef)
   useEffect(() => {
     if (!open) return
-    document.body.style.overflow = 'hidden'
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-      else if (e.key === 'ArrowRight') stepRef.current(1)
+      if (e.key === 'ArrowRight') stepRef.current(1)
       else if (e.key === 'ArrowLeft') stepRef.current(-1)
     }
     window.addEventListener('keydown', onKey)
-    return () => {
-      document.body.style.overflow = ''
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [open, onClose])
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
 
   const count = (list: SheetList) => lists[list].filter(located).length
   const idx = current ? lists[current.list].indexOf(current) : -1
@@ -58,7 +56,7 @@ export function ResumeSheet({ open, title, doc, loadError, items, focusKey, onFo
       <aside className={`sheet ${open ? 'open' : ''}`} role="dialog" aria-modal="true" aria-labelledby="sheet-title" aria-hidden={!open}>
         <div className="sheet-head">
           <div className="sheet-title" id="sheet-title">简历原文<span>{title}</span></div>
-          <button type="button" className="x" onClick={onClose} aria-label="关闭">
+          <button type="button" className="x" ref={closeRef} onClick={onClose} aria-label="关闭">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12" /></svg>
           </button>
         </div>

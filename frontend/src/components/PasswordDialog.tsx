@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { authApi, PASSWORD_MAX, PASSWORD_MIN } from '../api/auth'
 import { ApiError } from '../api/client'
+import { useOverlay } from './useOverlay'
 
 type Field = 'old' | 'new' | 'again'
 const RULE = `新密码 ${PASSWORD_MIN}–${PASSWORD_MAX} 位`
@@ -26,12 +27,7 @@ export function PasswordDialog({ open, username, onClose }: { open: boolean; use
     return () => window.clearTimeout(t)
   }, [open])
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  useOverlay(open, onClose) // 锁住背后页面的滚动、Esc 关闭、关掉后焦点回到头像按钮
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()

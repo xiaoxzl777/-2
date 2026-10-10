@@ -6,6 +6,7 @@ import { ApiError } from '../api/client'
 import { resumesApi, type Resume, type ResumeStructure } from '../api/resumes'
 import { entryBlocksOf } from '../pages/applyItems'
 import { ResumePaper, type SheetDoc } from './ResumePaper'
+import { useOverlay } from './useOverlay'
 
 const noop = () => {}
 
@@ -27,16 +28,8 @@ export function ResumeViewer({ resume, onClose }: { resume: Resume | null; onClo
     return () => { cancelled = true }
   }, [resume])
 
-  useEffect(() => {
-    if (!open) return
-    document.body.style.overflow = 'hidden'
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => {
-      document.body.style.overflow = ''
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [open, onClose])
+  const closeRef = useRef<HTMLButtonElement>(null)
+  useOverlay(open, onClose, closeRef)
 
   // 挂到 body 下：页面内容区自成层叠上下文，放在里面盖不住导航栏（同 ResumeSheet）
   return createPortal(
@@ -45,7 +38,7 @@ export function ResumeViewer({ resume, onClose }: { resume: Resume | null; onClo
       <aside className={`sheet ${open ? 'open' : ''}`} role="dialog" aria-modal="true" aria-labelledby="viewer-title" aria-hidden={!open}>
         <div className="sheet-head">
           <div className="sheet-title" id="viewer-title">简历原文<span>{title.current}</span></div>
-          <button type="button" className="x" onClick={onClose} aria-label="关闭">
+          <button type="button" className="x" ref={closeRef} onClick={onClose} aria-label="关闭" tabIndex={open ? 0 : -1}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12" /></svg>
           </button>
         </div>
