@@ -40,6 +40,19 @@ def test_apply_runs_diagnosis_and_match_then_gates(client, auth_headers, resume_
     assert percents == sorted(percents)
 
 
+def test_a_deleted_job_keeps_its_applies_usable(client, auth_headers, resume_and_job, fake_llm):
+    """删岗位不影响已有的投递：结果里自带岗位名和方向（GET /jobs/{id} 已经是 404），照样能建面试。"""
+    rid, jid = resume_and_job
+    aid = _apply(client, auth_headers, rid, jid, match_mode="dict_only", diagnose_mode="rule_only")["data"]["id"]
+    before = client.get(f"{API}/{aid}", headers=auth_headers).json()["data"]
+    assert (before["job_title"], before["domain"]) == ("后端开发", "cs")
+
+    assert client.delete(f"/api/v1/jobs/{jid}", headers=auth_headers).json()["code"] == 0
+    assert client.get(f"/api/v1/jobs/{jid}", headers=auth_headers).json()["code"] == 40401
+    after = client.get(f"{API}/{aid}", headers=auth_headers).json()["data"]
+    assert (after["job_title"], after["domain"], after["status"]) == ("后端开发", "cs", "success")
+
+
 def test_failed_gate_lists_gaps_by_importance(client, auth_headers, resume_and_job, fake_llm, events, monkeypatch):
     from app.config import settings
 

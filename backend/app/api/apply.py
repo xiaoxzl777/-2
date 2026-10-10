@@ -12,7 +12,7 @@ from app.domains import get_domain
 from app.errors import BAD_REQUEST, ApiError
 from app.llm.client import LLMClient, get_llm_client
 from app.llm.registry import MODEL_REGISTRY
-from app.models import Diagnosis, User
+from app.models import Diagnosis, Job, User
 from app.schemas import ApiResponse, ApplyBrief, ApplyIn, ApplyOut, ApplyStartOut, FindingOut, GateOut, Page, ok
 from app.services import apply_service, interview_service, job_service
 from app.services.parse_service import SessionFactory
@@ -71,10 +71,12 @@ def get_apply(apply_id: int, user: User = Depends(get_current_user), db: Session
     report, resume = load_owned_report(db, user, apply_id)
 
     done = report.status == "success"
+    job = db.get(Job, report.job_id)                 # 软删除的也取得到：删岗位不影响已有的投递
     diagnosis = db.get(Diagnosis, report.diagnosis_id) if report.diagnosis_id else None
     overall = float(report.overall_match) if report.overall_match is not None else None
     return ok(ApplyOut(
-        id=report.id, resume_id=report.resume_id, job_id=report.job_id, diagnosis_id=report.diagnosis_id,
+        id=report.id, resume_id=report.resume_id, job_id=report.job_id, job_title=job.title,
+        domain=get_domain(job.domain).key, diagnosis_id=report.diagnosis_id,
         status=report.status, stage=apply_service.stage_of(report, resume), error_msg=report.error_msg,
         gate=GateOut(passed=bool(report.passed), overall_match=overall, threshold=settings.SCREEN_THRESHOLD) if done else None,
         dimension_scores=report.dimension_scores,

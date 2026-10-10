@@ -33,6 +33,7 @@ export default function Workbench() {
   const [resume, setResume] = useState<Resume | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [jobGone, setJobGone] = useState(false) // 带着 ?job= 进来，但那个岗位已经删了
   const { pipe, track } = useApplyTracker()
   const leaveTimer = useRef(0)
   useEffect(() => () => window.clearTimeout(leaveTimer.current), [])
@@ -64,7 +65,7 @@ export default function Workbench() {
           setStep(2)
         }
       } catch {
-        /* 岗位已经删掉了：留在第 ① 步重新选 */
+        if (!cancelled) setJobGone(true) // 岗位已经删掉了：留在第 ① 步重新选，说一声为什么没直接跳过去
       }
     })()
     return () => { cancelled = true }
@@ -77,6 +78,7 @@ export default function Workbench() {
   }
 
   const pickDomain = (key: string) => {
+    setJobGone(false)
     setDomainKey(key)
     if (job && job.domain !== key) setJob(null) // 换了方向，之前选的岗位不算数
   }
@@ -118,6 +120,7 @@ export default function Workbench() {
         <div>
           <Headline lines={['你想找', <><Mark>哪类</Mark>工作？</>]} />
           <p className="sub fade d2">先选方向。岗位模板、简历按什么标准诊断、模拟面试问哪一类问题，都会跟着换。</p>
+          {jobGone && <p className="hint" role="status">刚才要投的那个岗位已经删除了，重新选一个吧。</p>}
           <div className="cta fade d3">
             <MagneticButton className="accent lg" disabled={!domain} onClick={() => go(1)}>下一步：选岗位 <span className="arrow">→</span></MagneticButton>
           </div>

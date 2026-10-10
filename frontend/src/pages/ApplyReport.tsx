@@ -5,7 +5,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { applyApi, isAbort, isRunning, type ApplyResult as Result, type MatchItem } from '../api/apply'
-import { jobsApi, REQ_TYPE_LABEL, type Job } from '../api/jobs'
+import { REQ_TYPE_LABEL } from '../api/jobs'
 import { resumesApi, type ResumeStructure } from '../api/resumes'
 import { sections, withPlaceholders } from '../components/AdviceBlock'
 import { AppShell } from '../components/AppShell'
@@ -16,7 +16,7 @@ import { useAdviceStore } from '../store/advice'
 import { useDomains } from '../store/domains'
 import { DIMENSIONS, entryBlocksOf, sheetItems, verdictSub, type ListItem } from './applyItems'
 
-type Loaded = { data: Result; gate: NonNullable<Result['gate']>; doc: SheetDoc; resumeTitle: string; hits: number; total: number; job: Job | null }
+type Loaded = { data: Result; gate: NonNullable<Result['gate']>; doc: SheetDoc; resumeTitle: string; hits: number; total: number }
 
 const SEVERITY_TAG = { high: ['bad', '高'], medium: ['part', '中'], low: ['gray', '低'] } as const
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -42,15 +42,14 @@ export default function ApplyReport() {
       if (cancelled) return
       if (isRunning(data)) return setNotReady('这次投递还在分析，分析完才能看报告。')
       if (data.status === 'failed' || !data.gate) return setNotReady('这次分析没能完成，没有报告可看。')
-      const [blocks, structure, resumeTitle, items, job] = await Promise.all([
+      const [blocks, structure, resumeTitle, items] = await Promise.all([
         resumesApi.blocks(data.resume_id),
         resumesApi.structure(data.resume_id).catch((): ResumeStructure => ({})),
         resumesApi.get(data.resume_id).then((r) => r.title).catch(() => ''),
         applyApi.match(data.id).then((m) => m.items).catch((): MatchItem[] => []),
-        jobsApi.get(data.job_id).catch(() => null),
       ])
       if (cancelled) return
-      setLoaded({ data, gate: data.gate, doc: { ...blocks, entryBlocks: entryBlocksOf(structure) }, resumeTitle, job,
+      setLoaded({ data, gate: data.gate, doc: { ...blocks, entryBlocks: entryBlocksOf(structure) }, resumeTitle,
         hits: items.filter((i) => i.status === 'hit').length, total: items.length })
     }
     load().catch((err) => {
@@ -71,7 +70,7 @@ export default function ApplyReport() {
   return <AppShell progress={100}>{body}</AppShell>
 }
 
-function Report({ data, gate, doc, resumeTitle, hits, total, job, onBack }: Loaded & { onBack: () => void }) {
+function Report({ data, gate, doc, resumeTitle, hits, total, onBack }: Loaded & { onBack: () => void }) {
   const domains = useDomains()
   const entries = useAdviceStore((s) => s.entries)
   const sheetRef = useRef<HTMLElement>(null)
@@ -93,7 +92,7 @@ function Report({ data, gate, doc, resumeTitle, hits, total, job, onBack }: Load
     return (e?.status === 'done' ? e.text : null) ?? x.advice?.cached?.text ?? null
   }
 
-  const domain = domains?.find((d) => d.key === job?.domain)
+  const domain = domains?.find((d) => d.key === data.domain)
   const overall = gate.overall_match === null ? null : Math.round(gate.overall_match)
   const dims = DIMENSIONS.flatMap(([key, label]) => {
     const v = data.dimension_scores?.[key]
@@ -108,7 +107,7 @@ function Report({ data, gate, doc, resumeTitle, hits, total, job, onBack }: Load
     try {
       const { default: html2pdf } = await import('html2pdf.js')
       // 文件名里不能有 \ / : * ? " < > |
-      const name = `简历诊断报告-${job?.title ?? '岗位'}-${day(now)}.pdf`.replace(/[\\/:*?"<>|]/g, '-')
+      const name = `简历诊断报告-${data.job_title}-${day(now)}.pdf`.replace(/[\\/:*?"<>|]/g, '-')
       const options = {
         margin: [14, 14, 16, 14] as [number, number, number, number],
         filename: name,
@@ -205,7 +204,7 @@ function Report({ data, gate, doc, resumeTitle, hits, total, job, onBack }: Load
         <p className="rpt-disclaimer"><b>免责声明</b>：本报告由系统自动生成，初筛结论是模拟的，不代表任何企业的真实招聘结果；修改建议仅供参考。</p>
         {domain?.note && <p className="rpt-general"><b>说明</b>：{domain.note}</p>}
         <dl className="rpt-meta">
-          <dt>目标岗位</dt><dd>{job?.title ?? '（岗位已删除）'}{domain ? ` · ${domain.name}方向` : ''}</dd>
+          <dt>目标岗位</dt><dd>{data.job_title}{domain ? ` · ${domain.name}方向` : ''}</dd>
           <dt>使用简历</dt><dd>{resumeTitle || '—'}</dd>
           <dt>岗位要求</dt><dd>{total ? `${total} 条，满足 ${hits} 条` : '—'}</dd>
         </dl>

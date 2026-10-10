@@ -30,7 +30,7 @@ export default function InterviewSetup() {
   const navigate = useNavigate()
   const [apply, setApply] = useState<ApplyResult | null>(null)
   const [job, setJob] = useState<Job | null>(null)
-  const domain = useDomain(job?.domain)
+  const domain = useDomain(apply?.domain)
   const [resumeTitle, setResumeTitle] = useState('')
   const [loadError, setLoadError] = useState<string | null>(null)
   const [company, setCompany] = useState('')
@@ -43,10 +43,11 @@ export default function InterviewSetup() {
     applyApi.get(applyId).then(async (a) => {
       if (cancelled) return
       setApply(a)
-      const [j, r] = await Promise.all([jobsApi.get(a.job_id), resumesApi.get(a.resume_id).catch(() => null)])
+      // 岗位可能已经删了（404）：投递和面试都不受影响，只是拿不到公司名和要求条数
+      const [j, r] = await Promise.all([jobsApi.get(a.job_id).catch(() => null), resumesApi.get(a.resume_id).catch(() => null)])
       if (cancelled) return
       setJob(j)
-      setCompany((c) => c || j.company || '')
+      setCompany((c) => c || j?.company || '')
       setResumeTitle(r?.title ?? '')
     }).catch((err) => {
       if (!cancelled) setLoadError(notFoundText(err, '这条投递记录不存在，可能已经被删除。'))
@@ -55,7 +56,7 @@ export default function InterviewSetup() {
   }, [applyId])
 
   const practice = apply?.gate ? !apply.gate.passed : false
-  const ready = apply?.status === 'success' && !!apply.gate && !!job
+  const ready = apply?.status === 'success' && !!apply.gate
   const length = context.trim().length
 
   const start = async (e?: FormEvent) => {
@@ -101,7 +102,7 @@ export default function InterviewSetup() {
         <div>
           <button type="button" className="back fade d1" onClick={() => navigate(`/app/apply/${applyId}`)}>← 回到初筛结果</button>
           <Headline badge={!apply?.gate ? '模拟面试' : practice ? '练习模式' : '初筛已通过'}
-            label={!apply?.gate ? job?.title ?? '…' : practice ? '初筛没过也能练' : job?.title ?? '岗位'}
+            label={!apply?.gate ? apply?.job_title ?? '…' : practice ? '初筛没过也能练' : apply.job_title}
             lines={['来一场', <><Mark>{domain?.interview_label ?? '面试'}</Mark>。</>]} />
           <p className="sub fade d2">
             {/* 话题个数要等定完才知道（偶尔少一个），这里不写死 */}
@@ -146,7 +147,7 @@ export default function InterviewSetup() {
                 <div className="iv-refs">
                   <div className="iv-ref"><span className="ok" aria-hidden="true">✓</span><div>
                     <div className="t">岗位要求</div>
-                    <div className="s">{job ? `${job.title} · ${job.requirement_count} 条` : '加载中…'}</div>
+                    <div className="s">{job ? `${job.title} · ${job.requirement_count} 条` : apply ? apply.job_title : '加载中…'}</div>
                   </div></div>
                   <div className="iv-ref"><span className="ok" aria-hidden="true">✓</span><div>
                     <div className="t">你的简历</div>

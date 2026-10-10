@@ -60,7 +60,7 @@
 投递 3    POST /apply  {resume_id, job_id, diagnose_mode?, match_mode?, model?} → {id, diagnosis_id, task_id:"apply:{id}", status}   图 A
                        投递 id = match_report_id；简历还在解析也可以投，后台任务先等解析完成（最多 120 秒）；解析已失败的 50003
                        diagnose_mode / match_mode / model 是评测用的开关，页面不传（默认 hybrid、默认模型）
-          GET  /apply/{id}  → status / stage / gate{passed, overall_match, threshold}（跑完才有）/ dimension_scores / resume_score
+          GET  /apply/{id}  → job_title / domain（岗位删了也给：投递不受影响，结果页和面试准备页靠它）/ status / stage / gate{passed, overall_match, threshold}（跑完才有）/ dimension_scores / resume_score
                        + gaps[]（未满足与部分满足的要求，重要的在前）+ resume_issues[]（诊断里最严重的 8 条，带 finding id）
                        + interviews[]（这次投递下面的面试，新的在前，字段同 GET /apply）
                        stage ∈ parsing（简历还在解析）/ queued（解析好了、分析还没开始）/ analyzing / done / failed，

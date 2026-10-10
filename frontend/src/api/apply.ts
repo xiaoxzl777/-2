@@ -47,6 +47,8 @@ export type ApplyResult = {
   id: number
   resume_id: number
   job_id: number
+  job_title: string // 岗位名和方向跟着投递给：岗位删了（GET /jobs/{id} 是 404）照样能显示、能面试
+  domain: string
   diagnosis_id: number | null
   status: 'pending' | 'running' | 'success' | 'failed'
   stage: 'parsing' | 'queued' | 'analyzing' | 'done' | 'failed'

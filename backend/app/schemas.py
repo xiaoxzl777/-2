@@ -343,6 +343,8 @@ class ApplyOut(BaseModel):
     id: int
     resume_id: int
     job_id: int
+    job_title: str              # 岗位名和方向跟着投递给：岗位删了（GET /jobs/{id} 是 404）结果页、面试准备页照样要用
+    domain: str
     diagnosis_id: int | None
     status: str
     stage: str                  # parsing / queued / analyzing / done / failed；SSE 连不上时轮询它

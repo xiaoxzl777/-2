@@ -4,7 +4,6 @@ import { useCallback, useMemo, useRef, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { applyApi, isAbort, isRunning, type ApplyResult as Result, type MatchItem } from '../api/apply'
 import { ApiError } from '../api/client'
-import { jobsApi } from '../api/jobs'
 import { resumesApi, type ResumeStructure } from '../api/resumes'
 import { AdviceBlock } from '../components/AdviceBlock'
 import { AppShell } from '../components/AppShell'
@@ -27,9 +26,8 @@ export default function ApplyResult() {
   const { id } = useParams()
   const applyId = Number(id)
   const [data, setData] = useState<Result | null>(null)
-  const [jobTitle, setJobTitle] = useState('')
-  const [jobDomain, setJobDomain] = useState<string | null>(null)
-  const note = useDomain(jobDomain)?.note
+  const jobTitle = data?.job_title ?? ''
+  const note = useDomain(data?.domain)?.note
   const [error, setError] = useState<string | null>(null)
   const { pipe, track } = useApplyTracker()
 
@@ -39,9 +37,6 @@ export default function ApplyResult() {
       let r = await applyApi.get(applyId)
       if (cancelled) return
       setData(r)
-      jobsApi.get(r.job_id).then((j) => {
-        if (!cancelled) { setJobTitle(j.title); setJobDomain(j.domain) }
-      }).catch(() => { /* 岗位删了就不显示名字 */ })
       if (!isRunning(r)) return
       await track(applyId, { stage: r.stage === 'parsing' ? 'parsing' : 'analyzing' })
       r = await applyApi.get(applyId)
