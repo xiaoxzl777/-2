@@ -129,6 +129,8 @@ def test_gap_advice_is_saved_on_the_item(client, auth_headers, resume_and_job, f
     assert gaps[0]["advice"]["text"] == GAP_ADVICE and gaps[1]["advice"] is None   # 只存在那一条上
     items = client.get(f"/api/v1/match/{result['id']}", headers=auth_headers).json()["data"]["items"]
     assert next(i for i in items if i["requirement_id"] == 4)["advice"]["text"] == GAP_ADVICE
+    again = _events(client.post(f"/api/v1/match/{result['id']}/items/4/advice", headers=auth_headers).text)
+    assert again == [events[-1]] and len(fake_llm.calls["gap"]) == 1               # 再点一次：直接给存下的，不再调模型
 
     # 已经满足的要求（Redis 由规则判定满足）没有建议可生成
     assert client.post(f"/api/v1/match/{result['id']}/items/2/advice", headers=auth_headers).status_code == 404
@@ -138,11 +140,16 @@ def test_model_failure_sends_an_error_saves_nothing_and_can_be_retried(client, a
                                                                        db_session_factory):
     result = _applied(client, auth_headers, resume_and_job, fake_llm)
     fid = next(f["id"] for f in result["resume_issues"])
-    fake_llm.replies["rewrite"] = [("【问题】半截", LLMError("超时")), GOOD_ADVICE]
+    fake_llm.replies["rewrite"] = [("【问题】半截", LLMError("超时")), "  \n ", GOOD_ADVICE]
 
     events = _events(client.post(f"/api/v1/findings/{fid}/advice", headers=auth_headers).text)
     assert events[0] == ("delta", {"text": "【问题】半截"})
     assert events[-1] == ("error", {"code": 50002, "message": "调用大模型失败，请稍后重试"})
+    with db_session_factory() as db:
+        assert db.get(Finding, fid).rewrite is None
+
+    events = _events(client.post(f"/api/v1/findings/{fid}/advice", headers=auth_headers).text)   # 只回了空白：也算失败，不存
+    assert events[-1] == ("error", {"code": 50002, "message": "大模型没有返回内容，请稍后重试"})
     with db_session_factory() as db:
         assert db.get(Finding, fid).rewrite is None
 

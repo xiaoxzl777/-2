@@ -47,6 +47,17 @@ def test_skill_used_in_experience_is_a_hit_with_the_line_as_evidence():
     assert item.evidence_quote == LINES[3] and TEXT[item.char_start:item.char_end] == item.evidence_quote
 
 
+def test_evidence_from_a_very_long_line_is_cut_around_the_skill():
+    """整段不换行的经历：证据只取技能名前后的一截（80 字），不把整段都贴给用户；截出来的仍是原文里的一段。"""
+    text = "负责" + "订单" * 60 + "，用 Redis 做了热点缓存" + "，持续优化" * 30
+    start = text.index("Redis")
+    structure = {"skill_mentions": [{"skill_id": 3, "surface": "Redis", "char_start": start, "char_end": start + 5,
+                                     "section_type": "projects"}]}
+    item = match_by_rules(_req(1, "skill", "熟悉 Redis", skill_id=3, skill="Redis"), structure, text, TODAY, strict=True)
+    assert item.status == "hit" and len(item.evidence_quote) == 80 and "Redis" in item.evidence_quote
+    assert text[item.char_start:item.char_end] == item.evidence_quote
+
+
 def test_strict_mode_only_decides_what_is_certain():
     listed_only = _req(1, "skill", "熟悉 Docker", skill_id=9, skill="Docker")
     qualified = _req(2, "skill", "熟悉 Redis 缓存穿透、击穿、雪崩的解决方案", skill_id=3, skill="Redis")

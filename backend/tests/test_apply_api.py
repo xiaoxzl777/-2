@@ -112,6 +112,88 @@ def test_a_failure_while_saving_does_not_leave_records_running(client, auth_head
         assert db.get(Diagnosis, started["diagnosis_id"]).status == "failed"
 
 
+def _while_waiting(monkeypatch, db_session_factory, rid, *, becomes: tuple[str, str | None], seen: list | None = None):
+    """简历还在解析时投递。后台任务等的时候（apply_service 里的 sleep）解析任务在另一个会话里收尾成 becomes。"""
+    import time
+    from types import SimpleNamespace
+
+    from app.services import apply_service
+
+    def parse_finishes(_seconds):
+        with db_session_factory() as db:
+            resume = db.get(Resume, rid)
+            if seen is not None:
+                report = db.query(MatchReport).order_by(MatchReport.id.desc()).first()
+                seen.append((report.status, apply_service.stage_of(report, resume)))
+            resume.parse_status, resume.parse_error = becomes
+            db.commit()
+
+    monkeypatch.setattr(apply_service, "time", SimpleNamespace(monotonic=time.monotonic, sleep=parse_finishes))
+    with db_session_factory() as db:
+        resume = db.get(Resume, rid)
+        resume.parse_status, resume.parse_error = "parsing", None
+        db.commit()
+
+
+def test_applying_right_after_upload_waits_for_the_parse(client, auth_headers, resume_and_job, events, db_session_factory,
+                                                         monkeypatch):
+    """刚上传就点投递：后台任务先等解析完再分析。
+    （MySQL 下要先 commit 再 refresh 才读得到别的会话提交的状态，测试用的 SQLite 没有这个快照，这一点这里测不出来。）"""
+    rid, jid = resume_and_job
+    seen: list = []
+    _while_waiting(monkeypatch, db_session_factory, rid, becomes=("success", None), seen=seen)
+
+    aid = _apply(client, auth_headers, rid, jid, match_mode="dict_only", diagnose_mode="rule_only")["data"]["id"]
+    assert seen == [("pending", "parsing")]                                # 等的时候：记录还没开始跑，阶段是「解析中」
+    result = client.get(f"{API}/{aid}", headers=auth_headers).json()["data"]
+    assert (result["status"], result["stage"]) == ("success", "done")
+    assert [e[2]["stage"] for e in events if e[1] == "progress"][:2] == ["parsing", "analyzing"]
+
+
+def test_apply_fails_cleanly_when_the_resume_does_not_get_parsed(client, auth_headers, resume_and_job, events,
+                                                                 db_session_factory, monkeypatch):
+    """等简历解析的三种等不到：超时、解析时模型服务调不通、简历本身解析失败。都落成失败、说对原因，不留「进行中」的记录。"""
+    from app.services import apply_service
+
+    rid, jid = resume_and_job
+    quick = dict(match_mode="dict_only", diagnose_mode="rule_only")
+
+    def failed_apply() -> tuple[dict, dict]:
+        aid = _apply(client, auth_headers, rid, jid, **quick)["data"]["id"]
+        detail = client.get(f"{API}/{aid}", headers=auth_headers).json()["data"]
+        with db_session_factory() as db:
+            assert db.get(Diagnosis, detail["diagnosis_id"]).status == "failed"        # 诊断那条也一起标失败
+        assert detail["status"] == "failed" and events[-1][1] == "error"
+        return detail, client.get(API, headers=auth_headers).json()["data"]["items"][0]
+
+    # ① 一直没解析完
+    _while_waiting(monkeypatch, db_session_factory, rid, becomes=("parsing", None))
+    monkeypatch.setattr(apply_service, "PARSE_WAIT_SECONDS", -1)
+    detail, listed = failed_apply()
+    assert "TimeoutError" in detail["error_msg"] and listed["failure"] == "分析时出错了，可以再投一次"
+    monkeypatch.setattr(apply_service, "PARSE_WAIT_SECONDS", 120)
+
+    # ② 解析时模型服务调不通：不是简历的问题，按模型服务不可用报
+    _while_waiting(monkeypatch, db_session_factory, rid, becomes=("failed", "llm_unavailable"))
+    detail, listed = failed_apply()
+    assert detail["error_msg"].startswith(apply_service.LLM_DOWN_PREFIX)
+    assert listed["failure"] == "模型服务暂时不可用，恢复后再投一次"
+    assert events[-1][2] == {"message": "模型服务暂时不可用，请稍后再试"}
+
+    # ③ 简历本身解析失败（扫描件）：告诉用户是简历的问题
+    _while_waiting(monkeypatch, db_session_factory, rid, becomes=("failed", "scanned_pdf"))
+    detail, listed = failed_apply()
+    assert "scanned_pdf" in detail["error_msg"] and "扫描件" in listed["failure"]
+
+    # 已经解析失败的简历再投：直接拒绝并说明原因，不建记录
+    with db_session_factory() as db:
+        before = db.query(MatchReport).count()
+    rejected = _apply(client, auth_headers, rid, jid, **quick)
+    assert rejected["code"] == 50003 and "扫描件" in rejected["message"]
+    with db_session_factory() as db:
+        assert db.query(MatchReport).count() == before
+
+
 def test_startup_cleanup_also_fails_applies_still_waiting_for_the_resume(client, auth_headers, resume_and_job,
                                                                          db_session_factory):
     """投递在等简历解析时服务重启：两条记录还是 pending，也要标成失败，否则这份简历再也投不了（一直 409）。"""

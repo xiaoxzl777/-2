@@ -22,7 +22,7 @@
 
 ## 3. 当前进度
 
-M0–M9 全部做完（M9 部署是本机 Docker，用户 2026-10-07 定的先不上公网），后端、前端做到了模拟面试，又加了求职方向（计算机 / 运营 / 财会金融，别的专业选「其他」走通用包）、「我的投递」「我的简历」两个页面、诊断报告导出（PDF）、修改密码。423 个测试全过，约 25 秒。
+M0–M9 全部做完（M9 部署是本机 Docker，用户 2026-10-07 定的先不上公网），后端、前端做到了模拟面试，又加了求职方向（计算机 / 运营 / 财会金融，别的专业选「其他」走通用包）、「我的投递」「我的简历」两个页面、诊断报告导出（PDF）、修改密码。446 个测试全过，约 30 秒。
 - 31 个接口实现了 29 个，未实现的在 `docs/03-api.md` 标了〔未实现〕：`PATCH /resumes/{id}/structure`、`/system/info`。
 - 匹配**不用 RAG**（实测过，见 06 6.5）；检索只用在面试里用户贴的超过 3000 字的面经（`retrieval/context_store.py`）。
 - 设计看 docs（04 / 06），思路和坑看 08，实现细节看 git log。下表只记文档里查不到、接手时又要知道的东西。
@@ -103,7 +103,7 @@ M0–M9 全部做完（M9 部署是本机 Docker，用户 2026-10-07 定的先�
 ```powershell
 # 后端（需要本机 MySQL + Redis 已启动，.env 已配置）
 cd backend; .\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
-.\.venv\Scripts\python.exe -m pytest -q            # 423 个用例，约 25 秒，不联网
+.\.venv\Scripts\python.exe -m pytest -q            # 446 个用例，约 30 秒，不联网
 .\.venv\Scripts\python.exe scripts\gen_layout_set.py; .\.venv\Scripts\python.exe scripts\eval_layout.py   # 版面合成集 + 打分
 
 # 前端

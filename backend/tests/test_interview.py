@@ -10,10 +10,10 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from app.graphs.checkpoint import thread_config
 from app.interview import policy, rubric
-from app.interview.materials import build_materials
+from app.interview.materials import build_materials, describe_source
 from app.interview.planner import _Topic, _verify, plan_interview
 from app.llm.client import LLMError
-from app.models import InterviewSession, InterviewTurn
+from app.models import InterviewSession, InterviewTurn, MatchReport
 from app.retrieval.context_store import ContextStore, chunk_text
 from app.rewrite.advice import mask_new_numbers
 from tests.conftest import FakeEmbedder, FakeLLM, apply as _apply
@@ -357,6 +357,114 @@ def test_lost_checkpoint_is_rebuilt_from_the_database(client, auth_headers, appl
     assert A1 in fake_llm.calls["interview_ask"][1][1][1]                               # 重建的状态里带着这个话题的问答
 
 
+def test_a_checkpoint_lost_before_the_first_question_or_after_scoring_is_rebuilt_too(client, auth_headers, applied,
+                                                                                    fake_llm, env):
+    """检查点丢在另外两个时刻：还没出过题（从选话题接着走）；一题评完分、下一题没出来（从「决定下一步」接着走，不重新评分）。"""
+    script(fake_llm, evals=[evaluation(["先更新数据库再删缓存"], decision="next")], questions=[Q1, LLMError("上游超时"), Q3])
+    sid = create(client, auth_headers, applied())["data"]["id"]
+    env["saver"] = InMemorySaver()
+    first = sse(client.post(f"{API}/{sid}/start", headers=auth_headers))
+    assert names(first) == ["topic", "asking", "question", "asked"] and first[-1][1]["text"].endswith(Q1)
+
+    failed = sse(client.post(f"{API}/{sid}/answer", headers=auth_headers, json={"text": A1}))   # 评完分，下一题没出来
+    assert names(failed)[0] == "evaluation" and failed[-1][0] == "error"
+    env["saver"] = InMemorySaver()
+    resumed = sse(client.post(f"{API}/{sid}/start", headers=auth_headers))
+    assert names(resumed) == ["topic", "asking", "question", "asked"]
+    assert resumed[0][1]["label"] == "消息队列" and resumed[-1][1]["text"] == Q3           # 换到下一个话题，不带开场白
+    assert len(fake_llm.calls["_EvalOut"]) == 1                                        # 评过的那题不重新评
+
+
+def test_a_first_question_that_did_not_come_out_can_be_asked_again(client, auth_headers, applied, fake_llm, env,
+                                                                  db_session_factory):
+    """第一题没出来（模型只回了空白）：什么都不存；这时提交回答会被拒绝；再点开始，重新出这一题。"""
+    script(fake_llm, evals=[], questions=["   ", Q1])
+    sid = create(client, auth_headers, applied())["data"]["id"]
+    failed = sse(client.post(f"{API}/{sid}/start", headers=auth_headers))
+    assert failed[-1] == ("error", {"code": 50002, "message": "面试官这边出了点问题，请重试"})
+    with db_session_factory() as db:
+        assert db.query(InterviewTurn).filter_by(session_id=sid).count() == 0
+    refused = client.post(f"{API}/{sid}/answer", headers=auth_headers, json={"text": A1}).json()
+    assert (refused["code"], refused["message"]) == (40901, "还没有出题")
+
+    again = sse(client.post(f"{API}/{sid}/start", headers=auth_headers))
+    assert names(again)[-1] == "asked" and again[-1][1]["text"].endswith(Q1)
+
+
+def test_start_picks_up_an_answer_that_was_saved_but_never_processed(client, auth_headers, applied, fake_llm, env,
+                                                                    db_session_factory):
+    """回答落了库、图还没来得及往下走进程就没了：再点开始，带着库里的回答接着评分，不用用户重答。"""
+    from app.services import interview_service
+
+    script(fake_llm, evals=[evaluation(["先更新数据库再删缓存"], decision="next")])
+    sid = create(client, auth_headers, applied())["data"]["id"]
+    sse(client.post(f"{API}/{sid}/start", headers=auth_headers))
+    with db_session_factory() as db:
+        interview_service.submit_answer(db, db.get(InterviewSession, sid), A1, False)   # 只存了回答，没往下走
+
+    resumed = sse(client.post(f"{API}/{sid}/start", headers=auth_headers))
+    assert names(resumed) == ["evaluation", "topic", "asking", "question", "asked"]
+    assert A1 in fake_llm.calls["_EvalOut"][0][-1][1]                                   # 评的是库里那句回答
+
+
+def test_a_refresh_after_a_drop_shows_the_same_question_again(client, auth_headers, applied, fake_llm, env,
+                                                             db_session_factory):
+    """题目刚落库连接就断了，用户刷新页面（不是提交回答）：把库里那道题再发一次，不再调模型出一题、不再存一遍。"""
+    from app.services import interview_service
+
+    script(fake_llm, evals=[])
+    sid = create(client, auth_headers, applied())["data"]["id"]
+    kwargs = dict(llm=fake_llm, store=env["store"], checkpointer=env["saver"], session_factory=db_session_factory)
+    with db_session_factory() as db:
+        interview_service.begin(db, db.get(InterviewSession, sid))
+    events = interview_service.advance(sid, None, **kwargs)
+    asked = next(data for name, data in events if name == "asked")
+    events.close()                                                                   # 就断在这里
+
+    again = list(interview_service.advance(sid, None, **kwargs))
+    assert again[-1] == ("asked", asked) and len(fake_llm.calls["interview_ask"]) == 1
+    with db_session_factory() as db:
+        assert db.query(InterviewTurn).filter_by(session_id=sid).count() == 1
+
+
+def test_finishing_waits_its_turn_and_survives_a_failed_cleanup(client, auth_headers, applied, fake_llm, env, monkeypatch):
+    """提前结束：上一步还在跑时先拒绝（不然两边同时写这场面试）；清理检查点出错不影响结果，报告已经落库。"""
+    from app.services import interview_service
+
+    script(fake_llm, evals=[])
+    sid = create(client, auth_headers, applied())["data"]["id"]
+    sse(client.post(f"{API}/{sid}/start", headers=auth_headers))
+    interview_service._running.add(sid)
+    try:
+        busy = client.post(f"{API}/{sid}/finish", headers=auth_headers).json()
+    finally:
+        interview_service._running.discard(sid)
+    assert (busy["code"], busy["message"]) == (40901, "上一步还在进行，请稍等")
+
+    def broken(_thread_id):
+        raise RuntimeError("检查点文件被占用")
+
+    monkeypatch.setattr(env["saver"], "delete_thread", broken)
+    done = client.post(f"{API}/{sid}/finish", headers=auth_headers).json()
+    assert done["code"] == 0 and done["data"]["status"] == "completed"
+    assert client.get(f"{API}/{sid}/report", headers=auth_headers).json()["data"]["report"]["early"]
+
+
+def test_the_report_is_still_written_when_the_summary_fails(client, auth_headers, applied, fake_llm, env):
+    """报告里的文字总结调不通、或者输出不合格：分数和逐题回顾照常给，只是没有总结（summary_ok 为假）。"""
+    for bad in (LLMError("上游超时"), "这不是 JSON"):
+        script(fake_llm, evals=[evaluation(["先更新数据库再删缓存"], decision="next")])
+        fake_llm.replies["_SummaryOut"] = [bad]
+        sid = create(client, auth_headers, applied())["data"]["id"]
+        sse(client.post(f"{API}/{sid}/start", headers=auth_headers))
+        sse(client.post(f"{API}/{sid}/answer", headers=auth_headers, json={"text": A1}))
+        finished = client.post(f"{API}/{sid}/finish", headers=auth_headers).json()["data"]
+        report = finished["report"]
+        assert finished["status"] == "completed" and not report["summary_ok"]
+        assert (report["strengths"], report["weaknesses"]) == ([], [])
+        assert [t["score"] for t in report["topics"]] == [67, None] and finished["turns"][0]["evaluation"]["score"] == 67
+
+
 # ───────────── 面经 ─────────────
 
 
@@ -380,6 +488,25 @@ def test_short_context_goes_in_whole_and_long_context_is_retrieved(client, auth_
     assert env["collection"].get(where={"session_id": long["id"]})["ids"] == []        # 结束就删
 
 
+def test_questions_still_come_when_retrieval_fails(client, auth_headers, applied, fake_llm, env, monkeypatch):
+    """面经只是参考：重排挂了按召回顺序带上；连向量也算不出来就不带面经，照样出题。"""
+    def down(*args, **kwargs):
+        raise LLMError("向量服务超时")
+
+    script(fake_llm, evals=[evaluation(["先更新数据库再删缓存"], decision="next")])
+    paragraphs = [f"第 {i} 轮：面试官问了{'Redis 缓存一致性' if i == 7 else '项目背景'}，" + "细节" * 120 for i in range(12)]
+    sid = create(client, auth_headers, applied(), extra_context="\n\n".join(paragraphs))["data"]["id"]
+    embedder = env["store"]._embedder
+
+    monkeypatch.setattr(embedder, "rerank", down)
+    assert names(sse(client.post(f"{API}/{sid}/start", headers=auth_headers)))[-1] == "asked"
+    assert "【参考：这家公司的面经 / 介绍】" in fake_llm.calls["interview_ask"][-1][1][1]
+
+    monkeypatch.setattr(embedder, "embed", down)
+    answered = sse(client.post(f"{API}/{sid}/answer", headers=auth_headers, json={"text": A1}))
+    assert names(answered)[-1] == "asked" and "【参考：这家公司的面经 / 介绍】" not in fake_llm.calls["interview_ask"][-1][1][1]
+
+
 # ───────────── 拒绝、失败、清理 ─────────────
 
 
@@ -400,6 +527,15 @@ def test_rejections(client, auth_headers, applied, fake_llm, env, db_session_fac
     assert client.get(f"{API}/{sid}", headers=other_headers).json()["code"] == 40401
     assert client.post(f"{API}/{sid}/start", headers=other_headers).json()["code"] == 40401
     assert create(client, other_headers, apply_id)["code"] == 40401
+
+    with db_session_factory() as db:                                                   # 初筛还没跑完的投递：不能面
+        done = db.get(MatchReport, apply_id)
+        running = MatchReport(resume_id=done.resume_id, job_id=done.job_id, status="running", mode="hybrid")
+        db.add(running)
+        db.commit()
+        running_id = running.id
+    early = create(client, auth_headers, running_id)
+    assert (early["code"], early["message"]) == (40901, "初筛还没完成，完成后才能面试")
 
 
 def test_idle_interviews_are_abandoned_with_a_report(client, auth_headers, applied, fake_llm, env, db_session_factory):
@@ -458,6 +594,13 @@ def test_evaluation_evidence_must_quote_the_answer():
     ev, _ = rubric.evaluate(llm, job_title="后端", topic={"label": "缓存", "intent": "x"}, question=Q1, answer=A1)
     assert ev["low_evidence"] and ev["scores"] == {"correctness": 3, "depth": 3, "clarity": 3} and ev["score"] == 60
 
+    llm = FakeLLM({"_EvalOut": ["我觉得答得不错", evaluation(["先更新数据库再删缓存"])]})   # 第一次不是 JSON：带着报错再要一次
+    ev, _ = rubric.evaluate(llm, job_title="后端", topic={"label": "缓存", "intent": "x"}, question=Q1, answer=A1)
+    assert ev["scores"]["depth"] == 2 and len(llm.calls["_EvalOut"]) == 2
+    with pytest.raises(ValueError, match="两次都不合格"):                              # 两次都不是：这一步失败，用户点重试
+        rubric.evaluate(FakeLLM({"_EvalOut": ["不是 JSON", "还不是"]}), job_title="后端", topic={"label": "缓存", "intent": "x"},
+                        question=Q1, answer=A1)
+
 
 def test_scores_and_policy():
     plan = [{"idx": 0}, {"idx": 1}, {"idx": 2}]
@@ -482,14 +625,18 @@ def test_plan_topics_must_point_at_real_materials():
         requirements=[{"id": 4, "req_type": "hard", "category": "skill", "content": "熟悉 Kafka"},
                       {"id": 5, "req_type": "soft", "category": "other", "content": "沟通好"}],
         match_items=[{"requirement_id": 4, "status": "miss", "reason": "没提到"}],
-        structure={"projects": [{"name": "订单系统", "char_start": 0, "char_end": 4}]}, masked_text="负责订单",
+        structure={"projects": [{"name": "订单系统", "char_start": 0, "char_end": 4},
+                                {"name": "原文里定位不到的项目", "char_start": None, "char_end": None}]}, masked_text="负责订单",
         findings=[{"id": 12, "title": "没写结果", "description": "d", "char_start": 0, "char_end": 4}],
         context=None, context_mode="none")
     assert [r["code"] for r in materials["requirements"]] == ["R4"]                     # 软素质不进面试
+    assert [e["name"] for e in materials["experiences"]] == ["订单系统"]                 # 定位不到原文的经历没法问
     topics = [_Topic(source=s, ref=r, label="话题" * 20, intent="i") for s, r in
               [("finding", "F12"), ("finding", "f12"), ("project", "R4"), ("requirement", "R4"), ("project", "P1")]]
     kept, rejected = _verify(topics, materials, 2)
     assert [t["ref"] for t in kept] == ["F12", "R4"] and rejected == 2 and len(kept[0]["label"]) == 20
+    # 话题指向简历问题时，给面试官看的是原文那一句和问题本身
+    assert describe_source(materials, kept[0]) == "简历原文：「负责订单」\n初筛发现的问题：没写结果——d"
 
 
 def test_plan_retries_when_topics_fall_short():
