@@ -17,7 +17,15 @@ from app.parser.section import Section
 _PHONE = re.compile(r"(?<![\d.])(?:\+?86[- ]?)?1[3-9]\d[- ]?\d{4}[- ]?\d{4}(?![\d.])")
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
 _ID_CARD = re.compile(r"(?<!\d)\d{17}[\dXx](?!\d)")
-_LOCATION = re.compile(r"(?:现居地?|所在地|居住地|现住址|住址|地址|籍贯)\s*[:：]\s*([一-鿿A-Za-z·]{2,15})")
+# 所在地 / 籍贯。三种写法，都只掩第 1 组（地名）：
+_LOC_LABEL = r"(?:现居地?|所在地|居住地|现住址|籍贯|(?:家庭|通讯|联系|常住)(?:住址|地址))"
+_LOCATIONS = (
+    re.compile(_LOC_LABEL + r"\s*[:：]\s*([一-鿿A-Za-z·]{2,15})"),
+    # 单独的「地址 / 住址」：前面不能紧挨字（「项目地址：」「收货地址：」不是住址），后面得是中文开头（「GitHub 地址：github.com/…」不是）
+    re.compile(r"(?<![一-鿿A-Za-z])(?:住址|地址)\s*[:：]\s*([一-鿿][一-鿿A-Za-z·]{1,14})"),
+    # 表格型简历按行展开后没有冒号：「籍贯 湖南长沙 民族 汉族」。只认同一行里的中文，到下一个空白或分隔符为止
+    re.compile(_LOC_LABEL + r"[ \t　]+([一-鿿·]{2,15})(?=\s|[|｜/,，;；]|$)", re.M),
+)
 
 _CJK_NAME = re.compile(r"^[一-鿿]{2,4}(?:·[一-鿿]{1,6})?$")
 # 写在「姓名」后面的名字：表格型简历的「姓名 | 张三」按行展开后是「姓名 张三 性别 男」。
@@ -67,7 +75,7 @@ def extract_basics(layout: LayoutResult, sections: list[Section]) -> Basics:
 
     email = _EMAIL.search(text)
     phone = _PHONE.search(text)
-    location = _LOCATION.search(text)
+    location = next((m for p in _LOCATIONS if (m := p.search(text))), None)
     labeled = _LABELED_NAME.search(text)
     return Basics(
         name=labeled.group(1) if labeled else _find_name(head),
@@ -96,7 +104,8 @@ def mask_pii(text: str, name: str | None = None) -> str:
     masked = _ID_CARD.sub(_mask_digits, text)   # 先处理身份证：它包含一段会被电话正则命中的数字
     masked = _PHONE.sub(_mask_digits, masked)
     masked = _EMAIL.sub(_mask_email, masked)
-    masked = _LOCATION.sub(_mask_location, masked)  # 在邮箱之后：「邮箱地址：」后面的邮箱已经成了 *，不会被当成地名
+    for pattern in _LOCATIONS:                  # 在邮箱之后：「邮箱地址：」后面的邮箱已经成了 *，不会被当成地名
+        masked = pattern.sub(_mask_location, masked)
     if name and len(name.strip()) >= 2:
         masked = masked.replace(name.strip(), "某" * len(name.strip()))
     assert len(masked) == len(text), "掩码必须保持长度不变，否则 char 偏移会错位"

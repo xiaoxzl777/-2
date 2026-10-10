@@ -84,6 +84,17 @@ def test_without_any_heading_only_the_first_blocks_are_scanned():
         ("所在地: Shanghai", "所在地: 某某某某某某某某"),
         ("邮箱地址：zhang@qq.com", "邮箱地址：*****@**.***"),
         ("接口地址：/api/v1/apply", "接口地址：/api/v1/apply"),
+        ("地址：北京市海淀区学院路 30 号", "地址：某某某某某某某某某 30 号"),
+        ("家庭住址：湖南省长沙市", "家庭住址：某某某某某某"),
+        # 经历里的「XX地址：」不是住址，内容要原样留给模型
+        ("项目地址：https://github.com/demo/shop", "项目地址：https://github.com/demo/shop"),
+        ("GitHub 地址：github.com/demo", "GitHub 地址：github.com/demo"),
+        ("接口地址：订单服务统一网关", "接口地址：订单服务统一网关"),
+        ("实现收货地址：省市区三级联动选择", "实现收货地址：省市区三级联动选择"),
+        # 表格型简历展开后没有冒号
+        ("籍贯 湖南长沙 民族 汉族", "籍贯 某某某某 民族 汉族"),
+        ("现居地 上海市浦东新区", "现居地 某某某某某某某"),
+        ("籍贯\n湖南长沙", "籍贯\n湖南长沙"),                    # 不跨行：下一行可能是别的内容
     ],
 )
 def test_mask_pii(text, expected):
