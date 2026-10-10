@@ -1,9 +1,10 @@
 // 第 ② 步右侧：拖入 / 点选 PDF 上传，或从已上传的简历里选一份。
 // 解析在后台进行；解析中的也能选（投递会等它解析完），解析失败的不能选。每份都能删（解析失败的也能）。
-import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { ApiError } from '../api/client'
 import { fileProblem, isParsing, MAX_UPLOAD_MB, parseErrorText, RESUME_LIST_MAX, resumesApi, uploadResume, type Resume } from '../api/resumes'
 import { TiltCard } from './effects'
+import { LoadFailed } from './LoadFailed'
 import { PickRow } from './PickRow'
 import { useParsingPoll } from './useParsingPoll'
 
@@ -22,12 +23,15 @@ export function ResumePicker({ selected, onPick }: { selected: Resume | null; on
   const selectedRef = useRef(selected)
   selectedRef.current = selected
 
-  useEffect(() => {
+  const [loadFailed, setLoadFailed] = useState(false) // 列表没取到：不能显示成「一份都没传过」
+  const load = useCallback(() => {
+    setLoadFailed(false)
     resumesApi.list().then((page) => {
       setResumes(page.items)
       setMore(page.total > page.items.length)
-    }).catch(() => setResumes([]))
+    }).catch(() => { setResumes([]); setLoadFailed(true) })
   }, [])
+  useEffect(load, [load])
 
   // 解析中的简历定时刷新状态；选中的那份解析失败了就取消选中
   useParsingPoll(resumes, (fresh) => {
@@ -81,6 +85,7 @@ export function ResumePicker({ selected, onPick }: { selected: Resume | null; on
         </div>
       )}
 
+      {loadFailed && <LoadFailed what="上传过的简历" onRetry={load} />}
       {resumes === null ? <div className="skeleton" /> : resumes.length > 0 && (
         <>
           <p className="small-h">已上传</p>

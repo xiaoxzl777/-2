@@ -5,6 +5,8 @@ import { domainsApi, type Domain } from '../api/domains'
 
 type State = { list: Domain[] | null; loading: boolean; load: () => Promise<void> }
 
+const RETRY_MS = 3000
+
 const useStore = create<State>((set, get) => ({
   list: null,
   loading: false,
@@ -14,7 +16,8 @@ const useStore = create<State>((set, get) => ({
     try {
       set({ list: await domainsApi.list() })
     } catch {
-      /* 取不到就留着 null，下次用到时再取 */
+      // 取不到（后端在重启、网络抖了）：过几秒自己再取，和登录状态的恢复同一个做法。不然工作台第一步的下拉框就一直停在「加载中…」
+      window.setTimeout(() => void get().load(), RETRY_MS)
     } finally {
       set({ loading: false })
     }

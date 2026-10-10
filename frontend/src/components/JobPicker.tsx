@@ -2,11 +2,12 @@
 // 「我的岗位」最上面一条「＋ 粘贴新的招聘 JD」，点开就地展开表单，解析完收起、新岗位排第一条并选中；
 // 下面是贴过的岗位，每条能删（模板不能）。原来「粘贴 JD」是单独的页签，贴好的却跑到「我的岗位」里，2026-10-08 并成一个。
 // 样稿：docs/design/选岗位合并预览.html
-import { useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { ApiError } from '../api/client'
 import type { Domain } from '../api/domains'
 import { JD_MAX, JD_MIN, jobsApi, REQ_TYPE_LABEL, type Job, type JobBrief } from '../api/jobs'
 import { TiltCard } from './effects'
+import { LoadFailed } from './LoadFailed'
 import { PickRow } from './PickRow'
 import { Tabs } from './Tabs'
 
@@ -30,9 +31,13 @@ export function JobPicker({ domain, selected, onPick, onChangeDomain }: {
   const [parsed, setParsed] = useState<Job | null>(null) // 刚解析出来的：上面显示拆出的要求，列表里标「新」
   const [jobs, setJobs] = useState<JobBrief[] | null>(null) // null = 还在加载
 
-  useEffect(() => {
-    jobsApi.list().then(setJobs).catch(() => setJobs([]))
+  const [loadFailed, setLoadFailed] = useState(false) // 列表没取到：说清楚并给「再试一次」，不能显示成「还没有」
+  const load = useCallback(() => {
+    setLoadFailed(false)
+    setJobs(null)
+    jobsApi.list().then(setJobs).catch(() => { setJobs([]); setLoadFailed(true) })
   }, [])
+  useEffect(load, [load])
 
   // 换了方向：上一个方向解析出的要求不算数（贴进去的原文留着，免得白贴）
   useEffect(() => {
@@ -141,18 +146,20 @@ export function JobPicker({ domain, selected, onPick, onChangeDomain }: {
               </div>
             </div>
           )}
+          {loadFailed && <LoadFailed what="保存过的岗位" onRetry={load} gap />}
           {mine === null ? <div className="skeleton jp-list-gap" /> : mine.length > 0 ? (
             <>
               <p className="small-h jp-list-gap">已保存的岗位</p>
               <JobList jobs={mine} selected={selected} onPick={onPick} onRemoved={removed} newId={parsed?.id} />
             </>
-          ) : !open && (
+          ) : !open && !loadFailed && (
             <p className="empty jp-list-gap">还没有保存的岗位。点上面「＋ 粘贴新的招聘 JD」贴一份{noTemplates ? '。' : '，或者去「模板」里挑一个。'}</p>
           )}
         </>
       )}
       {tab === 'tpl' && (
-        templates === null ? <div className="skeleton" />
+        loadFailed ? <LoadFailed what="岗位模板" onRetry={load} />
+          : templates === null ? <div className="skeleton" />
           : templates.length === 0 ? <p className="empty">这个方向暂时没有内置模板，先在「我的岗位」里贴一份 JD 吧。</p>
           : <JobList jobs={templates} selected={selected} onPick={onPick} />
       )}

@@ -8,11 +8,12 @@ import { useOverlay } from './useOverlay'
 
 const LIST_NAME: Record<SheetList, string> = { gap: '对照岗位', self: '简历本身', hit: '满足的要求' }
 
-export function ResumeSheet({ open, title, doc, loadError, items, focusKey, onFocus, onClose }: {
+export function ResumeSheet({ open, title, doc, loadError, onRetry, items, focusKey, onFocus, onClose }: {
   open: boolean
   title: string
   doc: SheetDoc | null
   loadError: string | null
+  onRetry?: () => void
   items: SheetItem[]
   focusKey: string | null // null = 看全部标注
   onFocus: (key: string | null) => void
@@ -93,7 +94,7 @@ export function ResumeSheet({ open, title, doc, loadError, items, focusKey, onFo
           )}
         </div>
 
-        <ResumePaper doc={doc} loadError={loadError} items={items} focusKey={focusKey} pulse={open ? 1 : 0} onFocus={onFocus} />
+        <ResumePaper doc={doc} loadError={loadError} onRetry={onRetry} items={items} focusKey={focusKey} pulse={open ? 1 : 0} onFocus={onFocus} />
         <div className="legend">
           <span><i className="bad" />简历问题</span><span><i className="part" />部分满足的要求</span><span><i className="good" />满足的要求</span>
           <span className="keys">← → 切换 · Esc 关闭</span>

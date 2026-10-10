@@ -95,7 +95,7 @@ function Outcome({ data, gate, jobTitle, note }: { data: Result; gate: NonNullab
       setResumeTitle(title)
       setHits(items.filter((i) => i.status === 'hit'))
     }).catch((err) => {
-      loading.current = false // 失败了，下次打开抽屉再取
+      loading.current = false // 失败了：原文那里给「再试一次」，点了再调一遍 loadDoc
       setDocError(err instanceof ApiError ? err.message : '请稍后重试')
     })
   }, [data.id, data.resume_id])
@@ -258,7 +258,7 @@ function Outcome({ data, gate, jobTitle, note }: { data: Result; gate: NonNullab
               </div>
               <div className="rv-paper">
                 {paperMsg && <p key={paperMsg.text} className={`rv-msg${paperMsg.hint ? ' hint' : ''}`}>{paperMsg.text}</p>}
-                <ResumePaper doc={doc} loadError={docError} items={items} focusKey={paper.key} pulse={paper.pulse} peekKey={peek} onFocus={fromPaper} />
+                <ResumePaper doc={doc} loadError={docError} onRetry={loadDoc} items={items} focusKey={paper.key} pulse={paper.pulse} peekKey={peek} onFocus={fromPaper} />
               </div>
             </div>
           </div>
@@ -267,7 +267,7 @@ function Outcome({ data, gate, jobTitle, note }: { data: Result; gate: NonNullab
       <p className="rv-disclaimer">以上结果由系统根据简历和岗位要求自动生成，初筛结论是模拟的，不代表任何企业的真实招聘结果；修改建议仅供参考。</p>
     </section>
     {!wide && (
-      <ResumeSheet open={sheet.open} title={resumeTitle} doc={doc} loadError={docError} items={items}
+      <ResumeSheet open={sheet.open} title={resumeTitle} doc={doc} loadError={docError} onRetry={loadDoc} items={items}
         focusKey={sheet.focus} onFocus={focusOn} onClose={closeSheet} />
     )}
     </>

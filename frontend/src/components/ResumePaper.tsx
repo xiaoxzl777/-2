@@ -56,9 +56,10 @@ export function layout(doc: SheetDoc, marks: SheetItem[]): Para[] {
   })
 }
 
-export function ResumePaper({ doc, loadError, items, focusKey, pulse = 0, peekKey = null, onFocus }: {
+export function ResumePaper({ doc, loadError, onRetry, items, focusKey, pulse = 0, peekKey = null, onFocus }: {
   doc: SheetDoc | null
   loadError: string | null
+  onRetry?: () => void // 原文没载入时的「再试一次」
   items: SheetItem[]
   focusKey: string | null // null = 不指着哪一条，回到顶部
   pulse?: number // 变了就重新闪一下、重新滚过去（同一条又点了一次、抽屉重新打开）
@@ -129,7 +130,7 @@ export function ResumePaper({ doc, loadError, items, focusKey, pulse = 0, peekKe
 
   return (
     <div className="paper-wrap" ref={wrapRef}>
-      {loadError ? <p className="form-err">原文没能载入：{loadError}</p>
+      {loadError ? <p className="form-err">原文没能载入：{loadError}{onRetry && <> <button type="button" className="link" onClick={onRetry}>再试一次</button></>}</p>
         : !doc ? <p className="hint">正在载入简历原文…</p>
         : (
           <div className="paper">
