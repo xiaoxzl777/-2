@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { ApiError } from '../api/client'
 import { fileProblem, isParsing, MAX_UPLOAD_MB, parseErrorText, RESUME_LIST_MAX, resumesApi, uploadResume, type Resume } from '../api/resumes'
 import { TiltCard } from './effects'
+import { monthDay } from './InterviewPill'
 import { LoadFailed } from './LoadFailed'
 import { PickRow } from './PickRow'
 import { useParsingPoll } from './useParsingPoll'
@@ -11,8 +12,7 @@ import { useParsingPoll } from './useParsingPoll'
 function statusText(r: Resume): string {
   if (r.parse_status === 'failed') return `解析失败：${parseErrorText(r.parse_error)}`
   if (isParsing(r)) return '解析中…也可以直接投，会等它解析完'
-  const d = new Date(r.updated_at)
-  return `${r.page_count ? `${r.page_count} 页 · ` : ''}已解析 · ${d.getMonth() + 1} 月 ${d.getDate()} 日`
+  return `${r.page_count ? `${r.page_count} 页 · ` : ''}已解析 · ${monthDay(r.updated_at)}`
 }
 
 export function ResumePicker({ selected, onPick }: { selected: Resume | null; onPick: (r: Resume | null) => void }) {

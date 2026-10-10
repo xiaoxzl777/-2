@@ -1,9 +1,10 @@
 // 导航右上角的头像按钮：点开菜单，第一行是用户名，下面「修改密码」「退出登录」（原来单独的「退出」收进来了）。
 // 点外面或 Esc 收起。样稿：docs/design/修改密码预览.html
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../store/auth'
 import { PasswordDialog } from './PasswordDialog'
+import { useDismiss } from './useDismiss'
 
 export function UserMenu() {
   const user = useAuth((s) => s.user)!
@@ -16,17 +17,7 @@ export function UserMenu() {
   // 弹窗是从菜单项打开的，菜单项这时已经收起来了：关掉后把焦点放回头像按钮
   const closePwd = useCallback(() => { setPwd(false); btn.current?.focus() }, [])
 
-  useEffect(() => {
-    if (!open) return
-    const outside = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false) }
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
-    document.addEventListener('mousedown', outside)
-    document.addEventListener('keydown', esc)
-    return () => {
-      document.removeEventListener('mousedown', outside)
-      document.removeEventListener('keydown', esc)
-    }
-  }, [open])
+  useDismiss(box, open, () => setOpen(false))
 
   const signOut = () => {
     logout()

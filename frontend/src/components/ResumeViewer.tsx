@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ApiError } from '../api/client'
-import { resumesApi, type Resume, type ResumeStructure } from '../api/resumes'
-import { entryBlocksOf } from '../pages/applyItems'
+import type { Resume } from '../api/resumes'
+import { loadSheetDoc } from '../pages/applyItems'
 import { ResumePaper, type SheetDoc } from './ResumePaper'
 import { useOverlay } from './useOverlay'
 
@@ -22,8 +22,8 @@ export function ResumeViewer({ resume, onClose }: { resume: Resume | null; onClo
     let cancelled = false
     setDoc(null)
     setError(null)
-    Promise.all([resumesApi.blocks(resume.id), resumesApi.structure(resume.id).catch((): ResumeStructure => ({}))])
-      .then(([blocks, structure]) => { if (!cancelled) setDoc({ ...blocks, entryBlocks: entryBlocksOf(structure) }) })
+    loadSheetDoc(resume.id)
+      .then((sheetDoc) => { if (!cancelled) setDoc(sheetDoc) })
       .catch((err) => { if (!cancelled) setError(err instanceof ApiError ? err.message : '请稍后重试') })
     return () => { cancelled = true }
   }, [resume])

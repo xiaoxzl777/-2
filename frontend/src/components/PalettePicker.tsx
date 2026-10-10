@@ -1,6 +1,7 @@
 // 导航栏右上角的「配色」：点开选三套之一，只影响这台设备。样稿：docs/design/结果页面试场次预览.html
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { PALETTES, usePalette } from '../store/palette'
+import { useDismiss } from './useDismiss'
 
 export function PalettePicker() {
   const key = usePalette((s) => s.key)
@@ -8,18 +9,7 @@ export function PalettePicker() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
-  // 点菜单外面、按 Esc 收起
-  useEffect(() => {
-    if (!open) return
-    const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
+  useDismiss(ref, open, () => setOpen(false)) // 点菜单外面、按 Esc 收起
 
   return (
     <div ref={ref} className={`pal${open ? ' open' : ''}`}>

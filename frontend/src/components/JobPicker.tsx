@@ -2,7 +2,7 @@
 // 「我的岗位」最上面一条「＋ 粘贴新的招聘 JD」，点开就地展开表单，解析完收起、新岗位排第一条并选中；
 // 下面是贴过的岗位，每条能删（模板不能）。原来「粘贴 JD」是单独的页签，贴好的却跑到「我的岗位」里，2026-10-08 并成一个。
 // 样稿：docs/design/选岗位合并预览.html
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { ApiError } from '../api/client'
 import type { Domain } from '../api/domains'
 import { JD_MAX, JD_MIN, jobsApi, REQ_TYPE_LABEL, type Job, type JobBrief } from '../api/jobs'
@@ -30,6 +30,8 @@ export function JobPicker({ domain, selected, onPick, onChangeDomain }: {
   const [error, setError] = useState<string | null>(null)
   const [parsed, setParsed] = useState<Job | null>(null) // 刚解析出来的：上面显示拆出的要求，列表里标「新」
   const [jobs, setJobs] = useState<JobBrief[] | null>(null) // null = 还在加载
+  const selectedRef = useRef(selected)
+  selectedRef.current = selected
 
   const [loadFailed, setLoadFailed] = useState(false) // 列表没取到：说清楚并给「再试一次」，不能显示成「还没有」
   const load = useCallback(() => {
@@ -76,10 +78,11 @@ export function JobPicker({ domain, selected, onPick, onChangeDomain }: {
     setJd(domain.sample_jd.text)
   }
 
-  /** 删掉之后：从列表里去掉；正选着它就清空，刚解析出的就是它，上面的要求也收起来 */
+  /** 删掉之后：从列表里去掉；正选着它就清空，刚解析出的就是它，上面的要求也收起来。
+   *  用 ref 取「现在」选的是哪条：这个函数是收起动画播完才调的，期间用户可能已经点了另一条（同 ResumePicker） */
   const removed = (id: number) => {
     setJobs((list) => list?.filter((j) => j.id !== id) ?? null)
-    if (selected?.id === id) onPick(null)
+    if (selectedRef.current?.id === id) onPick(null)
     if (parsed?.id === id) setParsed(null)
   }
 

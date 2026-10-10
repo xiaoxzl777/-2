@@ -1,9 +1,10 @@
 // 工作台第一步：选求职方向。下拉框单独一屏、做大；选中后下面说明这个方向有什么不同。
 // 以后方向多了，下拉菜单里只是多几行（太长会滚动）。样稿：docs/design/岗位方向预览.html
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Domain } from '../api/domains'
 import { TiltCard } from './effects'
 import { GeneralNote } from './GeneralNote'
+import { useDismiss } from './useDismiss'
 
 export function DirectionPicker({ domains, value, onChange }: {
   domains: Domain[] | null
@@ -14,17 +15,7 @@ export function DirectionPicker({ domains, value, onChange }: {
   const box = useRef<HTMLDivElement>(null)
   const current = domains?.find((d) => d.key === value) ?? null
 
-  useEffect(() => {
-    if (!open) return
-    const outside = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false) }
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
-    document.addEventListener('mousedown', outside)
-    document.addEventListener('keydown', esc)
-    return () => {
-      document.removeEventListener('mousedown', outside)
-      document.removeEventListener('keydown', esc)
-    }
-  }, [open])
+  useDismiss(box, open, () => setOpen(false))
 
   return (
     <TiltCard>

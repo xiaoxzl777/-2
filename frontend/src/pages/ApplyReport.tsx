@@ -6,7 +6,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from '
 import { useNavigate, useParams } from 'react-router-dom'
 import { applyApi, isAbort, isRunning, type ApplyResult as Result, type MatchItem } from '../api/apply'
 import { REQ_TYPE_LABEL } from '../api/jobs'
-import { resumesApi, type ResumeStructure } from '../api/resumes'
+import { resumesApi } from '../api/resumes'
 import { sections, withPlaceholders } from '../components/AdviceBlock'
 import { AppShell } from '../components/AppShell'
 import { MagneticButton } from '../components/effects'
@@ -14,7 +14,7 @@ import { NotFound, notFoundText } from '../components/NotFound'
 import { layout, located, type Seg, type SheetDoc } from '../components/ResumePaper'
 import { useAdviceStore } from '../store/advice'
 import { useDomains } from '../store/domains'
-import { DIMENSIONS, entryBlocksOf, sheetItems, verdictSub, type ListItem } from './applyItems'
+import { dimensionsOf, loadSheetDoc, sheetItems, verdictSub, type ListItem } from './applyItems'
 
 type Loaded = { data: Result; gate: NonNullable<Result['gate']>; doc: SheetDoc; resumeTitle: string; hits: number; total: number }
 
@@ -42,14 +42,13 @@ export default function ApplyReport() {
       if (cancelled) return
       if (isRunning(data)) return setNotReady('这次投递还在分析，分析完才能看报告。')
       if (data.status === 'failed' || !data.gate) return setNotReady('这次分析没能完成，没有报告可看。')
-      const [blocks, structure, resumeTitle, items] = await Promise.all([
-        resumesApi.blocks(data.resume_id),
-        resumesApi.structure(data.resume_id).catch((): ResumeStructure => ({})),
+      const [doc, resumeTitle, items] = await Promise.all([
+        loadSheetDoc(data.resume_id),
         resumesApi.get(data.resume_id).then((r) => r.title).catch(() => ''),
         applyApi.match(data.id).then((m) => m.items).catch((): MatchItem[] => []),
       ])
       if (cancelled) return
-      setLoaded({ data, gate: data.gate, doc: { ...blocks, entryBlocks: entryBlocksOf(structure) }, resumeTitle,
+      setLoaded({ data, gate: data.gate, doc, resumeTitle,
         hits: items.filter((i) => i.status === 'hit').length, total: items.length })
     }
     load().catch((err) => {
@@ -94,10 +93,7 @@ function Report({ data, gate, doc, resumeTitle, hits, total, onBack }: Loaded & 
 
   const domain = domains?.find((d) => d.key === data.domain)
   const overall = gate.overall_match === null ? null : Math.round(gate.overall_match)
-  const dims = DIMENSIONS.flatMap(([key, label]) => {
-    const v = data.dimension_scores?.[key]
-    return v === null || v === undefined ? [] : [{ key, label, value: Math.round(v) }]
-  })
+  const dims = dimensionsOf(data)
   const sub = verdictSub(data, gate)
 
   const download = async () => {

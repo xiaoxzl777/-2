@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { applyApi, isAbort, isRunning, type ApplyResult as Result, type MatchItem } from '../api/apply'
 import { ApiError } from '../api/client'
-import { resumesApi, type ResumeStructure } from '../api/resumes'
+import { resumesApi } from '../api/resumes'
 import { AdviceBlock } from '../components/AdviceBlock'
 import { AppShell } from '../components/AppShell'
 import { GeneralNote } from '../components/GeneralNote'
@@ -17,7 +17,7 @@ import { Pipeline, useApplyTracker, type PipeState } from '../components/Pipelin
 import { located, ResumePaper, type SheetDoc } from '../components/ResumePaper'
 import { ResumeSheet } from '../components/ResumeSheet'
 import { useDomain } from '../store/domains'
-import { DIMENSIONS, entryBlocksOf, sheetItems, verdictSub, type ListItem } from './applyItems'
+import { dimensionsOf, loadSheetDoc, sheetItems, verdictSub, type ListItem } from './applyItems'
 
 const RING = 314.2 // 2π × r(50)
 const IV_SHOWN = 2
@@ -86,12 +86,11 @@ function Outcome({ data, gate, jobTitle, note }: { data: Result; gate: NonNullab
     loading.current = true
     setDocError(null)
     Promise.all([
-      resumesApi.blocks(data.resume_id),
-      resumesApi.structure(data.resume_id).catch((): ResumeStructure => ({})),
+      loadSheetDoc(data.resume_id),
       resumesApi.get(data.resume_id).then((r) => r.title).catch(() => ''),
       applyApi.match(data.id).then((m) => m.items).catch((): MatchItem[] => []),
-    ]).then(([blocks, structure, title, items]) => {
-      setDoc({ ...blocks, entryBlocks: entryBlocksOf(structure) })
+    ]).then(([sheetDoc, title, items]) => {
+      setDoc(sheetDoc)
       setResumeTitle(title)
       setHits(items.filter((i) => i.status === 'hit'))
     }).catch((err) => {
@@ -149,10 +148,7 @@ function Outcome({ data, gate, jobTitle, note }: { data: Result; gate: NonNullab
   const passed = gate.passed
   const overall = gate.overall_match === null ? null : Math.round(gate.overall_match)
   const count = useCountUp(shown ? overall ?? 0 : 0)
-  const dims = DIMENSIONS.flatMap(([key, label]) => {
-    const v = data.dimension_scores?.[key]
-    return v === null || v === undefined ? [] : [{ key, label, value: Math.round(v) }]
-  })
+  const dims = dimensionsOf(data)
   const sub = verdictSub(data, gate)
 
   // 有一场没做完：按钮直接接着面，不再进准备页开新的一场

@@ -1,10 +1,11 @@
 // 初筛结果的条目和说明文字：结果页（ApplyResult.tsx）和诊断报告（ApplyReport.tsx）共用，两边说法一致。
+// 取原文纸面（loadSheetDoc）、四项分（dimensionsOf）也在这里，「我的简历」里看原文的抽屉一起用。
 import { adviceApi } from '../api/advice'
 import type { ApplyResult as Result, Dimension, MatchItem } from '../api/apply'
 import { REQ_TYPE_LABEL } from '../api/jobs'
-import type { ResumeStructure } from '../api/resumes'
+import { resumesApi, type ResumeStructure } from '../api/resumes'
 import type { DetailRow } from '../components/IssueItem'
-import type { SheetItem } from '../components/ResumePaper'
+import type { SheetDoc, SheetItem } from '../components/ResumePaper'
 
 export const DIMENSIONS: [Dimension, string][] = [['skill', '技能'], ['education', '学历'], ['experience', '经验'], ['other', '其他']]
 const MATCHED_BY = { dict: '规则判定（技能词典）', profile: '规则判定（学历 / 年限）', fulltext: '大模型判定' }
@@ -28,9 +29,26 @@ export function matchedByText(g: MatchItem): string {
   return MATCHED_BY[g.matched_by] + verified
 }
 
-export function entryBlocksOf(structure: ResumeStructure): number[] {
+function entryBlocksOf(structure: ResumeStructure): number[] {
   return (['education', 'work', 'projects', 'awards'] as const)
     .flatMap((k) => structure[k] ?? []).map((e) => e.block_ids?.[0]).filter((i): i is number => i !== undefined)
+}
+
+/** 原文纸面要的东西：块 + 每条经历的标题行。结构化结果取不到只是标题不加粗，不算失败 */
+export async function loadSheetDoc(resumeId: number): Promise<SheetDoc> {
+  const [blocks, structure] = await Promise.all([
+    resumesApi.blocks(resumeId),
+    resumesApi.structure(resumeId).catch((): ResumeStructure => ({})),
+  ])
+  return { ...blocks, entryBlocks: entryBlocksOf(structure) }
+}
+
+/** 四项分：JD 里没有这类要求的（null）不显示 */
+export function dimensionsOf(data: Result): { key: Dimension; label: string; value: number }[] {
+  return DIMENSIONS.flatMap(([key, label]) => {
+    const v = data.dimension_scores?.[key]
+    return v === null || v === undefined ? [] : [{ key, label, value: Math.round(v) }]
+  })
 }
 
 export type ListItem = SheetItem & { rows: DetailRow[] }

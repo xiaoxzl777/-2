@@ -8,13 +8,13 @@ import { ApiError } from '../api/client'
 import { fileProblem, isParsing, MAX_UPLOAD_MB, parseErrorText, RESUME_LIST_MAX, resumesApi, uploadResume, type Resume } from '../api/resumes'
 import { AppShell } from '../components/AppShell'
 import { Headline, Mark } from '../components/Headline'
+import { monthDay } from '../components/InterviewPill'
 import { ResumeViewer } from '../components/ResumeViewer'
 import { useParsingPoll } from '../components/useParsingPoll'
 
 const NOT_FOUND = 40401
 const RECENT = 3 // 卡片上列最近投的几个岗位
 
-const day = (iso: string) => { const d = new Date(iso); return `${d.getMonth() + 1} 月 ${d.getDate()} 日` }
 
 export default function MyResumes() {
   const [resumes, setResumes] = useState<Resume[] | null>(null)
@@ -186,7 +186,7 @@ function ResumeCard({ r, index, applies, onView, onGone }: {
         <span className="mr-ic">PDF</span>
         <div className="mr-text">
           <div className="mr-title">{r.title}</div>
-          <div className="mr-meta">{status}<span>{r.page_count ? `${r.page_count} 页 · ` : ''}{day(r.created_at)}上传{count ? ` · 投过 ${count} 次` : ''}</span></div>
+          <div className="mr-meta">{status}<span>{r.page_count ? `${r.page_count} 页 · ` : ''}{monthDay(r.created_at)}上传{count ? ` · 投过 ${count} 次` : ''}</span></div>
         </div>
         {!asking && <button ref={delRef} type="button" className="mr-del" aria-label={`删除「${r.title}」`} onClick={() => setAsking(true)}>删除</button>}
       </div>

@@ -5,9 +5,15 @@ import type { ApplyInterview } from '../api/apply'
 const VERDICT = { pass: ['v-ok', '通过'], fail: ['v-no', '没过'], incomplete: ['v-mid', '没做完'], practice: ['v-mid', '练习不下结论'] } as const
 
 /** 今天 / 10 月 7 日，可带时间 */
+/** 「10 月 9 日」 */
+export function monthDay(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getMonth() + 1} 月 ${d.getDate()} 日`
+}
+
 export function when(iso: string, withTime = true): string {
   const d = new Date(iso), now = new Date()
-  const day = d.toDateString() === now.toDateString() ? '今天' : `${d.getMonth() + 1} 月 ${d.getDate()} 日`
+  const day = d.toDateString() === now.toDateString() ? '今天' : monthDay(iso)
   return withTime ? `${day} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : day
 }
 
