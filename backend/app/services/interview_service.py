@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from collections.abc import Iterator
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -54,6 +55,7 @@ _PUBLIC_EVAL = ("skipped", "score", "scores", "evidence", "good", "bad", "better
 # 同一场面试同一时刻只能有一个请求在推进图（单进程部署，进程内的锁就够了）
 _running: set[int] = set()
 _running_guard = threading.Lock()
+WAIT_PREVIOUS_SECONDS = 15     # 同一场面试的上一步还没收尾时，最多等这么久（见 advance）
 
 
 # ───────────── 创建 ─────────────
@@ -164,11 +166,19 @@ def submit_answer(db: Session, session: InterviewSession, text: str, skip: bool)
 
 def advance(session_id: int, answer: dict | None, *, llm: LLMClient, store: ContextStore | None, checkpointer,
             session_factory: SessionFactory) -> Iterator[Event]:
-    with _running_guard:
-        if session_id in _running:
+    # 同一场面试同一时间只能有一个在推进。上一步还在跑，多半是页面刷新了：出题的流被掐断，但后台还在等模型把这道题吐完才能收尾
+    # （一两秒）。这时先等一等、别急着报错，等它收完，这一次从检查点接着走，刷新后的页面就能直接看到题。等太久才报错。
+    # 这段代码跑在线程里（sse.py 的 _in_threads），睡着等不会卡住别的请求
+    deadline = time.monotonic() + WAIT_PREVIOUS_SECONDS
+    while True:
+        with _running_guard:
+            if session_id not in _running:
+                _running.add(session_id)
+                break
+        if time.monotonic() > deadline:
             yield "error", {"code": CONFLICT, "message": "上一步还在进行，请稍等"}
             return
-        _running.add(session_id)
+        time.sleep(0.2)
     try:
         yield from _advance(session_id, answer, llm, store, checkpointer, session_factory)
     finally:

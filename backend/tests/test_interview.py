@@ -294,6 +294,29 @@ def test_interviews_work_when_the_vector_store_cannot_open(client, auth_headers,
     assert long["code"] == 0 and long["data"]["context_mode"] == "full"
 
 
+def test_a_request_waits_for_the_previous_step_of_the_same_interview(client, auth_headers, applied, fake_llm, env,
+                                                                   db_session_factory, monkeypatch):
+    """页面刷新：上一步的流被掐断、还在收尾，刷新后的请求就到了。先等它收完再接着走；等太久才报「上一步还在进行」。"""
+    import threading
+
+    from app.services import interview_service
+
+    script(fake_llm, evals=[])
+    sid = create(client, auth_headers, applied())["data"]["id"]
+    kwargs = dict(llm=fake_llm, store=env["store"], checkpointer=env["saver"], session_factory=db_session_factory)
+
+    interview_service._running.add(sid)                                              # 上一步还占着
+    threading.Timer(0.3, interview_service._running.discard, [sid]).start()          # 0.3 秒后收尾完
+    assert names(list(interview_service.advance(sid, None, **kwargs)))[-1] == "asked"
+
+    monkeypatch.setattr(interview_service, "WAIT_PREVIOUS_SECONDS", 0.3)             # 一直不收尾：等一会儿就放弃
+    interview_service._running.add(sid)
+    try:
+        assert list(interview_service.advance(sid, None, **kwargs)) == [("error", {"code": 40901, "message": "上一步还在进行，请稍等"})]
+    finally:
+        interview_service._running.discard(sid)
+
+
 def test_a_down_model_service_is_named_when_starting_and_mid_interview(client, auth_headers, applied, fake_llm, env):
     down = LLMError("调用失败", unavailable="余额不足（402）")
     fake_llm.replies["_PlanOut"] = [down]
