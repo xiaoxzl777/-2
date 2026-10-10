@@ -40,7 +40,6 @@ def test_finds_the_range_inside_a_line_and_reports_its_span():
     r = find_date_range(text)
     assert (r.start, r.end) == ("2022-09", "2026-06")
     assert text[r.span[0]:r.span[1]] == "2022.09 - 2026.06"
-    assert r.month_precision
 
 
 @pytest.mark.parametrize(
@@ -52,9 +51,9 @@ def test_no_false_positives(text):
     assert find_date_range(text) is None
 
 
-def test_year_precision_is_flagged():
-    assert not find_date_range("2021-2023").month_precision
-    assert find_date_range("2021.03-2023.04").month_precision
+def test_year_only_ranges_keep_year_precision():
+    assert find_date_range("2021-2023").start == "2021"            # 只有年份：长度 4，时间线规则靠长度判断精度
+    assert find_date_range("2021.03-2023.04").start == "2021-03"
 
 
 def test_months_between():

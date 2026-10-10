@@ -44,10 +44,6 @@ class DateRange:
     is_present: bool
     span: tuple[int, int]   # 在输入文本中的位置，左闭右开
 
-    @property
-    def month_precision(self) -> bool:
-        return bool(self.start and len(self.start) == 7)
-
 
 def _read(m: re.Match, n: int) -> tuple[int, int | None] | None:
     """取出第 n 个日期的 (年, 月)；月份缺失为 None。"""

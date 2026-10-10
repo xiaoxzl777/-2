@@ -2,13 +2,23 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Generic, Literal, TypeVar
+from typing import Annotated, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 T = TypeVar("T")
 
 BCRYPT_MAX_BYTES = 72  # bcrypt 只处理前 72 字节，超出直接拒绝，避免"两个不同密码都能登录"
+
+
+def _fits_bcrypt(v: str) -> str:
+    if len(v.encode("utf-8")) > BCRYPT_MAX_BYTES:
+        raise ValueError("密码过长")
+    return v
+
+
+# 注册、登录、改密码的新密码共用同一条规则
+Password = Annotated[str, Field(min_length=6, max_length=64), AfterValidator(_fits_bcrypt)]
 
 
 class ApiResponse(BaseModel, Generic[T]):
@@ -26,14 +36,7 @@ def ok(data=None) -> dict:
 
 class _Credentials(BaseModel):
     username: str = Field(min_length=3, max_length=50, pattern=r"^[A-Za-z0-9_一-鿿]+$")
-    password: str = Field(min_length=6, max_length=64)
-
-    @field_validator("password")
-    @classmethod
-    def _fits_bcrypt(cls, v: str) -> str:
-        if len(v.encode("utf-8")) > BCRYPT_MAX_BYTES:
-            raise ValueError("密码过长")
-        return v
+    password: Password
 
 
 class RegisterIn(_Credentials):
@@ -47,14 +50,7 @@ class LoginIn(_Credentials):
 class PasswordIn(BaseModel):
     """POST /auth/password：先输对当前密码，新密码的规则和注册一样。"""
     old_password: str = Field(min_length=1, max_length=64)
-    new_password: str = Field(min_length=6, max_length=64)
-
-    @field_validator("new_password")
-    @classmethod
-    def _fits_bcrypt(cls, v: str) -> str:
-        if len(v.encode("utf-8")) > BCRYPT_MAX_BYTES:
-            raise ValueError("密码过长")
-        return v
+    new_password: Password
 
 
 class UserOut(BaseModel):

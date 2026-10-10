@@ -13,7 +13,7 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-your_password}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-resume_ai}
+      MYSQL_DATABASE: resume_ai          # 库名写死：两份 .sql 里是 USE resume_ai，做成变量改了反而对不上
       TZ: Asia/Shanghai
     volumes:
       - mysql_data:/var/lib/mysql
@@ -47,7 +47,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: mysql+pymysql://root:${MYSQL_ROOT_PASSWORD:-your_password}@mysql:3306/${MYSQL_DATABASE:-resume_ai}?charset=utf8mb4
+      DATABASE_URL: mysql+pymysql://root:${MYSQL_ROOT_PASSWORD:-your_password}@mysql:3306/resume_ai?charset=utf8mb4
       REDIS_URL: redis://redis:6379/0
       DATA_DIR: /app/data
       # 和 MySQL 同一个时区：创建时间是 MySQL 写的（北京时间），最后活动、结束时间是 Python 写的，
