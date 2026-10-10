@@ -152,6 +152,38 @@ def test_model_failure_sends_an_error_saves_nothing_and_can_be_retried(client, a
         assert db.get(Finding, fid).rewrite["text"] == events[-1][1]["text"]
 
 
+def test_the_request_session_is_released_before_the_stream_starts(client, auth_headers, resume_and_job, fake_llm,
+                                                                  db_session_factory):
+    """生成建议要几秒：模型开始吐字时，请求自己的数据库会话应该已经关了，不能整个流期间占着一个连接。"""
+    from app.database import get_db
+    from app.main import app
+
+    result = _applied(client, auth_headers, resume_and_job, fake_llm)
+    fid = next(f["id"] for f in result["resume_issues"])
+    closed, closed_when_streaming = [], []
+
+    def tracked_db():
+        db = db_session_factory()
+        close = db.close
+        db.close = lambda: (closed.append(True), close())[1]
+        try:
+            yield db
+        finally:
+            db.close()
+
+    stream = fake_llm.stream
+
+    def watched_stream(*args, **kwargs):
+        closed_when_streaming.append(bool(closed))
+        yield from stream(*args, **kwargs)
+
+    app.dependency_overrides[get_db] = tracked_db
+    fake_llm.stream = watched_stream
+    fake_llm.replies["rewrite"] = [GOOD_ADVICE]
+    events = _events(client.post(f"/api/v1/findings/{fid}/advice", headers=auth_headers).text)
+    assert events[-1][0] == "done" and closed_when_streaming == [True]
+
+
 def test_a_down_model_service_is_named_in_the_error(client, auth_headers, resume_and_job, fake_llm):
     result = _applied(client, auth_headers, resume_and_job, fake_llm)
     fid = next(f["id"] for f in result["resume_issues"])

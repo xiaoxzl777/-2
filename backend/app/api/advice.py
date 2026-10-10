@@ -34,7 +34,9 @@ def finding_advice(
     llm: LLMClient = Depends(get_llm_client),
 ):
     """简历里的一条问题：【问题】【改成】【为什么】。"""
-    return _respond(advice_service.finding_task(db, user, finding_id), llm, session_factory)
+    task = advice_service.finding_task(db, user, finding_id)
+    db.close()      # 生成要几秒：先把请求自己的连接还回去，存结果时另开会话
+    return _respond(task, llm, session_factory)
 
 
 @router.post("/match/{report_id}/items/{requirement_id}/advice")
@@ -47,7 +49,9 @@ def gap_advice(
     llm: LLMClient = Depends(get_llm_client),
 ):
     """岗位里没满足 / 部分满足的一条要求：【考察什么】【怎么补】【面试怎么答】。"""
-    return _respond(advice_service.gap_task(db, user, report_id, requirement_id), llm, session_factory)
+    task = advice_service.gap_task(db, user, report_id, requirement_id)
+    db.close()
+    return _respond(task, llm, session_factory)
 
 
 def _respond(task: AdviceTask | dict, llm: LLMClient, session_factory: SessionFactory) -> StreamingResponse:

@@ -64,6 +64,7 @@ def start_interview(
 ):
     session = interview_service.load_owned(db, user, session_id)
     interview_service.begin(db, session)
+    db.close()      # 出题要几秒：先把请求自己的连接还回去，图里每一步落库另开会话
     return _stream(interview_service.advance(session_id, None, llm=llm, store=store, checkpointer=checkpointer,
                                              session_factory=session_factory))
 
@@ -81,6 +82,7 @@ def answer_question(
 ):
     session = interview_service.load_owned(db, user, session_id)
     answer = interview_service.submit_answer(db, session, body.text, body.skip)
+    db.close()
     return _stream(interview_service.advance(session_id, answer, llm=llm, store=store, checkpointer=checkpointer,
                                              session_factory=session_factory))
 

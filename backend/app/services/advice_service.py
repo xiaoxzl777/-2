@@ -123,7 +123,7 @@ def run(task: AdviceTask, llm: LLMClient, session_factory: SessionFactory) -> It
         logger.info("建议里有 %d 个原文没有的数字，已换成占位符 %s", violations, task.ref)
     result = {"text": final, "violation_count": violations, "prompt_version": prompts.ADVICE_VERSION,
               "model": settings.CHAT_MODEL, "created_at": datetime.now().isoformat(timespec="seconds")}
-    with session_factory() as db:          # 请求自己的会话在开始流式响应后就不能再用了
+    with session_factory() as db:          # 请求自己的会话在开始推流前就关了（生成的这几秒不占着连接）
         task.save(db, result)
         db.commit()
     yield "done", result

@@ -47,6 +47,7 @@ def stream_task(
     if kind not in _KINDS:
         raise ApiError(BAD_REQUEST, f"未知的任务类型：{kind}（可用：{sorted(_KINDS)}）")
     _require_owner(db, user, kind, task_ref)
+    db.close()      # 流可能开很久：先把请求自己的连接还回去（见 sse.py 的说明），流里每次查状态另开会话
     return sse_response(_events(kind, task_ref, session_factory, subscribe))
 
 
@@ -59,7 +60,7 @@ def _require_owner(db: Session, user: User, kind: str, task_ref: int) -> None:
 
 
 def _status(session_factory: SessionFactory, kind: str, task_ref: int) -> str | None:
-    # 每次用新会话：请求自己的会话在开始流式响应后就不能再用了，而且新事务才能读到任务刚提交的状态
+    # 每次用新会话：请求自己的会话在开始推流前就关了（不占着连接），而且新事务才能读到任务刚提交的状态
     model, field = _KINDS[kind]
     with session_factory() as db:
         row = db.get(model, task_ref)
