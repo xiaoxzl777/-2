@@ -5,7 +5,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, UploadFile
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from app.database import get_db, get_session_factory
 from app.deps import get_current_user, get_owned_resume, get_parsed_resume
@@ -58,6 +58,7 @@ def list_resumes(
     total = db.scalar(select(func.count()).select_from(Resume).where(mine))
     rows = db.scalars(
         select(Resume).where(mine)
+        .options(*(defer(c) for c in (Resume.full_text, Resume.structure, Resume.sections, Resume.layout_detail)))   # 列表用不到的大字段不取
         .order_by(Resume.updated_at.desc(), Resume.id.desc())
         .offset((page - 1) * page_size).limit(page_size)
     ).all()

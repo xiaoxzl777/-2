@@ -167,6 +167,26 @@ def test_rejections(client, auth_headers, resume_and_job, db_session_factory, ev
         assert db.query(MatchReport).count() == reports_before
 
 
+def test_lists_do_not_load_the_big_columns(client, auth_headers, resume_and_job, db_session_factory):
+    """列表只要标题、分数、状态：简历全文、解析结果、岗位原文、逐条判定这些大字段不取（同一份简历投几次就要重复传几遍）。"""
+    from sqlalchemy import inspect
+
+    from app.models import User
+    from app.services import apply_service
+
+    rid, jid = resume_and_job
+    _apply(client, auth_headers, rid, jid, match_mode="dict_only", diagnose_mode="rule_only")
+    with db_session_factory() as db:                                       # 新会话：对象不能是别处已经整行取过的
+        total, rows = apply_service.list_applies(db, db.query(User).one(), 1, 20)
+        report, job, resume, _ = rows[0]
+        assert total == 1
+        assert {"items"} <= inspect(report).unloaded and {"raw_text", "requirements"} <= inspect(job).unloaded
+        assert {"full_text", "structure", "sections"} <= inspect(resume).unloaded
+        assert (job.title, resume.title, report.status) == ("后端开发", resume.title, "success")     # 要用的都在
+    listed = client.get("/api/v1/resumes", headers=auth_headers).json()["data"]["items"]
+    assert listed[0]["apply_count"] == 1 and listed[0]["parse_status"] == "success"                # 简历列表照常
+
+
 def test_list_shows_my_applies_newest_first_with_their_interviews(client, auth_headers, resume_and_job, db_session_factory):
     """我的投递：新的在前；失败的给一句人话（不是技术报错）；面试挂在各自的投递下面；别人看不到，简历删了就不列。"""
     rid, jid = resume_and_job

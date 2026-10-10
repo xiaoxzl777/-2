@@ -11,7 +11,7 @@ from collections import defaultdict
 from datetime import datetime
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from app.cache.pubsub import Publish
 from app.deps import parse_error_message
@@ -138,6 +138,12 @@ def failure_of(report: MatchReport, resume: Resume) -> str | None:
     return parse_error_message(resume) if resume.parse_status == "failed" else "分析时出错了，可以再投一次"
 
 
+# 列表只要标题、分数、状态：这些大字段不取。同一份简历投了几次，它的全文和解析结果就要重复传几遍，
+# 前端一次取 100 条、有分析中的投递时每 3 秒刷一次。真要用到时 SQLAlchemy 会再去取，不会出错
+_LIST_SKIPS = (defer(MatchReport.items), defer(MatchReport.gap_summary), defer(Job.raw_text), defer(Job.requirements),
+               *(defer(c) for c in (Resume.full_text, Resume.structure, Resume.sections, Resume.layout_detail)))
+
+
 def list_applies(db: Session, user: User, page: int, page_size: int,
                  ) -> tuple[int, list[tuple[MatchReport, Job, Resume, list[InterviewSession]]]]:
     """「我的投递」：当前用户的投递，新的在前（简历删掉了的不算，和 GET /apply/{id} 的归属规则一致）。
@@ -148,6 +154,7 @@ def list_applies(db: Session, user: User, page: int, page_size: int,
     rows = db.execute(
         select(MatchReport, Job, Resume)
         .join(Resume, MatchReport.resume_id == Resume.id).join(Job, MatchReport.job_id == Job.id).where(mine)
+        .options(*_LIST_SKIPS)
         .order_by(MatchReport.created_at.desc(), MatchReport.id.desc())
         .offset((page - 1) * page_size).limit(page_size)
     ).all()
@@ -160,6 +167,7 @@ def interviews_of(db: Session, report_ids: list[int]) -> dict[int, list[Intervie
     sessions: dict[int, list[InterviewSession]] = defaultdict(list)
     if report_ids:
         for s in db.scalars(select(InterviewSession).where(InterviewSession.match_report_id.in_(report_ids))
+                            .options(defer(InterviewSession.extra_context))     # 贴的面经最长两万字，列表用不到
                             .order_by(InterviewSession.created_at.desc(), InterviewSession.id.desc())):
             sessions[s.match_report_id].append(s)
     return sessions
