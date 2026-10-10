@@ -20,7 +20,7 @@ export default function MyResumes() {
   const [resumes, setResumes] = useState<Resume[] | null>(null)
   const [more, setMore] = useState(false) // 超过一次取的份数，更早的没列出来
   const [error, setError] = useState<string | null>(null)
-  const [applies, setApplies] = useState<ApplyBrief[]>([])
+  const [applies, setApplies] = useState<ApplyBrief[] | null>(null) // null = 还没取回来；取失败记成空列表
   const [upload, setUpload] = useState<{ name: string; error?: string } | null>(null)
   const [over, setOver] = useState(false)
   const [viewing, setViewing] = useState<Resume | null>(null)
@@ -30,7 +30,7 @@ export default function MyResumes() {
       setResumes(page.items)
       setMore(page.total > page.items.length)
     }).catch((e) => setError(e instanceof ApiError ? e.message : '加载失败，请稍后刷新'))
-    applyApi.list().then((page) => setApplies(page.items)).catch(() => { /* 只是少了「最近投递」 */ })
+    applyApi.list().then((page) => setApplies(page.items)).catch(() => setApplies([])) // 没取到只是少了「最近投递」，卡片照常显示
   }, [])
 
   useParsingPoll(resumes, (fresh) => setResumes((list) => list?.map((r) => (r.id === fresh.id ? { ...r, ...fresh } : r)) ?? null))
@@ -63,7 +63,7 @@ export default function MyResumes() {
   else list = (
     <div className="mr-grid">
       {resumes.map((r, i) => (
-        <ResumeCard key={r.id} r={r} index={i} applies={applies.filter((a) => a.resume_id === r.id)}
+        <ResumeCard key={r.id} r={r} index={i} applies={applies?.filter((a) => a.resume_id === r.id) ?? null}
           onView={() => setViewing(r)} onGone={() => setResumes((l) => l?.filter((x) => x.id !== r.id) ?? null)} />
       ))}
     </div>
@@ -111,7 +111,7 @@ export default function MyResumes() {
 function ResumeCard({ r, index, applies, onView, onGone }: {
   r: Resume
   index: number
-  applies: ApplyBrief[] // 用这份简历的投递，新的在前
+  applies: ApplyBrief[] | null // 用这份简历的投递，新的在前；null = 投递记录还没取回来
   onView: () => void
   onGone: () => void
 }) {
@@ -122,7 +122,7 @@ function ResumeCard({ r, index, applies, onView, onGone }: {
   const delRef = useRef<HTMLButtonElement>(null)
   const failed = r.parse_status === 'failed'
   const parsing = isParsing(r)
-  const count = r.apply_count ?? applies.length
+  const count = r.apply_count ?? applies?.length ?? 0
 
   const cancel = () => {
     if (busy) return
@@ -167,7 +167,11 @@ function ResumeCard({ r, index, applies, onView, onGone }: {
     <>
       <div className="mr-hist">
         <div className="k"><span>最近投递</span>{count > RECENT && <Link className="more" to="/app/applies">全部 {count} 次 →</Link>}</div>
-        {applies.length ? applies.slice(0, RECENT).map((a) => <ApplyRow key={a.id} a={a} />) : <p className="none">还没用它投过岗位</p>}
+        {/* 「投过几次」来自简历列表，具体哪几条来自投递列表：后者还没回来、没取到、或者排在最近 100 条之外时，不能说成「还没投过」 */}
+        {applies?.length ? applies.slice(0, RECENT).map((a) => <ApplyRow key={a.id} a={a} />)
+          : !count ? <p className="none">还没用它投过岗位</p>
+          : applies === null ? <p className="none">加载中…</p>
+          : <p className="none">这 {count} 次投递在<Link className="more" to="/app/applies">「我的投递」</Link>里看</p>}
       </div>
       <div className="mr-acts">
         <button type="button" className="btn sm outline" disabled={parsing} title={parsing ? '解析完才能看' : undefined} onClick={onView}>看原文</button>
