@@ -1,13 +1,13 @@
 // 第 ② 步右侧：拖入 / 点选 PDF 上传，或从已上传的简历里选一份。
 // 解析在后台进行；解析中的也能选（投递会等它解析完），解析失败的不能选。每份都能删（解析失败的也能）。
-import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
-import { ApiError } from '../api/client'
-import { fileProblem, isParsing, MAX_UPLOAD_MB, parseErrorText, RESUME_LIST_MAX, resumesApi, uploadResume, type Resume } from '../api/resumes'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { isParsing, MAX_UPLOAD_MB, parseErrorText, RESUME_LIST_MAX, resumesApi, type Resume } from '../api/resumes'
 import { TiltCard } from './effects'
 import { monthDay } from './InterviewPill'
 import { LoadFailed } from './LoadFailed'
 import { PickRow } from './PickRow'
 import { useParsingPoll } from './useParsingPoll'
+import { useResumeUpload, withUploaded } from './useResumeUpload'
 
 function statusText(r: Resume): string {
   if (r.parse_status === 'failed') return `解析失败：${parseErrorText(r.parse_error)}`
@@ -18,10 +18,13 @@ function statusText(r: Resume): string {
 export function ResumePicker({ selected, onPick }: { selected: Resume | null; onPick: (r: Resume | null) => void }) {
   const [resumes, setResumes] = useState<Resume[] | null>(null) // null = 还在加载
   const [more, setMore] = useState(false) // 超过一次取的份数，更早的没列出来
-  const [upload, setUpload] = useState<{ name: string; error?: string } | null>(null)
-  const [over, setOver] = useState(false)
   const selectedRef = useRef(selected)
   selectedRef.current = selected
+  // 传完：排到最上面，并且直接选中
+  const { upload, over, dropProps, inputProps } = useResumeUpload((fresh) => {
+    setResumes((list) => withUploaded(list, fresh))
+    onPick(fresh)
+  })
 
   const [loadFailed, setLoadFailed] = useState(false) // 列表没取到：不能显示成「一份都没传过」
   const load = useCallback(() => {
@@ -39,38 +42,10 @@ export function ResumePicker({ selected, onPick }: { selected: Resume | null; on
     if (selectedRef.current?.id === fresh.id) onPick(fresh.parse_status === 'failed' ? null : fresh)
   })
 
-  const send = async (file: File | undefined) => {
-    if (!file) return
-    const problem = fileProblem(file)
-    if (problem) return setUpload({ name: file.name, error: problem })
-    setUpload({ name: file.name })
-    try {
-      const fresh = await uploadResume(file)
-      setResumes((list) => {
-        const prev = list?.find((r) => r.id === fresh.id) // 同一文件传过：沿用列表里的投递次数
-        return [{ ...prev, ...fresh }, ...(list ?? []).filter((r) => r.id !== fresh.id)]
-      })
-      setUpload(null)
-      onPick(fresh)
-    } catch (err) {
-      setUpload({ name: file.name, error: err instanceof ApiError ? err.message : '上传失败，请稍后重试' })
-    }
-  }
-
-  const dragOver = (e: DragEvent) => {
-    e.preventDefault()
-    setOver(true)
-  }
-  const dragEnd = (e: DragEvent) => {
-    e.preventDefault()
-    setOver(false)
-  }
-
   return (
-    <TiltCard className={over ? 'over' : ''} onDragEnter={dragOver} onDragOver={dragOver} onDragLeave={dragEnd}
-      onDrop={(e) => { dragEnd(e); void send(e.dataTransfer.files[0]) }}>
+    <TiltCard className={over ? 'over' : ''} {...dropProps}>
       <label className="drop">
-        <input type="file" accept=".pdf,application/pdf" className="file-input" onChange={(e) => { void send(e.target.files?.[0]); e.target.value = '' }} />
+        <input {...inputProps} />
         <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M12 15V3M7 8l5-5 5 5" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
         </svg>

@@ -1,29 +1,28 @@
 // 我的简历：/app/resumes。上面一条上传（点选或把文件拖上去），下面两列卡片：每份的解析状态、最近投的 3 个岗位，
 // 「看原文」「用它投递 →」「删除」。删除和工作台里一样原地确认；「用它投递」回工作台、这份已经选好。
 // 只用现有接口：简历列表（带投递次数）+ 我的投递（按简历分组）。样稿：docs/design/我的简历预览.html（方案 B）
-import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { applyApi, isRunning, type ApplyBrief } from '../api/apply'
 import { ApiError } from '../api/client'
-import { fileProblem, isParsing, MAX_UPLOAD_MB, parseErrorText, RESUME_LIST_MAX, resumesApi, uploadResume, type Resume } from '../api/resumes'
+import { isParsing, MAX_UPLOAD_MB, parseErrorText, RESUME_LIST_MAX, resumesApi, type Resume } from '../api/resumes'
 import { AppShell } from '../components/AppShell'
 import { Headline, Mark } from '../components/Headline'
 import { monthDay } from '../components/InterviewPill'
 import { ResumeViewer } from '../components/ResumeViewer'
+import { useConfirmDelete } from '../components/useConfirmDelete'
 import { useParsingPoll } from '../components/useParsingPoll'
+import { useResumeUpload, withUploaded } from '../components/useResumeUpload'
 
-const NOT_FOUND = 40401
 const RECENT = 3 // 卡片上列最近投的几个岗位
-
 
 export default function MyResumes() {
   const [resumes, setResumes] = useState<Resume[] | null>(null)
   const [more, setMore] = useState(false) // 超过一次取的份数，更早的没列出来
   const [error, setError] = useState<string | null>(null)
   const [applies, setApplies] = useState<ApplyBrief[] | null>(null) // null = 还没取回来；取失败记成空列表
-  const [upload, setUpload] = useState<{ name: string; error?: string } | null>(null)
-  const [over, setOver] = useState(false)
   const [viewing, setViewing] = useState<Resume | null>(null)
+  const { upload, over, dropProps, inputProps } = useResumeUpload((fresh) => setResumes((list) => withUploaded(list, fresh)))
 
   useEffect(() => {
     resumesApi.list().then((page) => {
@@ -34,25 +33,6 @@ export default function MyResumes() {
   }, [])
 
   useParsingPoll(resumes, (fresh) => setResumes((list) => list?.map((r) => (r.id === fresh.id ? { ...r, ...fresh } : r)) ?? null))
-
-  const send = async (file: File | undefined) => {
-    if (!file) return
-    const problem = fileProblem(file)
-    if (problem) return setUpload({ name: file.name, error: problem })
-    setUpload({ name: file.name })
-    try {
-      const fresh = await uploadResume(file)
-      setResumes((list) => {
-        const prev = list?.find((r) => r.id === fresh.id) // 同一文件传过：沿用投递次数，挪到最上面
-        return [{ ...prev, ...fresh }, ...(list ?? []).filter((r) => r.id !== fresh.id)]
-      })
-      setUpload(null)
-    } catch (err) {
-      setUpload({ name: file.name, error: err instanceof ApiError ? err.message : '上传失败，请稍后重试' })
-    }
-  }
-  const dragOver = (e: DragEvent) => { e.preventDefault(); setOver(true) }
-  const dragEnd = (e: DragEvent) => { e.preventDefault(); setOver(false) }
 
   const total = (resumes ?? []).reduce((n, r) => n + (r.apply_count ?? 0), 0)
 
@@ -85,9 +65,8 @@ export default function MyResumes() {
           )}
         </header>
 
-        <label className={`mr-up fade d3${over ? ' over' : ''}`} onDragEnter={dragOver} onDragOver={dragOver} onDragLeave={dragEnd}
-          onDrop={(e) => { dragEnd(e); void send(e.dataTransfer.files[0]) }}>
-          <input type="file" accept=".pdf,application/pdf" className="file-input" onChange={(e) => { void send(e.target.files?.[0]); e.target.value = '' }} />
+        <label className={`mr-up fade d3${over ? ' over' : ''}`} {...dropProps}>
+          <input {...inputProps} />
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M12 15V3M7 8l5-5 5 5" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
           </svg>
@@ -116,34 +95,10 @@ function ResumeCard({ r, index, applies, onView, onGone }: {
   onGone: () => void
 }) {
   const navigate = useNavigate()
-  const [asking, setAsking] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [delError, setDelError] = useState<string | null>(null)
-  const delRef = useRef<HTMLButtonElement>(null)
+  const del = useConfirmDelete(() => resumesApi.remove(r.id), onGone)
   const failed = r.parse_status === 'failed'
   const parsing = isParsing(r)
   const count = r.apply_count ?? applies?.length ?? 0
-
-  const cancel = () => {
-    if (busy) return
-    setAsking(false)
-    setDelError(null)
-    window.setTimeout(() => delRef.current?.focus()) // 确认框没了，焦点回到「删除」上
-  }
-  const remove = async () => {
-    setBusy(true)
-    setDelError(null)
-    try {
-      await resumesApi.remove(r.id)
-    } catch (err) {
-      if (!(err instanceof ApiError && err.code === NOT_FOUND)) { // 别的标签页删过：当作删掉了
-        setBusy(false)
-        setDelError(err instanceof ApiError ? err.message : '请稍后再试')
-        return
-      }
-    }
-    onGone()
-  }
 
   let status
   if (failed) status = <span className="mr-st err">解析失败</span>
@@ -151,14 +106,14 @@ function ResumeCard({ r, index, applies, onView, onGone }: {
   else status = <span className="mr-st ok">已解析</span>
 
   let body
-  if (asking) body = (
-    <div className="mr-confirm" role="alertdialog" aria-label={`删除「${r.title}」`} onKeyDown={(e) => { if (e.key === 'Escape') cancel() }}>
+  if (del.asking) body = (
+    <div className="mr-confirm" role="alertdialog" aria-label={`删除「${r.title}」`} onKeyDown={(e) => { if (e.key === 'Escape') del.cancel() }}>
       <p>删除「<b>{r.title}</b>」？{count ? <>它的 <b>{count} 次投递</b>和面试报告也会从「我的投递」里隐藏。</> : '还没用它投过岗位。'}</p>
-      {delError && <p className="form-err" role="alert">没删掉：{delError}</p>}
+      {del.error && <p className="form-err" role="alert">没删掉：{del.error}</p>}
       <div className="btns">
-        <button type="button" className="btn sm danger" disabled={busy} onClick={() => void remove()}>{busy ? '删除中…' : '删除'}</button>
+        <button type="button" className="btn sm danger" disabled={del.busy} onClick={() => void del.confirm()}>{del.busy ? '删除中…' : '删除'}</button>
         {/* 默认停在「取消」上：误按回车不会删 */}
-        <button type="button" className="btn sm ghost" disabled={busy} autoFocus onClick={cancel}>取消</button>
+        <button type="button" className="btn sm ghost" disabled={del.busy} autoFocus onClick={del.cancel}>取消</button>
       </div>
     </div>
   )
@@ -188,7 +143,7 @@ function ResumeCard({ r, index, applies, onView, onGone }: {
           <div className="mr-title">{r.title}</div>
           <div className="mr-meta">{status}<span>{r.page_count ? `${r.page_count} 页 · ` : ''}{monthDay(r.created_at)}上传{count ? ` · 投过 ${count} 次` : ''}</span></div>
         </div>
-        {!asking && <button ref={delRef} type="button" className="mr-del" aria-label={`删除「${r.title}」`} onClick={() => setAsking(true)}>删除</button>}
+        {!del.asking && <button ref={del.delRef} type="button" className="mr-del" aria-label={`删除「${r.title}」`} onClick={del.ask}>删除</button>}
       </div>
       {body}
     </article>
