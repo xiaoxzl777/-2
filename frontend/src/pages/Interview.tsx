@@ -48,9 +48,17 @@ export default function Interview() {
   const [shake, setShake] = useState(0)
   const [confirming, setConfirming] = useState(false)
   const [ending, setEnding] = useState(false)
+  const [endError, setEndError] = useState<string | null>(null) // 「提前结束」没成的原因，显示在确认框里
   const started = useRef(false) // 开发环境 StrictMode 会把 effect 跑两遍，不能因此连开两次
   const msgsRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  // 输入框靠换 key 重播抖动动画，换 key 就是换了一个新的输入框，焦点会丢：抖完把焦点放回去、光标停在最后
+  useEffect(() => {
+    const el = inputRef.current
+    if (!shake || !el) return
+    el.focus()
+    el.setSelectionRange(el.value.length, el.value.length)
+  }, [shake])
   const practice = session?.mode === 'practice'
 
   const patch = (key: string, change: (e: Entry) => Entry) => setEntries((es) => es.map((e) => (e.key === key ? change(e) : e)))
@@ -194,13 +202,14 @@ export default function Interview() {
 
   const finishEarly = async () => {
     setEnding(true)
+    setEndError(null)
     try {
       await interviewApi.finish(sid)
       navigate(`/app/interview/${sid}/report`)
     } catch (err) {
+      // 确认框留着、原因写在框里：原来把框收了、错误又只在对话区出错时才显示，看起来像按钮没反应
       setEnding(false)
-      setConfirming(false)
-      setError(err instanceof ApiError ? err.message : '结束失败，请稍后重试')
+      setEndError(err instanceof ApiError ? err.message : '请稍后重试')
     }
   }
 
@@ -255,9 +264,10 @@ export default function Interview() {
             {confirming && !finished && (
               <div className="iv-confirm" role="alertdialog" aria-label="提前结束面试">
                 {left > 0 ? `还有 ${left} 个话题没聊完。` : ''}现在结束，报告只按已经答过的题算。
+                {endError && <p className="form-err" role="alert">没结束成：{endError}</p>}
                 <div className="cta">
                   <button type="button" className="btn dark sm" disabled={ending} onClick={() => void finishEarly()}>{ending ? '正在出报告…' : '结束'}</button>
-                  <button type="button" className="btn ghost sm" disabled={ending} onClick={() => setConfirming(false)}>继续面</button>
+                  <button type="button" className="btn ghost sm" disabled={ending} onClick={() => { setConfirming(false); setEndError(null) }}>继续面</button>
                 </div>
               </div>
             )}
