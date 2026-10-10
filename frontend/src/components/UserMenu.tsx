@@ -36,7 +36,7 @@ export function UserMenu() {
       <button type="button" className="um-btn" aria-haspopup="menu" aria-expanded={open} aria-label={`账号 ${user.username}`} onClick={() => setOpen((o) => !o)}>
         <span className="avatar">{user.username.slice(0, 1).toUpperCase()}</span>
         <span className="uname">{user.username}</span>
-        <svg className="caret" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M2 4l3 3 3-3" /></svg>
+        <svg className="um-caret" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M2 4l3 3 3-3" /></svg>
       </button>
       <div className="um-menu" role="menu" aria-hidden={!open}>
         <div className="um-who"><b>{user.username}</b>{user.email && <span>{user.email}</span>}</div>
