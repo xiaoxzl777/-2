@@ -11,11 +11,12 @@ import MyResumes from './pages/MyResumes'
 import Workbench from './pages/Workbench'
 import { useAuth } from './store/auth'
 
-/** 需要登录的页面：未登录带回首页并弹出登录框 */
+/** 需要登录的页面：未登录带回首页并弹出登录框；自己点「退出登录」的只回首页，不弹 */
 function RequireAuth({ children }: { children: ReactNode }) {
   const status = useAuth((s) => s.status)
+  const leftByChoice = useAuth((s) => s.leftByChoice)
   if (status === 'checking') return <div className="splash">加载中…</div>
-  if (status === 'guest') return <Navigate to="/?login=1" replace />
+  if (status === 'guest') return <Navigate to={leftByChoice ? '/' : '/?login=1'} replace />
   return children
 }
 

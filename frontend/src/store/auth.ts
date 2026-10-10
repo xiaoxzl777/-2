@@ -10,6 +10,7 @@ const RETRY_MS = 3000
 type AuthState = {
   user: User | null
   status: Status
+  leftByChoice: boolean // 是自己点的「退出登录」（回首页就行），不是登录失效被踢出来的（那种要弹登录框）
   bootstrap: () => Promise<void>
   login: (username: string, password: string) => Promise<void>
   register: (username: string, password: string, email?: string) => Promise<void>
@@ -19,7 +20,7 @@ type AuthState = {
 export const useAuth = create<AuthState>((set, get) => {
   const signedIn = (out: TokenOut) => {
     tokenStore.set(out.access_token)
-    set({ user: out.user, status: 'authed' })
+    set({ user: out.user, status: 'authed', leftByChoice: false })
   }
   const signedOut = () => {
     tokenStore.clear()
@@ -30,6 +31,7 @@ export const useAuth = create<AuthState>((set, get) => {
   return {
     user: null,
     status: tokenStore.get() ? 'checking' : 'guest',
+    leftByChoice: false,
 
     async bootstrap() {
       if (!tokenStore.get()) return set({ status: 'guest' })
@@ -50,6 +52,9 @@ export const useAuth = create<AuthState>((set, get) => {
       signedIn(await authApi.register(username, password, email))
     },
 
-    logout: signedOut,
+    logout() {
+      set({ leftByChoice: true }) // 先记下，RequireAuth 看到未登录时就不带 ?login=1
+      signedOut()
+    },
   }
 })

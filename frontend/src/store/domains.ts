@@ -32,8 +32,10 @@ export function useDomains(): Domain[] | null {
   return list
 }
 
-/** 某个方向。key 为空（老数据）或方向已下线时按第一个（默认方向）处理，和后端 get_domain 一致 */
+/** 某个方向。key 为空（老数据）或方向已下线时按第一个（默认方向）处理，和后端 get_domain 一致。
+ *  key 是 undefined = 数据还没回来：返回 null、先不显示，不然非计算机方向的面试页会先闪一下「技术面」再换成「专业面」 */
 export function useDomain(key: string | null | undefined): Domain | null {
   const list = useDomains()
+  if (key === undefined) return null
   return list?.find((d) => d.key === key) ?? list?.[0] ?? null
 }
