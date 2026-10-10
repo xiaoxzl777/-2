@@ -21,7 +21,9 @@ _EXPERIENCE_SECTIONS = ("work", "projects")
 _DEGREES = [(4, re.compile(r"博士|ph\.?d", re.I)), (3, re.compile(r"硕士|(?<!博士)研究生|master", re.I)),   # "博士研究生"只算博士
             (2, re.compile(r"本科|学士|bachelor", re.I)), (1, re.compile(r"大专|专科"))]
 _DEGREE_NAMES = {4: "博士", 3: "硕士", 2: "本科", 1: "大专"}
-_YEARS = re.compile(r"(\d{1,2})\s*年")
+# "N 年"或"N-M 年"（取下限）。前面不能紧挨数字：不然"2026年毕业"会被读成"要求 26 年"
+_YEARS = re.compile(r"(?<!\d)(\d{1,2})(?:\s*[-–—~～至到]\s*\d{1,2})?\s*年")
+MAX_REQUIRED_YEARS = 15       # 再大多半不是在说工作年限，规则不判，交给模型
 MAX_PLAIN_EXTRA = 6           # 要求去掉技能名后最多还剩几个字，才算"只是要求会这项技能"
 
 
@@ -117,8 +119,8 @@ def _match_education(req: dict, structure: dict, full_text: str) -> MatchItem | 
 
 def _match_years(req: dict, structure: dict, today: date) -> MatchItem | None:
     found = _YEARS.search(f"{req['content']} {req.get('quote', '')}")
-    if not found:
-        return None                      # "有高并发项目经验"这类没有年限的，规则判不了
+    if not found or not 0 < int(found.group(1)) <= MAX_REQUIRED_YEARS:
+        return None                      # "有高并发项目经验"这类没有年限的、"2026年毕业"这类年份，规则判不了
     required = int(found.group(1))
     have = experience_years(structure, today)
     status = "hit" if have >= required else "partial" if have >= required / 2 else "miss"

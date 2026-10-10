@@ -273,7 +273,7 @@ JD 要求项 ↔ 简历：
   ② 学历 / 年限：matched_by='profile'
      学历：层次分四档（博士 4 / 硕士 3 / 本科 2 / 大专 1 / 没有 0）。要求的门槛取要求里提到的**最低**一档（"本科或硕士在读" = 本科），
            先只看 content，content 没写学历才看 quote（原话里常带"硕士优先"）；简历取各条 education 的 degree 中最高的；简历 ≥ 门槛 → hit，否则 miss
-     年限：要求里写了"N 年"；experience_years(structure, today) = work[] 中工作与实习（排除 kind=campus）的区间合并后求和，
+     年限：要求里写了"N 年"或"N-M 年"（取下限 N）；紧挨在别的数字后面的不算（"2026年毕业"），N 超过 15 也不判，都交给模型；experience_years(structure, today) = work[] 中工作与实习（排除 kind=campus）的区间合并后求和，
            至今的算到 today，日期不完整的跳过；≥ N → hit，≥ N/2 → partial，否则 miss
   ③ 模型路：其余要求项连同掩码后的简历全文一次交给 LLM，逐条输出 {status, evidence_quote, reason}；
      hit/partial 的 evidence_quote 须经 locate_span 定位，定位失败 → 计入 hallucination_count 并按 miss；模型漏答的也按 miss；matched_by='fulltext'

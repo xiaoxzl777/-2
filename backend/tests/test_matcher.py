@@ -107,6 +107,15 @@ def test_years_requirement():
                 for c in ("1 年以上后端开发经验", "3年以上工作经验", "5 年以上经验")]
     assert statuses == ["hit", "partial", "miss"]
     assert "1.5 年" in _match(_req(1, "experience", "3年以上工作经验"), structure).reason
+    assert _match(_req(1, "experience", "1-3 年相关经验"), structure).status == "hit"              # 范围取下限
+    assert "要求 1 年" in _match(_req(1, "experience", "1～3年经验"), structure).reason
+
+
+@pytest.mark.parametrize("content", ["2026年及以后毕业，可实习6个月以上", "入职时间 2026 年 7 月前", "有 20 年历史的老项目维护经验"])
+def test_a_calendar_year_is_not_a_years_requirement(content):
+    structure = {"work": [{"kind": "work", "start": "2024-09", "end": "2026-03"}]}
+    assert _match(_req(1, "experience", content), structure) is None                              # 规则不判，交给模型
+    assert _match(_req(1, "experience", "实习经历", quote=content), structure) is None             # 年份在 JD 原话里也一样
     assert _match(_req(1, "experience", "有高并发项目经验"), structure) is None
 
 
