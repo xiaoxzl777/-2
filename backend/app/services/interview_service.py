@@ -200,22 +200,35 @@ def _advance(session_id: int, answer: dict | None, llm: LLMClient, store: Contex
         command = None                              # 从检查点里的下一步接着跑（刚创建，或上次在某一步失败了）
 
     current = {"topic_idx": snapshot.values.get("topic_idx", -1), "depth": snapshot.values.get("depth", 0)}
-    try:
-        for kind, chunk in graph.stream(command, config, stream_mode=["custom", "updates"]):
-            if kind == "custom":
-                yield ("asking", chunk["asking"]) if "asking" in chunk else ("question", {"delta": chunk["delta"]})
-                continue
-            for node, fields in chunk.items():
-                if node not in ("__interrupt__", "retrieve_context", "wait_answer"):
-                    yield from _on_update(node, fields or {}, current, session_id, mode, plan, session_factory)
-    except Exception as e:                          # noqa: BLE001 —— 模型失败、输出坏掉都走这里；检查点停在失败的那一步
-        logger.exception("面试推进失败 session_id=%s", session_id)
-        down = isinstance(e, LLMError) and e.unavailable
-        yield "error", {"code": LLM_FAILED,
-                        "message": "模型服务暂时不可用，恢复后点重试，会从这一题接着面" if down else "面试官这边出了点问题，请重试"}
-        return
-    if "finished" in current:                       # 图整个跑完（最后一个检查点也写了）才删线程，删早了会被写回来
-        _discard(session_id, current["finished"], store, checkpointer)
+    # 带着回答来、图却没在等回答：上次题目刚落库连接就断了，图还没走到 wait_answer。先把图走到那里
+    # （出题这一步从检查点重放，不再调模型，_on_update 认得出是同一道题、不会再存一遍），再带着回答恢复
+    catch_up = answer is not None and command is None
+    for step in ((command, "resume") if catch_up else (command,)):
+        if step == "resume":
+            if "finished" in current or not graph.get_state(config).interrupts:
+                break
+            step = Command(resume=answer)
+        stream = graph.stream(step, config, stream_mode=["custom", "updates"])
+        try:
+            for kind, chunk in stream:
+                if kind == "custom":
+                    yield ("asking", chunk["asking"]) if "asking" in chunk else ("question", {"delta": chunk["delta"]})
+                    continue
+                for node, fields in chunk.items():
+                    if node not in ("__interrupt__", "retrieve_context", "wait_answer"):
+                        yield from _on_update(node, fields or {}, current, session_id, mode, plan, session_factory)
+        except Exception as e:                      # noqa: BLE001 —— 模型失败、输出坏掉都走这里；检查点停在失败的那一步
+            logger.exception("面试推进失败 session_id=%s", session_id)
+            down = isinstance(e, LLMError) and e.unavailable
+            yield "error", {"code": LLM_FAILED,
+                            "message": "模型服务暂时不可用，恢复后点重试，会从这一题接着面" if down else "面试官这边出了点问题，请重试"}
+            return
+        finally:
+            # 放在 finally 里：等报告时页面关了，这个生成器会在发出 finished 的那一刻被关掉，后面的代码不会跑。
+            # 先把图的流关掉（让它把最后一个检查点写完），再删线程——删早了会被写回来
+            stream.close()
+            if "finished" in current:
+                _discard(session_id, current["finished"], store, checkpointer)
 
 
 def _on_update(node: str, fields: dict, current: dict, session_id: int, mode: str, plan: list[dict],
@@ -235,6 +248,15 @@ def _on_update(node: str, fields: dict, current: dict, session_id: int, mode: st
 
     with session_factory() as db:
         session = db.get(InterviewSession, session_id)
+        if node == "ask_question":
+            # 新的一题总是跟在评过分的那题后面。最后一题还没评分、话题和追问层级又一样 = 这道题上次已经存过了
+            # （刚落库连接就断了，图从检查点重放了出题这一步）：不再存一遍、不再算一遍钱；还没答的话把它再发一次
+            pending = _last_turn(db, session_id)
+            if (pending is not None and pending.evaluation is None
+                    and (pending.topic_idx, pending.depth) == (current["topic_idx"], current["depth"])):
+                if pending.answered_at is None:
+                    yield "asked", _asked(pending)
+                return
         cost = Decimal(str(round(fields.get("cost", 0.0), 6)))
         session.cost += cost
         session.last_active_at = datetime.now()

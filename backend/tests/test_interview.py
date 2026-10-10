@@ -220,6 +220,57 @@ def test_restart_resends_the_pending_question_and_answers_are_checked(client, au
     assert client.get(f"{API}/{sid}", headers=auth_headers).json()["data"]["turns"][0]["answer"] == A1
 
 
+def test_leaving_while_the_report_is_written_still_cleans_up(client, auth_headers, applied, fake_llm, env, db_session_factory):
+    """等报告时关了页面：生成器在发出 finished 的那一刻被关掉，检查点线程和面经切段照样要删。"""
+    from app.services import interview_service
+
+    script(fake_llm, evals=[evaluation(["先更新数据库再删缓存"]), evaluation(["设了过期时间兜底"])])
+    sid = create(client, auth_headers, applied(), extra_context="面经：" + "先问缓存怎么保证一致，再问消息队列。" * 220)["data"]["id"]
+    assert len(env["collection"].get(where={"session_id": sid})["ids"]) > 1          # 面经超过 3000 字，切段进了向量库
+    sse(client.post(f"{API}/{sid}/start", headers=auth_headers))
+    sse(client.post(f"{API}/{sid}/answer", headers=auth_headers, json={"text": A1}))
+    sse(client.post(f"{API}/{sid}/answer", headers=auth_headers, json={"text": A2}))
+
+    with db_session_factory() as db:                                                 # 最后一题：直接驱动生成器，好在半路关掉
+        answer = interview_service.submit_answer(db, db.get(InterviewSession, sid), "", True)
+    events = interview_service.advance(sid, answer, llm=fake_llm, store=env["store"], checkpointer=env["saver"],
+                                       session_factory=db_session_factory)
+    assert next(events)[0] == "finished"
+    events.close()                                                                   # 页面关了
+
+    with db_session_factory() as db:
+        assert db.get(InterviewSession, sid).status == "completed"
+    assert env["saver"].get_tuple(thread_config(sid)) is None
+    assert env["collection"].get(where={"session_id": sid})["ids"] == []
+
+
+def test_a_drop_right_after_the_question_is_saved_neither_repeats_it_nor_loses_the_answer(client, auth_headers, applied,
+                                                                                         fake_llm, env, db_session_factory):
+    """题目刚落库、图还没走到"等回答"时连接断了：用户照样看到了题、提交了回答。回答要算数，同一道题不能再存一遍。"""
+    from app.services import interview_service
+
+    script(fake_llm, evals=[evaluation(["先更新数据库再删缓存"])])
+    sid = create(client, auth_headers, applied())["data"]["id"]
+    kwargs = dict(llm=fake_llm, store=env["store"], checkpointer=env["saver"], session_factory=db_session_factory)
+    with db_session_factory() as db:
+        interview_service.begin(db, db.get(InterviewSession, sid))
+    events = interview_service.advance(sid, None, **kwargs)
+    for name, _ in events:
+        if name == "asked":
+            events.close()                                                           # 就断在这里
+            break
+
+    with db_session_factory() as db:
+        answer = interview_service.submit_answer(db, db.get(InterviewSession, sid), A1, False)
+    after = list(interview_service.advance(sid, answer, **kwargs))
+    assert "error" not in names(after) and "evaluation" in names(after)             # 回答被评了分
+    with db_session_factory() as db:
+        turns = db.query(InterviewTurn).filter_by(session_id=sid).order_by(InterviewTurn.turn_no).all()
+        assert turns[0].question.endswith(Q1) and turns[0].answer == A1 and turns[0].evaluation is not None
+        assert sum(t.question.endswith(Q1) for t in turns) == 1                      # 同一道题只存了一遍
+    assert len(fake_llm.calls["interview_ask"]) == len(turns)                        # 没有多调一次模型出题
+
+
 def test_a_down_model_service_is_named_when_starting_and_mid_interview(client, auth_headers, applied, fake_llm, env):
     down = LLMError("调用失败", unavailable="余额不足（402）")
     fake_llm.replies["_PlanOut"] = [down]
