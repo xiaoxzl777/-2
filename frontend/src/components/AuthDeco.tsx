@@ -1,5 +1,5 @@
 // 登录弹窗背后的装饰：散落的产品碎片（匹配结果、诊断批注、面试题），
-// 缓缓漂浮，随鼠标按远近做视差；再加一团跟随鼠标的暖光。纯装饰，读屏跳过。
+// 缓缓漂浮，随鼠标按远近做视差；再加一团跟随鼠标的光晕。纯装饰，读屏跳过。
 import { useEffect, useRef, type CSSProperties } from 'react'
 
 type Kind = 'good' | 'bad' | 'score' | 'plain'

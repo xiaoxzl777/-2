@@ -1,5 +1,5 @@
 // 诊断报告：/app/apply/:id/report。把结果页的内容排成一份 A4 报告，「下载 PDF」在浏览器里直接生成文件，方便对照着改简历。
-// 结果页本身不变，只在成绩单那排按钮旁边多一个「预览报告」进来。样稿：docs/design/诊断报告导出预览.html
+// 结果页本身不变，只在成绩单的按钮下面多一条提示条「诊断报告 · 预览报告 →」进来。样稿：docs/design/诊断报告导出预览.html
 // 纸面用固定的黑白灰（不跟三套配色走）：问题 = 实线下划线、部分满足 = 虚线下划线，黑白打印也分得清。
 // PDF 用 html2pdf.js 生成（把纸面按 A4 截成图拼起来），点了下载才加载，不拖慢别的页面。
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'

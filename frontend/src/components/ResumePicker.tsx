@@ -1,4 +1,4 @@
-// 第 ② 步右侧：拖入 / 点选 PDF 上传，或从已上传的简历里选一份。
+// 第 ③ 步右侧：拖入 / 点选 PDF 上传，或从已上传的简历里选一份。
 // 解析在后台进行；解析中的也能选（投递会等它解析完），解析失败的不能选。每份都能删（解析失败的也能）。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isParsing, MAX_UPLOAD_MB, parseErrorText, RESUME_LIST_MAX, resumesApi, type Resume } from '../api/resumes'

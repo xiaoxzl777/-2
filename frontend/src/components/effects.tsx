@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttrib
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-/** 跟着鼠标缓慢移动的暖色光晕 */
+/** 跟着鼠标缓慢移动的光晕（颜色随配色） */
 export function Glow() {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
