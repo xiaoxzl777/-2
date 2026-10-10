@@ -45,7 +45,7 @@ pip install -r requirements.lock   # 锁定版本，与开发机完全一致（W
 uvicorn app.main:app --reload      # http://localhost:8000/docs
                                    # 自检：http://localhost:8000/api/v1/health
 
-# 5. 测试（在 backend 下）：约 370 个用例、约 20 秒；模型、向量库、Redis 全部打桩，数据库用内存 SQLite，不联网
+# 5. 测试（在 backend 下）：423 个用例、约 25 秒；模型、向量库、Redis 全部打桩，数据库用内存 SQLite，不联网
 .\.venv\Scripts\python.exe -m pytest -q
 
 # 6. 前端（另开一个终端）

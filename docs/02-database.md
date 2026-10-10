@@ -103,7 +103,7 @@ skills（技能词典）、llm_calls（调用审计）不建外键
 
 ### ⑧ skills
 
-扁平的技能同义词词典，只回答「这个词是不是某个技能的另一种写法」。技能之间的上下位关系（Spring Boot 属于 Java 生态）不建树，交给模型判断。`canonical_name` 唯一，`aliases` 不含规范名本身，`category` 如 language / backend / frontend / database / ai / ops 等。数据来源 `data/skills_seed.csv`（手写，191 条：计算机 155、运营 36）。简历解析和技能词典不分方向。
+扁平的技能同义词词典，只回答「这个词是不是某个技能的另一种写法」。技能之间的上下位关系（Spring Boot 属于 Java 生态）不建树，交给模型判断。`canonical_name` 唯一，`aliases` 不含规范名本身，`category` 如 language / backend / frontend / database / ai / ops 等。数据来源 `data/skills_seed.csv`（手写，241 条：计算机 155、运营 51、财会 35）。简历解析和技能词典不分方向。
 
 ### ⑨ interview_sessions
 
@@ -287,7 +287,7 @@ cases          优秀描述案例      暂缓：改写本期不检索（06-workf
 
 ## 2.6 初始数据与建库
 
-- skills 表和岗位模板（`jobs.is_template = 1`，9 份：计算机 7、运营 2）在 `backend/sql/seed.sql` 里，由 `scripts/dump_seed.py` 生成：技能来自 `data/skills_seed.csv`，模板原文在 `data/job_templates/`，先由 `scripts/build_job_templates.py` 解析成 `data/job_templates.json`（导入时不调模型，每次导入的要求项都一样）。
+- skills 表和岗位模板（`jobs.is_template = 1`，16 份：计算机 7、运营 5、财会金融 4；「其他」方向没有模板）在 `backend/sql/seed.sql` 里，由 `scripts/dump_seed.py` 生成：技能来自 `data/skills_seed.csv`，模板原文在 `data/job_templates/`，先由 `scripts/build_job_templates.py` 解析成 `data/job_templates.json`（导入时不调模型，每次导入的要求项都一样）。
 - 本机：在 MySQL 里先执行 `schema.sql`，再执行 `seed.sql`。
 - Docker：`docker-compose.yml` 把两个文件挂到 MySQL 镜像的 `/docker-entrypoint-initdb.d/`，数据卷为空（首次启动）时自动按顺序执行；数据卷里已有数据就不会再执行，改了表结构要自己迁移或清空数据卷。
 - 后端启动时只检查表是否齐全，缺表直接报错退出，不会自动建表。
