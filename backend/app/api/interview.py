@@ -37,7 +37,7 @@ def create_interview(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     llm: LLMClient = Depends(get_llm_client),
-    store: ContextStore = Depends(get_context_store),
+    store: ContextStore | None = Depends(get_context_store),    # 向量库打不开时是 None
     checkpointer=Depends(get_checkpointer),
 ):
     """要几秒：面经太长时先切段向量化，然后一次模型调用定下话题。"""
@@ -59,7 +59,7 @@ def start_interview(
     db: Session = Depends(get_db),
     session_factory: SessionFactory = Depends(get_session_factory),
     llm: LLMClient = Depends(get_llm_client),
-    store: ContextStore = Depends(get_context_store),
+    store: ContextStore | None = Depends(get_context_store),    # 向量库打不开时是 None
     checkpointer=Depends(get_checkpointer),
 ):
     session = interview_service.load_owned(db, user, session_id)
@@ -76,7 +76,7 @@ def answer_question(
     db: Session = Depends(get_db),
     session_factory: SessionFactory = Depends(get_session_factory),
     llm: LLMClient = Depends(get_llm_client),
-    store: ContextStore = Depends(get_context_store),
+    store: ContextStore | None = Depends(get_context_store),    # 向量库打不开时是 None
     checkpointer=Depends(get_checkpointer),
 ):
     session = interview_service.load_owned(db, user, session_id)
@@ -91,7 +91,7 @@ def finish_interview(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     llm: LLMClient = Depends(get_llm_client),
-    store: ContextStore = Depends(get_context_store),
+    store: ContextStore | None = Depends(get_context_store),    # 向量库打不开时是 None
     checkpointer=Depends(get_checkpointer),
 ):
     session = interview_service.load_owned(db, user, session_id)

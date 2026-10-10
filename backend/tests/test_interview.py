@@ -271,6 +271,29 @@ def test_a_drop_right_after_the_question_is_saved_neither_repeats_it_nor_loses_t
     assert len(fake_llm.calls["interview_ask"]) == len(turns)                        # 没有多调一次模型出题
 
 
+def test_interviews_work_when_the_vector_store_cannot_open(client, auth_headers, applied, fake_llm, env, monkeypatch):
+    """向量库打不开：依赖给 None，不抛异常。没贴面经的照常面；贴了长面经的退回整段截取、不检索。"""
+    from app.main import app
+    from app.retrieval import chroma_client, context_store
+    from app.retrieval.context_store import get_context_store
+
+    def broken(_name):
+        raise RuntimeError("chroma 数据目录损坏")
+
+    monkeypatch.setattr(chroma_client, "get_collection", broken)
+    monkeypatch.setattr(context_store, "_default_store", None)
+    assert get_context_store() is None and get_context_store() is None                 # 不抛；失败不记住，下次再试
+    app.dependency_overrides[get_context_store] = get_context_store                    # 用真的依赖（打不开的那个）
+
+    script(fake_llm, evals=[])
+    plain = create(client, auth_headers, applied())
+    assert plain["code"] == 0 and plain["data"]["context_mode"] == "none"
+    assert names(sse(client.post(f"{API}/{plain['data']['id']}/start", headers=auth_headers)))[-1] == "asked"
+    fake_llm.replies["_PlanOut"] = [PLAN]
+    long = create(client, auth_headers, applied(), extra_context="面经：" + "先问缓存怎么保证一致。" * 400)
+    assert long["code"] == 0 and long["data"]["context_mode"] == "full"
+
+
 def test_a_down_model_service_is_named_when_starting_and_mid_interview(client, auth_headers, applied, fake_llm, env):
     down = LLMError("调用失败", unavailable="余额不足（402）")
     fake_llm.replies["_PlanOut"] = [down]

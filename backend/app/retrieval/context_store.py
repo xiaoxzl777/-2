@@ -81,11 +81,16 @@ class ContextStore:
 _default_store: ContextStore | None = None
 
 
-def get_context_store() -> ContextStore:
-    """FastAPI 依赖。第一次用到时才打开 Chroma。"""
+def get_context_store() -> ContextStore | None:
+    """FastAPI 依赖。第一次用到时才打开 Chroma。打不开（数据目录坏了、升级后格式不兼容）时返回 None、下次再试：
+    只有贴了长面经的面试才用得上向量库，不能因为它让所有面试接口都 500。调用方按 None 处理：长面经退回整段截取、不检索。"""
     global _default_store
     if _default_store is None:
-        from app.retrieval.chroma_client import INTERVIEW_CTX, get_collection
+        try:
+            from app.retrieval.chroma_client import INTERVIEW_CTX, get_collection
 
-        _default_store = ContextStore(get_collection(INTERVIEW_CTX), get_embedding_client())
+            _default_store = ContextStore(get_collection(INTERVIEW_CTX), get_embedding_client())
+        except Exception:                               # noqa: BLE001
+            logger.exception("向量库打不开，面试先不用检索")
+            return None
     return _default_store
