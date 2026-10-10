@@ -1,7 +1,7 @@
 // 模拟面试的准备页：/app/apply/:id/interview，从初筛结果页的「进入模拟面试 / 以练习模式面试」进来。
 // 右边列出面试官会参考的材料，公司名、面经选填；点开始后卡片换成准备流程（真正耗时的是"定下话题"那一步的模型调用），
 // 定好了就进面试页。话题内容这里不列出来，问到哪个才显示哪个。样稿：docs/design/模拟面试预览.html
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { applyApi, type ApplyResult } from '../api/apply'
 import { ApiError } from '../api/client'
@@ -37,6 +37,12 @@ export default function InterviewSetup() {
   const [context, setContext] = useState('')
   const [steps, setSteps] = useState<Step[] | null>(null) // 不为 null = 正在准备
   const [error, setError] = useState<string | null>(null)
+  // 还在这个页面上吗：定话题要等几秒模型调用，期间点了「回到初筛结果」或导航栏走了，请求回来后不能再把人拉进面试页
+  const here = useRef(true)
+  useEffect(() => {
+    here.current = true
+    return () => { here.current = false }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -79,10 +85,12 @@ export default function InterviewSetup() {
         setSteps(['ok', 'ok', 'ok', 'run'])
       }
       const session = await created
+      if (!here.current) return // 人已经走了：这场面试建好了、还没开始，在「我的投递」里能接着进
       setSteps(['ok', 'ok', third === 'skip' ? 'skip' : 'ok', 'ok'])
       await pause(500)
-      navigate(`/app/interview/${session.id}`)
+      if (here.current) navigate(`/app/interview/${session.id}`)
     } catch (err) {
+      if (!here.current) return
       setSteps(null)
       setError(err instanceof ApiError ? err.message : '准备失败，请稍后重试')
     }

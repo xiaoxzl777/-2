@@ -36,7 +36,14 @@ export default function Workbench() {
   const [jobGone, setJobGone] = useState(false) // 带着 ?job= 进来，但那个岗位已经删了
   const { pipe, track } = useApplyTracker()
   const leaveTimer = useRef(0)
-  useEffect(() => () => window.clearTimeout(leaveTimer.current), [])
+  const here = useRef(true) // 还在这个页面上吗：投递的请求回来时人已经走了，就不再跟进度、不再跳结果页
+  useEffect(() => {
+    here.current = true
+    return () => {
+      here.current = false
+      window.clearTimeout(leaveTimer.current)
+    }
+  }, [])
   const domain = domains?.find((d) => d.key === domainKey) ?? null
 
   // 从结果页回来：?job= 带着岗位（方向跟着岗位）直接到第 ③ 步；再带 &resume= 就直接到第 ④ 步（重新投递）。
@@ -95,6 +102,7 @@ export default function Workbench() {
       setSubmitting(false)
       return
     }
+    if (!here.current) return // 这次投递在后台照常跑，结果在「我的投递」里
     try {
       const status = await track(id, { reused: resume.parse_status === 'success' })
       leaveTimer.current = window.setTimeout(() => navigate(`/app/apply/${id}`), status === 'success' ? DONE_PAUSE_MS : 0)
