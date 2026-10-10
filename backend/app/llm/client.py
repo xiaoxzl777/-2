@@ -26,7 +26,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.cache import llm_cache, ratelimit
 from app.config import settings
-from app.llm import audit, prompts, registry
+from app.llm import audit, prompts, provider, registry
 from app.llm import status as llm_status
 
 Message = tuple[str, str]  # (role, content)；role ∈ system / user / assistant
@@ -129,7 +129,7 @@ class LLMClient:
         temperature: float = 0.0,
         use_cache: bool = True,
     ) -> LLMResult:
-        model = model or settings.CHAT_MODEL
+        model = model or provider.current().model
         rendered, key, base_record = self._prepare(scene, messages, prompt_version, schema, ref, model, temperature)
         if schema is not None and "json" not in rendered.lower():
             raise ValueError("JSON 模式要求 prompt 中出现 'json' 字样（DeepSeek 的限制），请在 prompt 里给出 JSON 示例")
@@ -187,7 +187,7 @@ class LLMClient:
         中途失败抛 LLMError，已经产出的部分由调用方决定怎么处理；调用方提前关闭生成器也记一行失败，费用照记不漏。
         生成器没有返回值，要知道这次花了多少钱（面试按单场成本封顶）就传一个 stats 字典，结束时填进 cost / token。
         """
-        model = model or settings.CHAT_MODEL
+        model = model or provider.current().model
         _, key, base_record = self._prepare(scene, messages, prompt_version, None, ref, model, temperature)
         cacheable = use_cache and base_record["run_id"] is None
         if cacheable and (hit := self._cache.get(key)) is not None:
@@ -241,7 +241,7 @@ class LLMClient:
     def _take_slot(self, model: str, base_record: dict) -> None:
         """限流占位。Redis 不通、排队超时也按调用失败处理：调用方的降级逻辑只认 LLMError。"""
         try:
-            self._acquire(registry.PROVIDERS.get(model, model), settings.DEEPSEEK_RPM)
+            self._acquire(registry.provider_of(model), settings.DEEPSEEK_RPM)
         except Exception as e:
             self._write_audit({**base_record, "success": False, "latency_ms": 0,
                                "error_msg": f"限流占位失败：{type(e).__name__}: {e}"[:500]})
@@ -258,7 +258,7 @@ class LLMClient:
         key = llm_cache.make_key(scene, model, prompt_version, rendered)
         base_record = {
             "scene": scene, "ref_type": ref[0] if ref else None, "ref_id": ref[1] if ref else None,
-            "provider": registry.PROVIDERS.get(model), "model_name": model,
+            "provider": registry.provider_of(model), "model_name": model,
             "prompt_version": prompt_version, "run_id": current_run_id.get(),
         }
         return rendered, key, base_record

@@ -507,6 +507,20 @@ def test_questions_still_come_when_retrieval_fails(client, auth_headers, applied
     assert names(answered)[-1] == "asked" and "【参考：这家公司的面经 / 介绍】" not in fake_llm.calls["interview_ask"][-1][1][1]
 
 
+def test_questions_still_come_when_the_vector_store_itself_breaks(client, auth_headers, applied, fake_llm, env, monkeypatch):
+    """管理端刚换过向量模型：向量库被清掉重建，手里的集合失效，查询抛的不是 LLMError。这一题不带面经，面试不能停。"""
+    script(fake_llm, evals=[])
+    paragraphs = [f"第 {i} 轮：面试官问了项目背景，" + "细节" * 120 for i in range(12)]
+    sid = create(client, auth_headers, applied(), extra_context="\n\n".join(paragraphs))["data"]["id"]
+
+    def gone(*args, **kwargs):
+        raise RuntimeError("Collection does not exist")
+
+    monkeypatch.setattr(env["collection"], "query", gone)
+    started = sse(client.post(f"{API}/{sid}/start", headers=auth_headers))
+    assert names(started)[-1] == "asked" and "【参考：这家公司的面经 / 介绍】" not in fake_llm.calls["interview_ask"][-1][1][1]
+
+
 # ───────────── 拒绝、失败、清理 ─────────────
 
 

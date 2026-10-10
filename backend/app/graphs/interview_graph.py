@@ -13,6 +13,8 @@
 """
 from __future__ import annotations
 
+import logging
+
 from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
@@ -26,6 +28,8 @@ from app.interview.report import build_report
 from app.llm import prompts
 from app.llm.client import LLMClient, LLMError
 from app.retrieval.context_store import ContextStore
+
+logger = logging.getLogger("app.interview")
 
 
 class PlanError(Exception):
@@ -61,7 +65,8 @@ def build_interview_graph(llm: LLMClient, store: ContextStore | None, checkpoint
         try:
             docs = store.retrieve(state["session_id"], f"{topic['label']} {topic['intent']}",
                                   recall_k=settings.RAG_RECALL_K, top_k=settings.RAG_TOP_K)
-        except LLMError:
+        except Exception:       # noqa: BLE001 —— 向量服务挂了、向量库出了状况（比如刚换过向量模型，集合被清掉重建）
+            logger.warning("面经检索失败，这一题不带面经 session_id=%s", state["session_id"], exc_info=True)
             docs = []           # 检索挂了照样出题，只是少了参考材料
         return {"context": docs}
 

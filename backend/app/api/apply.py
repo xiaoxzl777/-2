@@ -11,7 +11,7 @@ from app.deps import get_current_user, load_owned_report, load_owned_resume, req
 from app.domains import get_domain
 from app.errors import BAD_REQUEST, ApiError
 from app.llm.client import LLMClient, get_llm_client
-from app.llm.registry import MODEL_REGISTRY
+from app.llm.registry import available_models
 from app.models import Diagnosis, Job, User
 from app.schemas import ApiResponse, ApplyBrief, ApplyIn, ApplyOut, ApplyStartOut, FindingOut, GateOut, Page, ok
 from app.services import apply_service, interview_service, job_service
@@ -35,8 +35,8 @@ def start_apply(
     if resume.parse_status == "failed":
         require_parsed(resume)
     job = job_service.get_visible_job(db, user, body.job_id)
-    if body.model is not None and body.model not in MODEL_REGISTRY:
-        raise ApiError(BAD_REQUEST, f"未知的模型：{body.model}（可用：{sorted(MODEL_REGISTRY)}）")
+    if body.model is not None and body.model not in available_models():
+        raise ApiError(BAD_REQUEST, f"未知的模型：{body.model}（可用：{available_models()}）")
 
     report = apply_service.create_apply(db, resume, job, body.diagnose_mode, body.match_mode, body.model)
     background.add_task(apply_service.run_apply, report.id, session_factory, llm, publish)

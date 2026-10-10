@@ -2,6 +2,6 @@
 import { request } from './client'
 
 export const systemApi = {
-  /** 不用登录；后端问 DeepSeek 的余额接口，结论存 1 分钟 */
+  /** 不用登录；后端问现在用的那一家模型服务（DeepSeek 问余额接口，别家问模型列表），结论存 1 分钟 */
   llm: () => request<{ available: boolean }>('/system/llm'),
 }

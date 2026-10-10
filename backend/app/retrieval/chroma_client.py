@@ -18,6 +18,14 @@ def _client() -> chromadb.ClientAPI:
     return chromadb.PersistentClient(path=str(path), settings=chromadb.Settings(anonymized_telemetry=False))
 
 
+def drop_collection(name: str) -> None:
+    """整个集合删掉（下次用到时重新建）。换了向量模型时用：集合的维度在第一次写入时就定死了，只删记录不够。"""
+    try:
+        _client().delete_collection(name)
+    except Exception:  # noqa: BLE001 —— 本来就不存在（Chroma 各版本抛的异常类型不一样）
+        pass
+
+
 def get_collection(name: str) -> Collection:
     """向量由我们自己算好传入（经 llm/embedding.py 审计与限流），所以不给 Chroma 配 embedding_function。"""
     return _client().get_or_create_collection(name, metadata={"hnsw:space": "cosine"}, embedding_function=None)

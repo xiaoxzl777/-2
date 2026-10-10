@@ -35,6 +35,24 @@ CREATE INDEX idx_ref ON llm_calls (ref_type, ref_id);
 CREATE INDEX idx_run ON llm_calls (run_id);
 CREATE INDEX idx_scene ON llm_calls (scene, created_at);
 
+-- llm_providers
+CREATE TABLE IF NOT EXISTS llm_providers (
+  id BIGINT NOT NULL AUTO_INCREMENT, 
+  purpose VARCHAR(20) NOT NULL COMMENT 'chat 对话模型 / retrieval 检索（向量 + 重排）' DEFAULT 'chat', 
+  kind VARCHAR(30) NOT NULL COMMENT 'deepseek / siliconflow / bailian / zhipu / moonshot / custom；限流分桶、审计里的 provider 用它', 
+  name VARCHAR(50) NOT NULL COMMENT '页面上显示的名字', 
+  base_url VARCHAR(255) NOT NULL COMMENT 'OpenAI 兼容接口的地址', 
+  model VARCHAR(50) NOT NULL COMMENT '对话模型名；检索配置里是向量模型名', 
+  rerank_model VARCHAR(100) COMMENT '重排模型名，只有检索配置有', 
+  api_key_enc TEXT NOT NULL COMMENT 'Fernet 加密后的 API Key（security.encrypt_secret）', 
+  key_hint VARCHAR(20) NOT NULL COMMENT '给页面看的：开头 3 位 + 后 4 位', 
+  price_in NUMERIC(10, 4) NOT NULL COMMENT '元 / 百万 token（输入）', 
+  price_out NUMERIC(10, 4) NOT NULL COMMENT '元 / 百万 token（输出）', 
+  is_active BOOL NOT NULL DEFAULT 0, 
+  created_at DATETIME NOT NULL DEFAULT now(), 
+  PRIMARY KEY (id)
+)ENGINE=InnoDB CHARSET=utf8mb4;
+
 -- skills
 CREATE TABLE IF NOT EXISTS skills (
   id BIGINT NOT NULL AUTO_INCREMENT, 

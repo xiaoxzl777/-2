@@ -18,6 +18,7 @@ from app.security import (
     token_lifetime_seconds,
     verify_password,
 )
+from app.services import admin_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -33,6 +34,8 @@ def _token_response(user: User) -> dict:
 @router.post("/register", response_model=ApiResponse[TokenOut])
 def register(body: RegisterIn, db: Session = Depends(get_db)):
     """注册成功直接返回令牌，前端无需再调一次登录。角色固定为 seeker。"""
+    if admin_service.is_reserved(body.username):
+        raise ApiError(CONFLICT, "用户名或邮箱已被注册")
     user = User(username=body.username, email=body.email, password_hash=hash_password(body.password))
     db.add(user)
     try:

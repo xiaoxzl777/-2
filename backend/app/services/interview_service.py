@@ -38,7 +38,7 @@ from app.graphs.checkpoint import thread_config
 from app.graphs.interview_graph import PlanError, build_interview_graph
 from app.interview.materials import build_materials
 from app.interview.report import build_report
-from app.llm import prompts
+from app.llm import prompts, provider
 from app.llm.client import LLM_DOWN, LLMClient, LLMError
 from app.models import InterviewSession, InterviewTurn, Job, User
 from app.parser.pii import mask_resume
@@ -72,7 +72,7 @@ def create_interview(db: Session, user: User, *, apply_id: int, company_name: st
         user_id=user.id, resume_id=resume.id, job_id=job.id, match_report_id=report.id,
         company_name=(company_name or "").strip() or job.company, extra_context=context,
         mode="practice" if practice or not report.passed else "normal", status="planned", current_round="tech",
-        model_name=settings.CHAT_MODEL, prompt_version=prompts.INTERVIEW_VERSION,
+        model_name=provider.current().model, prompt_version=prompts.INTERVIEW_VERSION,
         cost_limit=Decimal(str(settings.INTERVIEW_COST_LIMIT)))
     db.add(session)
     db.flush()                                          # 先拿到 id：检查点线程、向量库、审计记录都要用

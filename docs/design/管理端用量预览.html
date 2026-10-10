@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>管理端 · 模型用量与设置</title>
+<style>
+  /* 色板同 index.css 开头（三套配色） */
+  :root, :root[data-pal="linkedin"] {
+    --bg: #f4f2ee; --bg-rgb: 244,242,238; --bg-2: #e9e5df; --paper: #fff; --field: #fff; --ink: #191919; --ink-rgb: 25,25,25; --ink-2: #4d4d4d; --ink-3: #626262;
+    --accent: #0a66c2; --accent-rgb: 10,102,194; --accent-ink: #004182; --good: #057642; --good-rgb: 5,118,66; --bad: #cc1016;
+    --line: rgba(25,25,25,.1); --sh-rgb: 0,0,0; --glow-rgb: 10,102,194; --glow-a: .08; --ease: cubic-bezier(.22,1,.36,1); --spring: cubic-bezier(.34,1.56,.64,1);
+  }
+  :root[data-pal="red"] { --bg: #fbfaf8; --bg-rgb: 251,250,248; --bg-2: #f0eeea; --paper: #fff; --field: #fff; --ink: #141414; --ink-rgb: 20,20,20; --ink-2: #4d4d4d; --ink-3: #6b6b6b;
+    --accent: #c8341f; --accent-rgb: 200,52,31; --accent-ink: #a3291a; --good: #1b7350; --good-rgb: 27,115,80; --bad: #c42f22; --line: rgba(20,20,20,.1); --sh-rgb: 20,20,20; --glow-rgb: 200,52,31; --glow-a: .07; }
+  :root[data-pal="green"] { --bg: #f2f0e9; --bg-rgb: 242,240,233; --bg-2: #e6e3d7; --paper: #fbfaf5; --field: #fff; --ink: #1b231f; --ink-rgb: 27,35,31; --ink-2: #4a524c; --ink-3: #5a625c;
+    --accent: #2d5e4c; --accent-rgb: 45,94,76; --accent-ink: #22493b; --good: #25628a; --good-rgb: 37,98,138; --bad: #b33f2c; --line: rgba(27,35,31,.1); --sh-rgb: 35,45,35; --glow-rgb: 90,150,115; --glow-a: .16; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); overflow-x: hidden; font-family: "PingFang SC","Microsoft YaHei",sans-serif; -webkit-font-smoothing: antialiased; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  [hidden] { display: none !important; }
+
+  /* ══ 和用户端共用的那一套（正式做时直接用现成的组件和样式）：背景、导航、按钮、分段切换、大标题、进场 ══ */
+  .grain { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .35; background-image: radial-gradient(rgba(var(--ink-rgb),.08) 1px, transparent 1px); background-size: 22px 22px; }
+  .glow { position: fixed; left: 0; top: 0; width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%; pointer-events: none; z-index: 0;
+    background: radial-gradient(circle, rgba(var(--glow-rgb), var(--glow-a)) 0%, transparent 65%); }
+  .wrap { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+  .nav { position: sticky; top: 0; z-index: 20; padding: 18px 0; transition: background .3s, box-shadow .3s; }
+  .nav.scrolled { background: rgba(var(--bg-rgb),.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 1px 0 var(--line); }
+  .nav .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: .5px; white-space: nowrap; }
+  .logo-mark { width: 30px; height: 30px; border-radius: 10px; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-size: 15px; transition: transform .5s var(--spring); }
+  .logo:hover .logo-mark { transform: rotate(-12deg) scale(1.08); }
+  .adm-badge { padding: 3px 10px; border-radius: 999px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); color: var(--ink-2); font-size: 12px; font-weight: 600; letter-spacing: 1px; }
+  .links { display: flex; gap: 4px; }
+  .links button { padding: 8px 14px; border: none; border-radius: 999px; background: none; color: var(--ink-2); font-size: 15px; white-space: nowrap; transition: background .2s, color .2s; }
+  .links button:hover { background: rgba(var(--ink-rgb),.06); color: var(--ink); }
+  .links button.on { color: var(--ink); font-weight: 600; }
+  .btn { position: relative; height: 40px; padding: 0 20px; border: none; border-radius: 999px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
+    transition: transform .35s var(--spring), background .2s, box-shadow .3s; will-change: transform; }
+  .btn.dark { background: var(--ink); color: var(--bg); }
+  .btn.dark:hover:not(:disabled) { background: #000; box-shadow: 0 10px 24px rgba(var(--ink-rgb),.22); }
+  .btn.outline { background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1.5px rgba(var(--ink-rgb),.3); }
+  .btn.outline:hover:not(:disabled) { box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .btn.ghost { background: transparent; color: var(--ink); }
+  .btn.ghost:hover:not(:disabled) { background: rgba(var(--ink-rgb),.06); }
+  .btn.danger { background: var(--bad); color: #fff; }
+  .btn:active:not(:disabled) { transform: scale(.96) !important; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn:focus-visible, .tabs button:focus-visible, .links button:focus-visible, .adm-chips button:focus-visible, .adm-scope button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tabs { position: relative; display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 4px; border-radius: 999px; background: var(--bg-2); }
+  .tabs .knob { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / var(--n)); border-radius: 999px; background: var(--paper); box-shadow: 0 2px 8px rgba(var(--sh-rgb),.12);
+    transform: translateX(calc(var(--i) * 100%)); transition: transform .45s var(--spring), opacity .2s; }
+  .tabs.none .knob { opacity: 0; }                       /* 只看图上点的某一天时：哪个都不算选中 */
+  .tabs button { position: relative; z-index: 1; height: 34px; padding: 0 16px; border: none; border-radius: 999px; background: none; font-size: 14px; font-weight: 600; color: var(--ink-2); white-space: nowrap; transition: color .3s; }
+  .tabs button.on { color: var(--ink); }
+  .tabs.sm button { height: 28px; padding: 0 12px; font-size: 13px; }
+  .tag { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 999px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); font-size: 13px; color: var(--ink-2); }
+  .tag b { padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--bg); font-weight: 600; font-size: 12px; }
+  h1 { margin: 18px 0 14px; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.14; letter-spacing: -.5px; font-weight: 800; }
+  h1 .line { display: block; overflow: hidden; padding-bottom: 6px; }
+  h1 .line > span { display: inline-block; transform: translateY(110%); animation: rise .9s var(--ease) forwards; }
+  h1 .line:nth-child(2) > span { animation-delay: .1s; }
+  .mark { position: relative; white-space: nowrap; }
+  .mark svg { position: absolute; left: -4%; bottom: -10px; width: 108%; height: 22px; overflow: visible; }
+  .mark path { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 400; stroke-dashoffset: 400; animation: draw 1s .9s var(--ease) forwards; }
+  .sub { margin: 0; max-width: 560px; font-size: 16px; line-height: 1.7; color: var(--ink-2); }
+  .fade { opacity: 0; transform: translateY(18px); animation: fadeUp .8s var(--ease) forwards; }
+  .d1 { animation-delay: .35s; } .d2 { animation-delay: .5s; } .d3 { animation-delay: .65s; } .d4 { animation-delay: .8s; } .d5 { animation-delay: .95s; }
+  @keyframes rise { to { transform: none; } }
+  @keyframes fadeUp { to { opacity: 1; transform: none; } }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @keyframes apIn { from { opacity: 0; transform: translateY(14px); } }
+  @keyframes pickAsk { from { opacity: 0; transform: scale(.98); } to { opacity: 1; transform: none; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(var(--ink-rgb),.2); border-top-color: var(--ink); animation: spin .7s linear infinite; }
+
+  /* 头像菜单（配色收在里面） */
+  .um { position: relative; }
+  .um-btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px 0 4px; border: none; border-radius: 999px; background: none; font-size: 14px; color: var(--ink-2); transition: background .2s; }
+  .um-btn:hover, .um.open .um-btn { background: rgba(var(--ink-rgb),.06); }
+  .um-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+  .um-caret { transition: transform .3s var(--spring); }
+  .um.open .um-caret { transform: rotate(180deg); }
+  .um-menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; width: 240px; padding: 6px; border-radius: 16px; background: var(--paper);
+    box-shadow: 0 18px 40px rgba(var(--sh-rgb),.18), inset 0 0 0 1px var(--line); opacity: 0; transform: translateY(-6px) scale(.98); transform-origin: top right; pointer-events: none;
+    transition: opacity .2s, transform .3s var(--spring); }
+  .um.open .um-menu { opacity: 1; transform: none; pointer-events: auto; }
+  .um-who { padding: 10px 12px 12px; border-bottom: 1px solid var(--line); }
+  .um-who b { display: block; font-size: 15px; }
+  .um-who span { font-size: 12px; color: var(--ink-3); }
+  .um-pal { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .um-pal small { display: block; margin-top: 2px; font-size: 12px; color: var(--ink-3); }
+  .um-sws { display: flex; gap: 6px; }
+  .um-sws button { width: 30px; height: 30px; padding: 0; border: none; border-radius: 50%; background: none; display: grid; place-items: center; transition: transform .3s var(--spring); }
+  .um-sws button:hover { transform: scale(1.12); }
+  .um-sws i { width: 20px; height: 20px; border-radius: 50%; }
+  .um-sws button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
+  .um-sws button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .um-item { display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; padding: 0 12px; border: none; border-radius: 10px; background: none; font-size: 14px; text-align: left; }
+  .um-item:hover, .um-item:focus-visible { background: var(--bg); outline: none; }
+  .um-item svg { flex: none; color: var(--ink-3); }
+
+  /* ══ 管理端自己的部分 ══ */
+  .adm-page { padding: 30px 0 20px; }
+  .adm-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px 40px; flex-wrap: wrap; margin-bottom: 22px; }
+  .adm-scope { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 34px; margin: 0 2px 12px; font-size: 14px; color: var(--ink-2); }
+  .adm-scope b { color: var(--ink); }
+  .adm-scope button { height: 30px; padding: 0 14px; border: none; border-radius: 999px; background: var(--paper); box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb),.25); font-size: 13px; font-weight: 600; transition: box-shadow .2s, transform .3s var(--spring); animation: pickAsk .3s var(--ease); }
+  .adm-scope button:hover { box-shadow: inset 0 0 0 1.5px var(--ink); transform: translateX(2px); }
+
+  /* 卡片：和「我的投递」的卡片一个样子，进场一张接一张，鼠标停上去浮起来一点 */
+  .adm-card { border-radius: 22px; background: var(--paper); box-shadow: 0 0 0 1px var(--line), 0 18px 36px -24px rgba(var(--sh-rgb),.35); transition: box-shadow .25s, transform .45s var(--spring); }
+  .adm-in { animation: apIn .6s var(--ease) backwards; animation-delay: calc(.3s + var(--i, 0) * 80ms); }
+  .adm-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .adm-tile { padding: 18px 20px; }
+  .adm-tile:hover { transform: translateY(-4px); box-shadow: 0 0 0 1.5px var(--ink-3), 0 26px 40px -22px rgba(var(--sh-rgb),.45); }
+  .adm-tile .k { font-size: 13px; color: var(--ink-3); }
+  .adm-tile .v { margin: 6px 0 4px; font-size: 30px; font-weight: 800; letter-spacing: -.5px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+  .adm-tile .v small { margin-left: 2px; font-size: 15px; font-weight: 600; }
+  .adm-tile .s { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+  .adm-row { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 12px; margin-top: 12px; }
+  .adm-box { padding: 22px; }
+  .adm-box.adm-fill { display: flex; flex-direction: column; }
+  .adm-box h2 { margin: 0; font-size: 17px; font-weight: 700; }
+  .adm-box-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .adm-note { margin: 4px 0 0; font-size: 13px; color: var(--ink-3); }
+
+  /* 柱状图：换时间范围时柱子一根接一根长出来；选某一天、切花费 / Token 只变高度和深浅 */
+  .adm-chart { position: relative; flex: 1; min-height: 240px; margin-top: 18px; padding-left: 52px; }
+  .adm-grid { position: absolute; left: 52px; right: 0; top: 0; bottom: 24px; }
+  .adm-grid span { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); }
+  .adm-grid em { position: absolute; right: calc(100% + 8px); transform: translateY(-50%); font-style: normal; font-size: 12px; color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .adm-bars { position: absolute; left: 52px; right: 0; top: 0; bottom: 0; display: flex; align-items: stretch; gap: 2px; }
+  .adm-bar { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 24px; outline: none; cursor: pointer; }
+  .adm-bar i { display: block; width: 100%; max-width: 28px; min-height: 1px; margin: 0 auto; border-radius: 5px 5px 0 0; background: var(--accent); transform-origin: bottom;
+    animation: admGrow .7s var(--spring) backwards; animation-delay: calc(.45s + var(--i) * 22ms); transition: height .5s var(--ease), opacity .3s, background .2s, transform .35s var(--spring); }
+  @keyframes admGrow { from { transform: scaleY(0); } }
+  .adm-bar:hover i, .adm-bar:focus-visible i { background: var(--accent-ink); transform: scaleX(1.12); }
+  .adm-bars.picking .adm-bar:not(.sel) i { opacity: .3; }
+  .adm-bars.picking .adm-bar:not(.sel):hover i { opacity: .6; }
+  .adm-bar:focus-visible { border-radius: 4px; box-shadow: inset 0 0 0 2px var(--accent); }
+  .adm-bar b { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); font-weight: 400; font-size: 12px; color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; transition: color .2s; }
+  .adm-bar.sel b { color: var(--ink); font-weight: 700; }
+  .adm-tip { position: absolute; z-index: 5; min-width: 150px; padding: 10px 12px; border-radius: 12px; background: var(--ink); color: var(--bg); font-size: 13px; line-height: 1.6; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums;
+    opacity: 0; transform: translate(-50%, calc(-100% - 2px)) scale(.94); transform-origin: bottom center; transition: opacity .15s, transform .3s var(--spring), left .25s var(--ease), top .25s var(--ease); }
+  .adm-tip.on { opacity: 1; transform: translate(-50%, calc(-100% - 8px)); }
+  .adm-tip b { display: block; font-size: 12px; font-weight: 400; opacity: .75; }
+
+  .adm-feat { display: flex; flex-direction: column; margin: 14px 0 0; padding: 0; list-style: none; }
+  .adm-feat li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; margin: 0 -10px; padding: 10px; border-radius: 12px; transition: background .2s, transform .35s var(--spring); }
+  .adm-feat li:hover { background: var(--bg); transform: translateX(4px); }
+  .adm-feat .n { font-size: 14px; font-weight: 600; }
+  .adm-feat .c { font-size: 14px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .adm-feat .d { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .adm-feat .p { font-size: 12px; color: var(--ink-3); text-align: right; font-variant-numeric: tabular-nums; }
+  .adm-feat .t { grid-column: 1 / -1; height: 6px; margin-top: 4px; border-radius: 3px; background: var(--bg-2); overflow: hidden; }
+  .adm-feat .t i { display: block; height: 100%; border-radius: 3px; background: var(--accent); transition: width .7s var(--ease); }
+
+  .adm-users { margin-top: 12px; }
+  .adm-swipe { display: none; margin: 6px 0 0; font-size: 12px; color: var(--ink-3); }
+  .adm-scroll { margin: 14px -22px -22px; overflow-x: auto; border-radius: 0 0 22px 22px; }
+  .adm-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .adm-table th { padding: 10px 12px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--bg); font-size: 12px; font-weight: 600; color: var(--ink-3); text-align: right; white-space: nowrap; }
+  .adm-table td { padding: 12px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; transition: background .2s; }
+  .adm-table th:first-child, .adm-table td:first-child { padding-left: 22px; text-align: left; }
+  .adm-table th:last-child, .adm-table td:last-child { padding-right: 22px; }
+  .adm-table tbody tr { animation: apIn .5s var(--ease) backwards; animation-delay: calc(var(--i) * 45ms); }
+  .adm-table tbody tr:hover td { background: rgba(var(--ink-rgb),.035); }
+  .adm-table tbody tr:hover .adm-who i { transform: scale(1.12) rotate(-6deg); background: var(--ink); color: var(--bg); }
+  .adm-table tfoot td { border-bottom: none; font-weight: 700; }
+  .adm-table td.adm-none { padding: 28px 20px; text-align: center; color: var(--ink-3); }
+  .adm-who { display: inline-flex; align-items: center; gap: 10px; }
+  .adm-who i { width: 26px; height: 26px; border-radius: 50%; background: var(--bg-2); color: var(--ink-2); display: grid; place-items: center; font-style: normal; font-size: 12px; font-weight: 700; transition: transform .35s var(--spring), background .2s, color .2s; }
+  .adm-gone, .adm-zero { color: var(--ink-3); }
+  .adm-fail { color: var(--bad); font-weight: 600; }
+  .adm-extra { margin: 14px 2px 0; font-size: 13px; color: var(--ink-3); }
+
+  /* 模型设置 */
+  .adm-sec { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 30px 2px 12px; font-size: 20px; font-weight: 800; }
+  .adm-sec.first { margin-top: 4px; }
+  .adm-sec small { font-size: 13px; font-weight: 400; color: var(--ink-3); }
+  code { padding: 2px 8px; border-radius: 6px; background: var(--bg-2); color: var(--ink-2); font-family: ui-monospace, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; }
+  .adm-pill { display: inline-flex; align-items: center; gap: 7px; min-height: 26px; padding: 2px 11px; border-radius: 999px; background: var(--bg-2); color: var(--ink-2); font-size: 12px; font-weight: 600; }
+  .adm-pill::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--good); animation: admPulse 2s ease-out infinite; }
+  @keyframes admPulse { 0% { box-shadow: 0 0 0 0 rgba(var(--good-rgb),.5); } 100% { box-shadow: 0 0 0 7px rgba(var(--good-rgb),0); } }
+  .adm-tagx { padding: 1px 9px; border-radius: 999px; box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb),.2); font-size: 12px; font-weight: 500; color: var(--ink-2); }
+  .adm-now-name { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .adm-now-name b { font-size: 24px; font-weight: 800; }
+  .adm-kv { display: grid; grid-template-columns: 1.1fr 1.4fr 1.1fr .9fr; gap: 14px 24px; margin: 16px 0 0; }
+  .adm-kv > div { min-width: 0; }
+  .adm-kv dt { font-size: 12px; color: var(--ink-3); }
+  .adm-kv dd { margin: 4px 0 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  .adm-kv dd small { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--ink-3); }
+  .adm-btns { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+  .adm-result { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+  .adm-result:not(:empty) { animation: pickAsk .3s var(--ease); }
+  .adm-result.ok { color: var(--good); font-weight: 600; }
+  .adm-result.bad { color: var(--bad); font-weight: 600; }
+  .adm-card.flash { animation: admFlash 1.2s var(--ease); }                 /* 换成功了：这张卡片亮一下 */
+  @keyframes admFlash { 0% { box-shadow: 0 0 0 4px rgba(var(--accent-rgb),.55), 0 18px 36px -24px rgba(var(--sh-rgb),.35); } }
+  .adm-others { margin-top: 12px; }
+  .adm-provs { margin: 12px 0 0; padding: 0; list-style: none; }
+  .adm-prov { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; align-items: center; margin: 0 -12px; padding: 14px 12px; border-radius: 16px; animation: apIn .5s var(--ease) backwards; transition: background .2s; }
+  .adm-prov:hover { background: var(--bg); }
+  .adm-prov + .adm-prov { margin-top: 2px; }
+  .adm-prov .who { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .adm-prov .who b { font-size: 15px; }
+  .adm-prov .meta { grid-column: 1; font-size: 13px; color: var(--ink-3); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  .adm-prov .acts { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 6px; }
+  .adm-prov .adm-ask { grid-column: 1 / -1; }
+  .adm-new { padding: 1px 8px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; }
+  .adm-ask { margin-top: 10px; padding: 16px 18px; border-radius: 16px; background: var(--bg); font-size: 14px; line-height: 1.7; animation: pickAsk .3s var(--ease); }
+  .adm-prov:hover .adm-ask { background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); }
+  .adm-ask p { margin: 0; }
+  .adm-ask .adm-btns { margin-top: 12px; }
+  .adm-ask .adm-field { max-width: 460px; }
+  .adm-chips { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; padding-top: 16px; border-top: 1px dashed rgba(var(--ink-rgb),.2); font-size: 14px; color: var(--ink-2); }
+  .adm-chips button { height: 34px; padding: 0 14px; border: none; border-radius: 999px; background: var(--paper); box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb),.25); font-size: 13px; font-weight: 600; transition: transform .35s var(--spring), box-shadow .2s, background .2s; }
+  .adm-chips button:hover { transform: translateY(-2px); box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .adm-chips button.on { background: var(--ink); color: var(--bg); box-shadow: none; }
+  /* 展开 / 收起：高度过渡（同用户端的 .expand） */
+  .expand { display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition: grid-template-rows .45s var(--ease), opacity .3s, visibility 0s .45s; }
+  .expand > div { overflow: hidden; min-height: 0; }
+  .expand.open { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition: grid-template-rows .45s var(--ease), opacity .3s; }
+  .adm-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; margin-top: 12px; padding: 18px; border-radius: 18px; background: var(--bg); }
+  .adm-field { display: grid; gap: 6px; align-content: start; }
+  .adm-field.full { grid-column: 1 / -1; }
+  .adm-field label { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .adm-field input { width: 100%; height: 42px; padding: 0 14px; border: none; border-radius: 12px; outline: none; background: var(--field); box-shadow: inset 0 0 0 1.5px var(--line); font-size: 14px; transition: box-shadow .2s; }
+  .adm-field input:hover { box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+  .adm-field input:focus { box-shadow: inset 0 0 0 2px var(--ink); }
+  .adm-field small { font-size: 12px; color: var(--ink-3); }
+  .adm-form .adm-btns { margin-top: 0; }
+  .adm-warn { grid-column: 1 / -1; margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; line-height: 1.7; color: var(--ink-2); }
+
+  /* 样稿说明（不进正式页面） */
+  .demo { margin: 36px 0 48px; padding: 18px 22px; border-radius: 14px; border: 1px dashed rgba(var(--ink-rgb),.3); font-size: 14px; line-height: 1.8; color: var(--ink-2); }
+  .demo b { color: var(--ink); }
+  .demo ul { margin: 6px 0 0; padding-left: 20px; }
+
+  @media (max-width: 900px) {
+    .adm-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .adm-row { grid-template-columns: minmax(0, 1fr); }
+    .adm-swipe { display: block; }
+    .adm-kv { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 760px) {
+    .links button { padding: 8px 10px; font-size: 14px; }
+    .um-btn .uname, .um-caret { display: none; }
+    .um-btn { padding: 0 4px; }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding: 0 16px; }
+    .logo-name, .adm-badge { display: none; }                /* 只留图标，给两个链接腾地方（同用户端） */
+    .adm-head .tabs { width: 100%; }
+    .adm-head .tabs button { padding: 0 6px; }
+    .adm-tile { padding: 14px 16px; }
+    .adm-tile .v { font-size: 24px; }
+    .adm-box { padding: 16px; }
+    .adm-scroll { margin: 14px -16px -16px; }
+    .adm-kv { grid-template-columns: minmax(0, 1fr); }
+    .adm-prov { grid-template-columns: minmax(0, 1fr); }
+    .adm-prov .acts { grid-column: 1; grid-row: auto; flex-wrap: wrap; margin-top: 4px; }
+    .adm-form { grid-template-columns: minmax(0, 1fr); padding: 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; transition-delay: 0s !important; }
+    .glow { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+<div class="glow" id="glow" aria-hidden="true"></div>
+
+<nav class="nav" id="nav-bar">
+  <div class="wrap">
+    <div class="logo"><span class="logo-mark">求</span><span class="logo-name">求职辅助</span><span class="adm-badge">管理端</span></div>
+    <div class="links" id="nav" role="group" aria-label="管理端">
+      <button type="button" data-page="usage" class="on" aria-current="page">模型用量</button>
+      <button type="button" data-page="settings" aria-current="false">模型设置</button>
+    </div>
+    <div class="um" id="um">
+      <button type="button" class="um-btn" id="um-btn" aria-haspopup="menu" aria-expanded="false" aria-label="账号 admin">
+        <span class="avatar">A</span><span class="uname">admin</span>
+        <svg class="um-caret" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M2 4l3 3 3-3"/></svg>
+      </button>
+      <div class="um-menu" role="menu">
+        <div class="um-who"><b>admin</b><span>管理员</span></div>
+        <div class="um-pal" role="group" aria-label="配色">
+          <div>配色<small id="um-pal-name">领英蓝</small></div>
+          <div class="um-sws" id="um-sws">
+            <button type="button" data-pal="linkedin" aria-pressed="true" aria-label="领英蓝" title="领英蓝"><i style="background:#0a66c2"></i></button>
+            <button type="button" data-pal="red" aria-pressed="false" aria-label="朱红" title="朱红"><i style="background:#c8341f"></i></button>
+            <button type="button" data-pal="green" aria-pressed="false" aria-label="墨绿" title="墨绿"><i style="background:#2d5e4c"></i></button>
+          </div>
+        </div>
+        <button type="button" class="um-item" role="menuitem">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          修改密码
+        </button>
+        <button type="button" class="um-item" role="menuitem">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          退出登录
+        </button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap">
+<!-- ═════════ 模型用量 ═════════ -->
+<div id="page-usage" class="adm-page">
+  <div class="adm-head">
+    <div>
+      <span class="tag fade d1"><b>管理端</b>模型用量</span>
+      <h1><span class="line"><span>每一次调用，</span></span><span class="line"><span>都记了<span class="mark">一笔<svg viewBox="0 0 300 22" preserveAspectRatio="none" aria-hidden="true"><path d="M4 16 C 80 4, 200 4, 296 12"/></svg></span>。</span></span></h1>
+      <p class="sub fade d2">这里只算用户操作产生的调用：上传简历、贴岗位、投递、要建议、模拟面试。</p>
+    </div>
+    <div class="tabs fade d3" id="seg" role="group" aria-label="时间范围" style="--n:4;--i:1">
+      <span class="knob" aria-hidden="true"></span>
+      <button type="button" data-today="1">今天</button>
+      <button type="button" data-days="7" class="on">近 7 天</button>
+      <button type="button" data-days="30">近 30 天</button>
+      <button type="button" data-days="0">全部</button>
+    </div>
+  </div>
+
+  <p class="adm-scope fade d3" id="scope" aria-live="polite"></p>
+
+  <section class="adm-tiles" aria-label="汇总">
+    <div class="adm-card adm-tile adm-in" style="--i:0"><div class="k">花费（估算）</div><div class="v" id="t-cost"></div><div class="s" id="t-cost-s"></div></div>
+    <div class="adm-card adm-tile adm-in" style="--i:1"><div class="k">Token</div><div class="v" id="t-tok"></div><div class="s" id="t-tok-s"></div></div>
+    <div class="adm-card adm-tile adm-in" style="--i:2"><div class="k">调用次数</div><div class="v" id="t-calls"></div><div class="s" id="t-calls-s"></div></div>
+    <div class="adm-card adm-tile adm-in" style="--i:3"><div class="k">失败</div><div class="v"><span id="t-fail"></span><small>次</small></div><div class="s" id="t-fail-s"></div></div>
+  </section>
+
+  <section class="adm-row">
+    <div class="adm-card adm-box adm-fill adm-in" style="--i:4">
+      <div class="adm-box-head">
+        <h2 id="chart-title">每天的花费</h2>
+        <div class="tabs sm" id="measure" role="group" aria-label="柱子表示什么" style="--n:2;--i:0">
+          <span class="knob" aria-hidden="true"></span>
+          <button type="button" data-m="cost" class="on">花费</button>
+          <button type="button" data-m="tok">Token</button>
+        </div>
+      </div>
+      <p class="adm-note">点一根柱子，整页只看那一天；再点一次看回来</p>
+      <div class="adm-chart" id="chart">
+        <div class="adm-grid" id="grid"></div>
+        <div class="adm-bars" id="bars"></div>
+        <div class="adm-tip" id="tip"></div>
+      </div>
+    </div>
+    <div class="adm-card adm-box adm-in" style="--i:5">
+      <h2>按功能</h2>
+      <p class="adm-note">钱主要花在哪一步</p>
+      <ul class="adm-feat" id="feat"></ul>
+    </div>
+  </section>
+
+  <section class="adm-card adm-box adm-users adm-in" style="--i:6">
+    <div class="adm-box-head">
+      <h2>按用户</h2>
+      <p class="adm-note" id="users-note" style="margin:0"></p>
+    </div>
+    <p class="adm-swipe">表格可以左右滑动</p>
+    <div class="adm-scroll">
+      <table class="adm-table">
+        <thead><tr><th>用户</th><th>花费</th><th>输入 token</th><th>输出 token</th><th>调用</th><th>失败</th><th>简历</th><th>投递</th><th>面试</th><th>最近使用</th></tr></thead>
+        <tbody id="users"></tbody>
+        <tfoot id="users-total"></tfoot>
+      </table>
+    </div>
+  </section>
+
+  <p class="adm-extra">评测脚本和开发时跑的脚本另有 11,889 次调用（约 ¥21.20），没有算在上面。</p>
+</div>
+
+<!-- ═════════ 模型设置 ═════════ -->
+<div id="page-settings" class="adm-page" hidden>
+  <div class="adm-head">
+    <div>
+      <span class="tag fade d1"><b>管理端</b>模型设置</span>
+      <h1><span class="line"><span>用哪家的模型，</span></span><span class="line"><span>在这里<span class="mark">换<svg viewBox="0 0 300 22" preserveAspectRatio="none" aria-hidden="true"><path d="M4 16 C 80 4, 200 4, 296 12"/></svg></span>。</span></span></h1>
+      <p class="sub fade d2">两类模型分开管：对话模型管诊断、匹配、建议和面试；检索模型只在面试贴了很长的面经时才用。改完马上生效，不用重启服务。</p>
+    </div>
+  </div>
+
+  <h2 class="adm-sec first fade d2">对话模型<small>诊断、匹配、建议、面试都用它</small></h2>
+  <section class="adm-card adm-box adm-in" style="--i:2" id="now-card">
+    <div class="adm-box-head"><h2>正在使用</h2><span class="adm-pill">服务正常</span></div>
+    <div id="now"></div>
+  </section>
+  <section class="adm-card adm-box adm-others adm-in" style="--i:3">
+    <h2>其他已保存的</h2>
+    <p class="adm-note">想换一家就点「换成它」，换之前会先试一次连不连得上。</p>
+    <ul class="adm-provs" id="provs"></ul>
+    <div class="adm-chips" id="chips">
+      <span>添加一家：</span>
+      <button type="button" data-preset="deepseek">DeepSeek</button>
+      <button type="button" data-preset="siliconflow">硅基流动</button>
+      <button type="button" data-preset="bailian">阿里云百炼</button>
+      <button type="button" data-preset="zhipu">智谱</button>
+      <button type="button" data-preset="moonshot">Moonshot</button>
+      <button type="button" data-preset="custom">其他（OpenAI 兼容接口）</button>
+    </div>
+    <div class="expand" id="add-wrap"><div>
+      <form class="adm-form" id="add-form">
+        <div class="adm-field"><label for="f-model">模型名</label><input id="f-model" autocomplete="off" placeholder="如 deepseek-chat"></div>
+        <div class="adm-field"><label for="f-url">接口地址</label><input id="f-url" autocomplete="off" placeholder="https://…/v1"></div>
+        <div class="adm-field full"><label for="f-key">API Key</label><input id="f-key" type="password" autocomplete="off" placeholder="sk-…">
+          <small>加密后存进数据库；保存后页面上只显示开头和后四位，谁也看不到完整的</small></div>
+        <div class="adm-field"><label for="f-pin">输入单价（元 / 百万 token）</label><input id="f-pin" inputmode="decimal" autocomplete="off"></div>
+        <div class="adm-field"><label for="f-pout">输出单价（元 / 百万 token）</label><input id="f-pout" inputmode="decimal" autocomplete="off"><small>去这家的价格页查，用来估算花费</small></div>
+        <div class="adm-field full"><div class="adm-btns">
+          <button type="button" class="btn outline" id="f-test">测试连接</button>
+          <button type="submit" class="btn dark" id="f-save" disabled>保存</button>
+          <button type="button" class="btn ghost" id="f-cancel">取消</button>
+          <span class="adm-result" id="f-result" role="status">先测试连接，通过了才能保存</span>
+        </div></div>
+      </form>
+    </div></div>
+  </section>
+
+  <h2 class="adm-sec fade d3">检索模型<small>向量 + 重排：只在面试时贴了超过 3000 字的面经才用到</small></h2>
+  <section class="adm-card adm-box adm-in" style="--i:5" id="retr-card">
+    <div id="retr"></div>
+    <div class="expand" id="retr-wrap"><div>
+      <form class="adm-form" id="retr-form">
+        <div class="adm-field full"><label for="r-url">接口地址</label><input id="r-url" autocomplete="off" placeholder="https://…/v1">
+          <small>接口格式要和硅基流动一样：向量走 /embeddings，重排走 /rerank</small></div>
+        <div class="adm-field full"><label for="r-key">API Key</label><input id="r-key" type="password" autocomplete="off" placeholder="不换就留空"></div>
+        <div class="adm-field"><label for="r-embed">向量模型</label><input id="r-embed" autocomplete="off" placeholder="如 BAAI/bge-m3"><small>把面经切成的小段变成向量，先找出相关的 20 段</small></div>
+        <div class="adm-field"><label for="r-rerank">重排模型</label><input id="r-rerank" autocomplete="off" placeholder="如 BAAI/bge-reranker-v2-m3"><small>再从这 20 段里挑最相关的 3 段给面试官</small></div>
+        <p class="adm-warn">换了向量模型，正在进行的面试里已经存好的面经切段会作废：那几场照样能面，只是不再带面经。新开的面试不受影响。</p>
+        <div class="adm-field full"><div class="adm-btns">
+          <button type="button" class="btn outline" id="r-test">测试连接</button>
+          <button type="submit" class="btn dark" id="r-save" disabled>保存</button>
+          <button type="button" class="btn ghost" id="r-cancel">取消</button>
+          <span class="adm-result" id="r-result" role="status">先测试连接，通过了才能保存</span>
+        </div></div>
+      </form>
+    </div></div>
+  </section>
+</div>
+
+  <div class="demo">
+    <b>样稿说明</b>（这一块不进正式页面）
+    <ul>
+      <li><b>这一版改了什么</b>：① 手感换成和用户端一套：同一条导航（滚动后变毛玻璃）、跟着鼠标的光晕、磁吸的圆角按钮、会滑的分段切换、大标题逐行升起；卡片和表格一张接一张进场，数字会滚，柱子会长出来，鼠标停上去有回应。② 模型设置里多了<b>检索模型</b>：向量模型和重排模型都能换。③「添加一家」直接列出能选的几家，不用点开才知道。</li>
+      <li><b>谁能看</b>：只有 admin 账号。admin 登录后直接到管理端，不显示求职用的三个页面；普通用户打开这个地址会被送回工作台。</li>
+      <li><b>模型用量</b>：右上角选今天 / 近 7 天 / 近 30 天 / 全部；点图上任意一根柱子，四个数和两张表就只算那一天，再点一次（或点「看回…」）回到整段。只算用户操作产生的调用；花费是按单价和 token 数算的估算值。</li>
+      <li><b>模型设置</b>：保存、换 Key、切换之前都会先试一次连不连得上，连不上不让存。余额只有 DeepSeek 查得到。</li>
+      <li><b>试试失败的样子</b>：在任何一个填 Key 的地方填 <code>bad</code> 开头的内容，测试会报「密钥无效」。</li>
+      <li>这里的用户、供应商和数字都是示例；右上角头像里可以切三套配色。</li>
+    </ul>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id)
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+
+// ══ 和用户端一样的三个小效果：光晕跟着鼠标、导航滚动后加底色、按钮被鼠标「吸」过去一点 ══
+if (!reduced) {
+  let mx = innerWidth / 2, my = innerHeight / 3, gx = mx, gy = my
+  addEventListener('mousemove', (e) => { mx = e.clientX; my = e.clientY })
+  ;(function loop() { gx += (mx - gx) * 0.08; gy += (my - gy) * 0.08; $('glow').style.transform = `translate(${gx}px, ${gy}px)`; requestAnimationFrame(loop) })()
+}
+addEventListener('scroll', () => $('nav-bar').classList.toggle('scrolled', scrollY > 10), { passive: true })
+let pulled = null
+document.addEventListener('mousemove', (e) => {
+  const b = e.target instanceof Element ? e.target.closest('.btn') : null
+  if (pulled && pulled !== b) pulled.style.transform = ''
+  pulled = b
+  if (!b || b.disabled || reduced) return
+  const r = b.getBoundingClientRect()
+  b.style.transform = `translate(${(e.clientX - (r.left + r.width / 2)) * 0.22}px, ${(e.clientY - (r.top + r.height / 2)) * 0.3}px)`
+})
+
+// ══ 示例数据：6 个虚构用户、45 天，按「每次操作调几次模型」推出调用次数、token、花费（每次调用的平均值取自开发库的真实记录） ══
+const FEATURES = [
+  { key: 'parse',     name: '简历解析', tin: 216, tout: 61,  cost: 0.0016 },
+  { key: 'jd',        name: '岗位解析', tin: 242, tout: 190, cost: 0.00325 },
+  { key: 'diagnose',  name: '诊断',     tin: 305, tout: 34,  cost: 0.001625 },
+  { key: 'match',     name: '匹配',     tin: 448, tout: 274, cost: 0.00508 },
+  { key: 'advice',    name: '具体建议', tin: 436, tout: 120, cost: 0.0032 },
+  { key: 'interview', name: '模拟面试', tin: 530, tout: 129, cost: 0.00367 },
+]
+const USERS = [
+  { name: 'zhangwei',  level: 1.0 }, { name: 'lin_xy', level: 0.7 }, { name: 'chenjie01', level: 0.55 },
+  { name: 'user', level: 0.4 }, { name: 'wyq2027', level: 0.25 }, { name: 'momo', level: 0.12 },
+  { name: '已删除的账号', level: 0.08, gone: true },
+]
+const DAYS = 45, TODAY = new Date(2026, 9, 10)
+let seed = 20261010
+const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296 }
+const rows = []
+for (let d = 0; d < DAYS; d++) {
+  const busy = 0.35 + 0.65 * (d / DAYS) + (rnd() - 0.5) * 0.5
+  rows.push(USERS.map((u) => {
+    const active = rnd() < Math.min(0.9, u.level * busy * (d === DAYS - 1 ? 0.5 : 1.1))
+    const r = { resumes: 0, applies: 0, interviews: 0, f: {} }
+    const add = (key, calls) => {
+      const ft = FEATURES.find((x) => x.key === key), slot = r.f[key] || (r.f[key] = { calls: 0, cached: 0, failed: 0, tin: 0, tout: 0, cost: 0 })
+      for (let i = 0; i < calls; i++) {
+        slot.calls++
+        if (rnd() < 0.03) { slot.failed++; continue }
+        const k = 0.75 + rnd() * 0.5
+        if ((key === 'parse' || key === 'diagnose') && rnd() < 0.12) { slot.cached++; continue }
+        slot.tin += Math.round(ft.tin * k); slot.tout += Math.round(ft.tout * k); slot.cost += ft.cost * k
+      }
+    }
+    if (!active) return r
+    if (rnd() < 0.35) { r.resumes++; add('parse', 1 + (rnd() < 0.3 ? 1 : 0)) }
+    if (rnd() < 0.45) add('jd', 1)
+    const applies = 1 + (rnd() < 0.4 ? 1 : 0)
+    for (let i = 0; i < applies; i++) { r.applies++; add('diagnose', 5 + Math.floor(rnd() * 4)); add('match', 1); if (rnd() < 0.5) add('advice', 1 + Math.floor(rnd() * 3)) }
+    if (rnd() < 0.45) { r.interviews++; add('interview', 9 + Math.floor(rnd() * 8)) }
+    return r
+  }))
+}
+const zero = () => ({ calls: 0, cached: 0, failed: 0, tin: 0, tout: 0, cost: 0 })
+const plus = (a, b) => { for (const k in b) a[k] += b[k]; return a }
+const sumF = (r) => Object.values(r.f).reduce(plus, zero())
+const dayAt = (d) => new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - (DAYS - 1 - d))
+
+const cost = (v) => '¥' + v.toFixed(v >= 10 ? 2 : 3)
+const int = (n) => Math.round(n).toLocaleString('en-US')
+const wan = (n) => n >= 10000 ? (n / 10000).toFixed(1) + '<small>万</small>' : int(n)
+const wanText = (n) => n >= 10000 ? (n / 10000).toFixed(1) + ' 万' : int(n)
+const md = (date) => String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0')
+const ago = (d) => { const n = DAYS - 1 - d; return n === 0 ? '今天' : n === 1 ? '昨天' : n + ' 天前' }
+const dateText = (d) => { const date = dayAt(d); return `${date.getMonth() + 1} 月 ${date.getDate()} 日` }
+function niceMax(v) {
+  if (v <= 0) return 1
+  const mag = Math.pow(10, Math.floor(Math.log10(v)))
+  for (const m of [1, 2, 3, 4, 5, 6, 8, 10]) if (v <= m * mag * 1.0001) return m * mag
+  return 10 * mag
+}
+
+// 数字滚过去：从现在显示的数缓动到新的数（同用户端分数的滚动）
+const shown = {}
+function countTo(id, target, fmt) {
+  const el = $(id), from = shown[id] ?? 0
+  shown[id] = target
+  const run = (el._run = (el._run || 0) + 1)
+  if (reduced || from === target) { el.innerHTML = fmt(target); return }
+  const t0 = performance.now()
+  ;(function tick(t) {
+    if (el._run !== run) return
+    const k = Math.min(1, (t - t0) / 800)
+    el.innerHTML = fmt(from + (target - from) * (1 - Math.pow(1 - k, 3)))
+    if (k < 1) requestAnimationFrame(tick)
+  })(t0)
+}
+const setTab = (box, index) => { box.classList.toggle('none', index < 0); if (index >= 0) box.style.setProperty('--i', index); [...box.querySelectorAll('button')].forEach((b, i) => b.classList.toggle('on', i === index)) }
+
+// win：图上画几天（7 / 30 / 0 = 全部）；day：只看哪一天（null = 看整段）；measure：柱子的高度表示花费还是 token
+const state = { win: 7, day: null, measure: 'cost' }
+const WIN_NAME = { 7: '近 7 天', 30: '近 30 天', 0: '全部' }
+let drawnWin = null, perDay = []
+
+function render() {
+  const from = state.win ? DAYS - state.win : 0
+  const inWindow = rows.slice(from)
+  const dayIdx = state.day === null ? inWindow.map((_, i) => from + i) : [state.day]
+  const picked = dayIdx.map((d) => rows[d])
+  const total = picked.flat().map(sumF).reduce(plus, zero())
+  const winTotal = inWindow.flat().map(sumF).reduce(plus, zero())
+  const today = rows[DAYS - 1].map(sumF).reduce(plus, zero())
+  const one = state.day !== null
+
+  $('scope').innerHTML = one
+    ? `<span>只看 <b>${dateText(state.day)}</b>${state.day === DAYS - 1 ? '（今天）' : ''}这一天</span><button type="button" id="back">看回${WIN_NAME[state.win]}</button>`
+    : `<span><b>${WIN_NAME[state.win]}</b>的合计</span>`
+  if (one) $('back').onclick = () => { state.day = null; render() }
+  setTab($('seg'), state.day === DAYS - 1 ? 0 : one ? -1 : [7, 30, 0].indexOf(state.win) + 1)
+  setTab($('measure'), state.measure === 'cost' ? 0 : 1)
+
+  countTo('t-cost', total.cost, cost)
+  $('t-cost-s').textContent = one ? `占${WIN_NAME[state.win]}的 ${winTotal.cost ? Math.round(100 * total.cost / winTotal.cost) : 0}%` : '今天 ' + cost(today.cost)
+  countTo('t-tok', total.tin + total.tout, wan)
+  $('t-tok-s').textContent = '输入 ' + wanText(total.tin) + ' · 输出 ' + wanText(total.tout)
+  countTo('t-calls', total.calls, int)
+  $('t-calls-s').textContent = '其中 ' + int(total.cached) + ' 次命中缓存，没花钱'
+  countTo('t-fail', total.failed, int)
+  $('t-fail-s').textContent = '占 ' + (total.calls ? (100 * total.failed / total.calls).toFixed(1) : '0.0') + '%'
+
+  // 柱子：换了时间范围才重画（重新长出来）；别的变化只改高度和样式，柱子不重来一遍
+  const byTok = state.measure === 'tok'
+  const value = (x) => byTok ? x.tin + x.tout : x.cost
+  const axis = (v) => byTok ? (v ? wanText(v) : '0') : cost(v)
+  $('chart-title').textContent = byTok ? '每天的 token' : '每天的花费'
+  perDay = inWindow.map((users, i) => ({ d: from + i, ...users.map(sumF).reduce(plus, zero()) }))
+  const top = niceMax(Math.max(...perDay.map(value)))
+  $('grid').innerHTML = [1, 0.5, 0].map((p) => `<span style="top:${(1 - p) * 100}%"><em>${axis(top * p)}</em></span>`).join('')
+  if (drawnWin !== state.win) {
+    drawnWin = state.win
+    const every = perDay.length <= 10 ? 1 : perDay.length <= 31 ? 5 : 7
+    $('bars').innerHTML = perDay.map((x, i) => `<div class="adm-bar" role="button" tabindex="0" data-i="${i}" style="--i:${i}"><i></i>${(perDay.length - 1 - i) % every === 0 ? `<b>${md(dayAt(x.d))}</b>` : ''}</div>`).join('')
+    $('bars').querySelectorAll('.adm-bar').forEach((el) => {
+      const pick = () => { const d = perDay[+el.dataset.i].d; state.day = state.day === d ? null : d; render() }
+      el.onmouseenter = el.onfocus = () => showTip(el)
+      el.onmouseleave = el.onblur = () => $('tip').classList.remove('on')
+      el.onclick = pick
+      el.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick() } }
+    })
+  }
+  $('bars').classList.toggle('picking', one)
+  $('bars').querySelectorAll('.adm-bar').forEach((el, i) => {
+    const x = perDay[i]
+    el.querySelector('i').style.height = `${(value(x) / top) * 100}%`
+    el.classList.toggle('sel', x.d === state.day)
+    el.setAttribute('aria-pressed', String(x.d === state.day))
+    el.setAttribute('aria-label', `${dateText(x.d)}，花费 ${cost(x.cost)}，${x.calls} 次调用，${wanText(x.tin + x.tout)} token。点一下只看这一天`)
+  })
+
+  // 按功能：六行一直在（按流程的先后排好的顺序不变会更稳，这里按花费排），只改数和条的宽度，宽度有过渡
+  const feats = FEATURES.map((ft) => ({ ...ft, ...picked.flat().map((r) => r.f[ft.key] || zero()).reduce(plus, zero()) }))
+  const topCost = Math.max(...feats.map((ft) => ft.cost))
+  if (!$('feat').children.length) $('feat').innerHTML = FEATURES.map((ft) => `<li data-key="${ft.key}"><span class="n">${ft.name}</span><span class="c"></span><span class="d"></span><span class="p"></span><span class="t"><i style="width:0"></i></span></li>`).join('')
+  feats.sort((a, b) => b.cost - a.cost).forEach((ft, order) => {
+    const li = $('feat').querySelector(`[data-key="${ft.key}"]`)
+    li.style.order = order
+    li.querySelector('.c').textContent = cost(ft.cost)
+    li.querySelector('.d').textContent = `${int(ft.calls)} 次 · ${wanText(ft.tin + ft.tout)} token`
+    li.querySelector('.p').textContent = `${total.cost ? Math.round(100 * ft.cost / total.cost) : 0}%`
+    requestAnimationFrame(() => { li.querySelector('.t i').style.width = `${topCost ? (ft.cost / topCost) * 100 : 0}%` })
+  })
+
+  const users = USERS.map((u, ui) => {
+    const mine = picked.map((day) => day[ui])
+    let last = -1
+    dayIdx.forEach((d) => { if (sumF(rows[d][ui]).calls) last = d })
+    return { ...u, last, resumes: mine.reduce((s, r) => s + r.resumes, 0), applies: mine.reduce((s, r) => s + r.applies, 0),
+             interviews: mine.reduce((s, r) => s + r.interviews, 0), ...mine.map(sumF).reduce(plus, zero()) }
+  }).filter((u) => u.calls).sort((a, b) => (a.gone ? 1 : 0) - (b.gone ? 1 : 0) || b.cost - a.cost)
+  const fail = (n) => n ? `<span class="adm-fail">${n}</span>` : '<span class="adm-zero">0</span>'
+  $('users').innerHTML = users.map((u, i) => `<tr style="--i:${i}">
+    <td>${u.gone ? `<span class="adm-gone">${u.name}</span>` : `<span class="adm-who"><i>${u.name[0].toUpperCase()}</i>${u.name}</span>`}</td>
+    <td><b>${cost(u.cost)}</b></td><td>${int(u.tin)}</td><td>${int(u.tout)}</td><td>${int(u.calls)}</td><td>${fail(u.failed)}</td>
+    <td>${u.gone ? '—' : u.resumes}</td><td>${u.gone ? '—' : u.applies}</td><td>${u.gone ? '—' : u.interviews}</td>
+    <td>${u.gone ? '—' : ago(u.last)}</td></tr>`).join('') || `<tr><td colspan="10" class="adm-none">${one ? '这一天' : '这段时间'}没有人用</td></tr>`
+  $('users-total').innerHTML = users.length ? `<tr><td>合计</td><td>${cost(total.cost)}</td><td>${int(total.tin)}</td><td>${int(total.tout)}</td><td>${int(total.calls)}</td>
+    <td>${int(total.failed)}</td><td></td><td></td><td></td><td></td></tr>` : ''
+  $('users-note').textContent = `${one ? '这一天' : '这段时间'} ${users.filter((u) => !u.gone).length} 人用过 · 共 ${USERS.length - 1 + 2} 人注册 · 按花费从高到低`
+}
+
+function showTip(el) {
+  const x = perDay[+el.dataset.i], tip = $('tip')
+  const box = $('chart').getBoundingClientRect(), r = el.querySelector('i').getBoundingClientRect()
+  tip.innerHTML = `<b>${dateText(x.d)}</b>花费 ${cost(x.cost)}<br>${int(x.calls)} 次调用 · ${wanText(x.tin + x.tout)} token`
+  const half = tip.offsetWidth / 2
+  tip.style.left = Math.min(Math.max(r.left + r.width / 2 - box.left, half), box.width - half) + 'px'
+  tip.style.top = Math.max(r.top - box.top, tip.offsetHeight + 8) + 'px'
+  tip.classList.add('on')
+}
+
+$('seg').addEventListener('click', (e) => {
+  const btn = e.target.closest('button')
+  if (!btn) return
+  if (btn.dataset.today) { state.day = DAYS - 1; if (state.win === 0) state.win = 7 }
+  else { state.win = +btn.dataset.days; state.day = null }
+  $('tip').classList.remove('on')
+  render()
+})
+$('measure').addEventListener('click', (e) => {
+  const btn = e.target.closest('button')
+  if (!btn) return
+  state.measure = btn.dataset.m
+  render()
+})
+render()
+
+// ══ 头像菜单（配色收在里面）══
+const um = $('um')
+const closeMenu = () => { um.classList.remove('open'); $('um-btn').setAttribute('aria-expanded', 'false') }
+$('um-btn').addEventListener('click', () => $('um-btn').setAttribute('aria-expanded', String(um.classList.toggle('open'))))
+document.addEventListener('click', (e) => { if (!um.contains(e.target)) closeMenu() })
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu() })
+const PAL_NAME = { linkedin: '领英蓝', red: '朱红', green: '墨绿' }
+$('um-sws').addEventListener('click', (e) => {
+  const btn = e.target.closest('button')
+  if (!btn) return
+  document.documentElement.dataset.pal = btn.dataset.pal
+  $('um-sws').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b === btn)))
+  $('um-pal-name').textContent = PAL_NAME[btn.dataset.pal]
+})
+
+// ══ 两个页面：切过去时那一页的进场动画重新走一遍 ══
+$('nav').addEventListener('click', (e) => {
+  const btn = e.target.closest('button')
+  if (!btn) return
+  $('nav').querySelectorAll('button').forEach((b) => { b.classList.toggle('on', b === btn); b.setAttribute('aria-current', b === btn ? 'page' : 'false') })
+  $('page-usage').hidden = btn.dataset.page !== 'usage'
+  $('page-settings').hidden = btn.dataset.page !== 'settings'
+  if (btn.dataset.page === 'usage') { drawnWin = null; for (const k in shown) shown[k] = 0; $('feat').innerHTML = ''; render() }
+  scrollTo(0, 0)
+})
+
+// ══ 模型设置（示例数据；「测试连接」是假的：等一下就通过，Key 以 bad 开头的算密钥无效）══
+const PRESETS = {
+  deepseek:    { name: 'DeepSeek',   url: 'https://api.deepseek.com',                          model: 'deepseek-chat', pin: 4, pout: 12 },
+  siliconflow: { name: '硅基流动',   url: 'https://api.siliconflow.cn/v1',                     model: '' },
+  bailian:     { name: '阿里云百炼', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus' },
+  zhipu:       { name: '智谱',       url: 'https://open.bigmodel.cn/api/paas/v4',              model: 'glm-4-plus' },
+  moonshot:    { name: 'Moonshot',   url: 'https://api.moonshot.cn/v1',                        model: 'moonshot-v1-8k' },
+  custom:      { name: '其他',       url: '',                                                  model: '' },
+}
+let provs = [
+  { id: 1, name: 'DeepSeek', model: 'deepseek-chat', url: 'https://api.deepseek.com', key: 'sk-••••••••3f9a', pin: 4, pout: 12, balance: '¥0.93' },
+  { id: 2, name: '硅基流动', model: 'Qwen/Qwen2.5-72B-Instruct', url: 'https://api.siliconflow.cn/v1', key: 'sk-••••••••a71c', pin: 4, pout: 4 },
+]
+let activeId = 1, nextId = 3, fresh = null
+let ask = null                    // 正在原地问的那一条：{ id, kind: 'use' | 'key' | 'del' }
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const mask = (k) => k.slice(0, 3) + '••••••••' + k.slice(-4)
+const price = (p) => `输入 ¥${p.pin} · 输出 ¥${p.pout}`
+const fakeTest = (key, okText = '连上了，回的 JSON 合格，用时 1.2 秒') => new Promise((done) => setTimeout(() => done(key.trim().toLowerCase().startsWith('bad')
+  ? { ok: false, msg: '没连上：密钥无效（401）' } : { ok: true, msg: okText }), 900))
+const say = (el, cls, msg) => { el.className = 'adm-result' + (cls && cls !== 'wait' ? ' ' + cls : ''); el.innerHTML = cls === 'wait' ? `<i class="spin"></i>${msg}` : msg }
+const flash = (id) => { const el = $(id); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash') }
+
+function askBox(p) {
+  const title = `${esc(p.name)} · ${esc(p.model)}`
+  if (ask.kind === 'key') return `<div class="adm-ask">
+    <div class="adm-field"><label for="key-in">给「${title}」换一把新的 API Key</label>
+      <input id="key-in" type="password" autocomplete="off" placeholder="sk-…"><small>先试一次连不连得上，通过了才换；旧的那把随即作废</small></div>
+    <div class="adm-btns"><button type="button" class="btn dark" data-act="key-ok" data-id="${p.id}">测试并保存</button>
+      <button type="button" class="btn ghost" data-act="cancel">取消</button><span class="adm-result" id="ask-result" role="status"></span></div></div>`
+  if (ask.kind === 'use') return `<div class="adm-ask"><p>换成「<b>${title}</b>」？之后新的诊断、匹配、建议、面试都用它，正在跑的那一次不受影响。<br>
+    评测数字是在 DeepSeek 上测的。换了以后判得准不准，要自己再拿几份简历试一试。</p>
+    <div class="adm-btns"><button type="button" class="btn dark" data-act="use-ok" data-id="${p.id}">测试并换过去</button>
+      <button type="button" class="btn ghost" data-act="cancel">取消</button><span class="adm-result" id="ask-result" role="status"></span></div></div>`
+  return `<div class="adm-ask"><p>删除「<b>${title}</b>」这条配置？它的 Key 一起删掉；以前的用量记录不受影响。</p>
+    <div class="adm-btns"><button type="button" class="btn danger" data-act="del-ok" data-id="${p.id}">删除</button>
+      <button type="button" class="btn ghost" data-act="cancel" autofocus>取消</button></div></div>`
+}
+
+function renderSettings() {
+  const now = provs.find((p) => p.id === activeId)
+  const asking = (p) => ask && ask.id === p.id
+  $('now').innerHTML = `
+    <div class="adm-now-name"><b>${esc(now.name)}</b><code>${esc(now.model)}</code></div>
+    <dl class="adm-kv">
+      <div><dt>API Key</dt><dd>${now.key}<small>只显示开头和后四位</small></dd></div>
+      <div><dt>接口地址</dt><dd>${esc(now.url)}</dd></div>
+      <div><dt>单价（每百万 token）</dt><dd>${price(now)}<small>用来估算花费</small></dd></div>
+      <div><dt>余额</dt><dd>${now.balance || '—'}<small>${now.balance ? '刚从这家的接口查到的' : '这家没有查余额的接口'}</small></dd></div>
+    </dl>
+    ${asking(now) ? askBox(now) : `<div class="adm-btns"><button type="button" class="btn dark" data-act="key" data-id="${now.id}">换 Key</button>
+      <button type="button" class="btn outline" data-act="test" data-id="${now.id}">测试连接</button><span class="adm-result" id="now-result" role="status"></span></div>`}`
+  $('provs').innerHTML = provs.filter((p) => p.id !== activeId).map((p) => `<li class="adm-prov">
+    <div class="who"><b>${esc(p.name)}</b><code>${esc(p.model)}</code>${p.id === fresh ? '<span class="adm-new">新</span>' : ''}</div>
+    <div class="meta">${p.key} · ${esc(p.url)} · ${price(p)}</div>
+    <div class="acts"><button type="button" class="btn dark" data-act="use" data-id="${p.id}">换成它</button>
+      <button type="button" class="btn ghost" data-act="key" data-id="${p.id}">换 Key</button>
+      <button type="button" class="btn ghost" data-act="del" data-id="${p.id}">删除</button></div>
+    ${asking(p) ? askBox(p) : ''}</li>`).join('')
+  const input = $('key-in')
+  if (input) input.focus()
+}
+
+$('page-settings').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-act]')
+  if (!btn) return
+  const act = btn.dataset.act, p = provs.find((x) => x.id === +btn.dataset.id)
+  if (act === 'cancel') { ask = null; return renderSettings() }
+  if (act === 'key' || act === 'use' || act === 'del') { ask = { id: p.id, kind: act }; return renderSettings() }
+  if (act === 'del-ok') { provs = provs.filter((x) => x !== p); ask = null; return renderSettings() }
+  if (act === 'test') {
+    btn.disabled = true
+    say($('now-result'), 'wait', '测试中…')
+    const r = await fakeTest(p.key)
+    btn.disabled = false
+    return say($('now-result'), r.ok ? 'ok' : 'bad', r.msg)
+  }
+  const out = $('ask-result'), key = act === 'key-ok' ? $('key-in').value : p.key
+  if (act === 'key-ok' && !key.trim()) return say(out, 'bad', '先填新的 API Key')
+  btn.disabled = true
+  say(out, 'wait', '测试中…')
+  const r = await fakeTest(key)
+  if (!r.ok) { btn.disabled = false; return say(out, 'bad', r.msg + '，没有改动') }
+  if (act === 'key-ok') p.key = mask(key.trim())
+  else activeId = p.id
+  ask = null
+  renderSettings()
+  if (p.id === activeId) flash('now-card')
+})
+
+// 添加一家：点哪家的名字就展开表单，接口地址和常用的模型名先填好
+const F = (id) => $('f-' + id)
+let tested = false, preset = null
+const untest = () => { tested = false; F('save').disabled = true; say(F('result'), '', '先测试连接，通过了才能保存') }
+const openForm = (kind) => {
+  preset = kind
+  $('chips').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.preset === kind))
+  const pre = kind ? PRESETS[kind] : null
+  if (pre) { $('add-form').reset(); F('url').value = pre.url; F('model').value = pre.model; F('pin').value = pre.pin ?? ''; F('pout').value = pre.pout ?? ''; untest() }
+  $('add-wrap').classList.toggle('open', !!kind)
+  if (kind) setTimeout(() => F(pre.model ? 'key' : 'model').focus(), 300)
+}
+$('chips').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) openForm(b.dataset.preset === preset ? null : b.dataset.preset) })
+F('cancel').addEventListener('click', () => openForm(null))
+$('add-form').addEventListener('input', untest)
+F('test').addEventListener('click', async () => {
+  const missing = [['model', '先填模型名'], ['url', '先填接口地址'], ['key', '先填 API Key'], ['pin', '先填输入单价'], ['pout', '先填输出单价']].find(([id]) => !F(id).value.trim())
+  if (missing) { F(missing[0]).focus(); return say(F('result'), 'bad', missing[1]) }
+  if ([F('pin'), F('pout')].some((el) => !(Number(el.value) >= 0))) return say(F('result'), 'bad', '单价要填数字')
+  F('test').disabled = true
+  say(F('result'), 'wait', '测试中…')
+  const r = await fakeTest(F('key').value)
+  F('test').disabled = false
+  tested = r.ok
+  F('save').disabled = !r.ok
+  say(F('result'), r.ok ? 'ok' : 'bad', r.ok ? r.msg + '，可以保存了' : r.msg)
+})
+$('add-form').addEventListener('submit', (e) => {
+  e.preventDefault()
+  if (!tested) return
+  fresh = nextId
+  provs.push({ id: nextId++, name: PRESETS[preset].name, model: F('model').value.trim(), url: F('url').value.trim(),
+               key: mask(F('key').value.trim()), pin: Number(F('pin').value), pout: Number(F('pout').value) })
+  openForm(null)
+  renderSettings()
+})
+
+// ══ 检索模型（向量 + 重排）：只有一份配置，改它；没改过就是 .env 里的 ══
+const ENV_RETR = { fromEnv: true, name: '硅基流动', url: 'https://api.siliconflow.cn/v1', key: 'sk-••••••••7c2e', embed: 'BAAI/bge-m3', rerank: 'BAAI/bge-reranker-v2-m3' }
+let retr = { ...ENV_RETR }
+const R = (id) => $('r-' + id)
+let rTested = false
+function renderRetr() {
+  $('retr').innerHTML = `
+    <div class="adm-box-head"><div class="adm-now-name" style="margin:0"><b>${esc(retr.name)}</b><span class="adm-tagx">${retr.fromEnv ? '.env 里的配置' : '在管理端改过'}</span></div>
+      <span class="adm-pill">服务正常</span></div>
+    <dl class="adm-kv">
+      <div><dt>API Key</dt><dd>${retr.key}<small>${retr.fromEnv ? '写在 .env 文件里' : '只显示开头和后四位'}</small></dd></div>
+      <div><dt>接口地址</dt><dd>${esc(retr.url)}</dd></div>
+      <div><dt>向量模型</dt><dd><code>${esc(retr.embed)}</code><small>先找出相关的 20 段</small></dd></div>
+      <div><dt>重排模型</dt><dd><code>${esc(retr.rerank)}</code><small>再挑最相关的 3 段</small></dd></div>
+    </dl>
+    <div class="adm-btns"><button type="button" class="btn dark" id="retr-edit">修改</button>
+      <button type="button" class="btn outline" id="retr-test">测试连接</button>
+      ${retr.fromEnv ? '' : '<button type="button" class="btn ghost" id="retr-reset">换回 .env 里的配置</button>'}
+      <span class="adm-result" id="retr-result" role="status"></span></div>`
+  $('retr-edit').onclick = () => {
+    R('url').value = retr.url; R('key').value = ''; R('embed').value = retr.embed; R('rerank').value = retr.rerank
+    rUntest()
+    $('retr-wrap').classList.add('open')
+    setTimeout(() => R('embed').focus(), 300)
+  }
+  $('retr-test').onclick = async () => {
+    $('retr-test').disabled = true
+    say($('retr-result'), 'wait', '测试中…')
+    const r = await fakeTest('', '连上了：向量 1024 维，重排正常，用时 0.9 秒')
+    $('retr-test').disabled = false
+    say($('retr-result'), 'ok', r.msg)
+  }
+  if (!retr.fromEnv) $('retr-reset').onclick = () => { retr = { ...ENV_RETR }; renderRetr(); flash('retr-card') }
+}
+const rUntest = () => { rTested = false; R('save').disabled = true; say(R('result'), '', '先测试连接，通过了才能保存') }
+$('retr-form').addEventListener('input', rUntest)
+R('cancel').addEventListener('click', () => $('retr-wrap').classList.remove('open'))
+R('test').addEventListener('click', async () => {
+  const missing = [['url', '先填接口地址'], ['embed', '先填向量模型'], ['rerank', '先填重排模型']].find(([id]) => !R(id).value.trim())
+  if (missing) { R(missing[0]).focus(); return say(R('result'), 'bad', missing[1]) }
+  R('test').disabled = true
+  say(R('result'), 'wait', '测试中…')
+  const r = await fakeTest(R('key').value, '连上了：向量 1024 维，重排正常，用时 0.9 秒')
+  R('test').disabled = false
+  rTested = r.ok
+  R('save').disabled = !r.ok
+  say(R('result'), r.ok ? 'ok' : 'bad', r.ok ? r.msg + '，可以保存了' : r.msg)
+})
+$('retr-form').addEventListener('submit', (e) => {
+  e.preventDefault()
+  if (!rTested) return
+  retr = { fromEnv: false, name: R('url').value.includes('siliconflow') ? '硅基流动' : '其他', url: R('url').value.trim(), key: R('key').value.trim() ? mask(R('key').value.trim()) : retr.key,
+           embed: R('embed').value.trim(), rerank: R('rerank').value.trim() }
+  $('retr-wrap').classList.remove('open')
+  renderRetr()
+  flash('retr-card')
+})
+
+renderSettings()
+renderRetr()
+</script>
+</body>
+</html>

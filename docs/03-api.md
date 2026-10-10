@@ -14,6 +14,7 @@
 |---|---|---|---|
 | 0 | 成功 | | 200 |
 | 40001 | 参数错误 | 请求体或查询参数校验不过；未知的求职方向、模型、任务类型；面试回答为空或超过 `INTERVIEW_ANSWER_MAX`（3000 字）；JD 里识别不出任何要求 | 400 |
+| 40301 | 没有权限 | 普通用户访问管理端的接口（`/admin/...`）。不用 401：前端收到 401 会当成登录失效、直接退出 | 403 |
 | 40101 | 未认证 | 没带令牌、令牌失效或过期；登录时用户名或密码错误（不区分是哪个错） | 401 |
 | 40401 | 资源不存在 | 不存在、不属于当前用户、已软删除的一律按不存在处理，不暴露是否存在；包括简历、岗位（含删除内置模板）、投递 / 匹配报告、诊断记录、问题条目、没满足的要求、面试、任务 | 404 |
 | 40901 | 状态冲突 | 注册时用户名或邮箱已被占用；简历还在解析时读它的块 / 结构；投递时同一份简历已有诊断在跑，或同一份简历对同一岗位的匹配在跑；初筛还没完成（或失败了）就建面试；面试已经结束还要继续 / 提前结束，还没开始或已结束时提交回答，还没出题，这道题已经答过，上一步还在进行；面试还没结束就取报告 | 409 |
@@ -28,11 +29,11 @@
 
 后台任务（解析、投递分析）里的失败不走错误码，落成记录的 failed 状态，通过 SSE 的 error 事件或轮询状态告诉前端（3.3）。
 
-## 3.2 接口清单（31 个；已实现 29 个，标〔未实现〕的留给后续里程碑）
+## 3.2 接口清单（45 个；已实现 43 个，标〔未实现〕的留给后续里程碑）
 
-另有 `GET /api/v1/health`，不计入 31 个，不用登录。它是运行时探针：逐项探测 MySQL、Redis，返回 `{mysql, redis, version}`，每项为 `ok` 或 `error: <异常类型>`；任一依赖异常时 code 为 50001、HTTP 503。部署出问题时先看它。启动时的检查是另一回事：在 `main.py` 的 lifespan 里，连不上 MySQL、缺表、连不上 Redis 都直接报错退出。
+另有 `GET /api/v1/health`，不计入 45 个，不用登录。它是运行时探针：逐项探测 MySQL、Redis，返回 `{mysql, redis, version}`，每项为 `ok` 或 `error: <异常类型>`；任一依赖异常时 code 为 50001、HTTP 503。部署出问题时先看它。启动时的检查是另一回事：在 `main.py` 的 lifespan 里，连不上 MySQL、缺表、连不上 Redis 都直接报错退出。
 
-还有 `GET /api/v1/system/llm`，也不计入 31 个、不用登录：模型服务现在能不能用，返回 `{available}`，登录后页面顶上的横幅按它显示。后端问 DeepSeek 的余额接口（不花钱），结论在 Redis 里存 1 分钟（04-design 4.6）。故意不放进 `/health`：余额用完不该让容器被判成不健康，网站别的部分照常能用。
+还有 `GET /api/v1/system/llm`，也不计入 45 个、不用登录：模型服务现在能不能用，返回 `{available}`，登录后页面顶上的横幅按它显示。后端问现在用的那一家（不花钱：DeepSeek 问余额接口，别家问模型列表，只看得出密钥对不对、连不连得上），结论在 Redis 里存 1 分钟（04-design 4.6）。故意不放进 `/health`：余额用完不该让容器被判成不健康，网站别的部分照常能用。
 
 ```
 认证 4    POST /auth/register  {username, password, email?}  → 令牌 + 用户（注册成功直接登录）；不用登录
@@ -112,7 +113,32 @@
           GET  /interviews/{id}/report     报告 + 逐题回顾（结束前 40901）
           24 小时（INTERVIEW_IDLE_HOURS）没动静的面试，服务启动时、之后每小时收尾一次：按已答的题出报告、标成 abandoned
 
-系统 1    GET /system/info〔未实现〕       模型列表 + 规则清单 + 用量（用量需 admin）
+系统 1    GET /system/info〔未实现〕       模型列表 + 规则清单（用量已经由管理端的 GET /admin/usage 提供）
+
+管理端 14 都要管理员登录（users.role = admin），不是管理员 40301。管理员账号在服务启动时自动建（ADMIN_USERNAME / ADMIN_PASSWORD）
+          GET  /admin/usage                ?days=7|30|0（图上画最近几天；0 = 从第一条记录起）&day=YYYY-MM-DD（四个数和两张表只算这一天）
+                                           → {days, day, today, total, window_cost, today_cost, by_day[], features[], users[],
+                                              failures[], registered, other_calls, other_cost}
+                                           failures：这一段里最近失败的几次（最多 20 条）{at, feature, username, reason, detail}；
+                                           reason 是归好类的一句话（余额不足、密钥无效、超时……），detail 是原始报错（Key 样子的串已盖掉）
+                                           只算用户操作产生的调用；评测批次和脚本跑的另算（other_*）。账号或对象已删的合成一行（user_id = null）
+          GET  /admin/providers            → {current, others[], presets[]}。id = 0 指 .env 里的那一家；API Key 只给开头和后四位（key_hint）
+          GET  /admin/providers/status     现问一次现在用的这一家 → {available, reason, balance}；余额只有 DeepSeek 查得到
+          POST /admin/providers/test       {kind, name?, base_url, model, api_key, price_in, price_out} → {ok, message, latency_ms}
+                                           保存之前先试：真调一次模型（JSON 模式，几十个 token）
+          POST /admin/providers/{id}/test  已有的一条现在还连不连得上
+          POST /admin/providers            请求体同 /test。服务端自己再试一次，连不上 40001（message 里是原因）、不保存；存下来不等于启用
+          PUT  /admin/providers/{id}/key   {api_key}：先用新 Key 试，通过了才换。id = 0：照 .env 的配置在库里另存一条并启用
+          POST /admin/providers/{id}/activate  换成这一家（0 = 换回 .env 那一家）：先试，通过了才换；马上生效，不用重启
+          DELETE /admin/providers/{id}     正在用的 40901；.env 那一家（0）40401。以前的用量记录不受影响
+          以上 7 个管的是对话模型。检索用的向量 + 重排模型是另一份配置，只有一份：
+          GET  /admin/retrieval            → {from_env, name, base_url, key_hint, embed_model, rerank_model}；from_env = 用的是 .env 里的
+          GET  /admin/retrieval/status     现问一次（只问模型列表，不花钱）→ {available, reason, balance: null}
+          POST /admin/retrieval/test       不带请求体 = 试现在用的；带 {base_url, api_key?, embed_model, rerank_model} = 试表单里填的
+                                           （api_key 留空用现在的那把）。真调一次向量和重排 → {ok, message, latency_ms}
+          PUT  /admin/retrieval            请求体同上；先试，通过了才存（不通过 40001）。向量模型换了的话，向量库里已有的面经切段一起清掉：
+                                           正在进行的面试照样能面，只是不再带面经
+          DELETE /admin/retrieval          换回 .env 里的配置
 ```
 
 ## 3.3 异步任务与 SSE 契约

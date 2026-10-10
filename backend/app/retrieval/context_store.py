@@ -81,6 +81,16 @@ class ContextStore:
 _default_store: ContextStore | None = None
 
 
+def drop_all() -> None:
+    """换了向量模型：旧向量和新向量不在一个空间里（维度都可能不一样），所有面试存着的面经切段一起作废。
+    正在进行的那几场之后检索不到东西，照样能面，只是不再带面经（图 B 的 retrieve_context 本来就允许查不到）。"""
+    global _default_store
+    from app.retrieval.chroma_client import INTERVIEW_CTX, drop_collection
+
+    drop_collection(INTERVIEW_CTX)
+    _default_store = None               # 手里那个集合对象已经失效，下次重新打开
+
+
 def get_context_store() -> ContextStore | None:
     """FastAPI 依赖。第一次用到时才打开 Chroma。打不开（数据目录坏了、升级后格式不兼容）时返回 None、下次再试：
     只有贴了长面经的面试才用得上向量库，不能因为它让所有面试接口都 500。调用方按 None 处理：长面经退回整段截取、不检索。"""

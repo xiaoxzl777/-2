@@ -108,7 +108,7 @@ def find_browser() -> str | None:
 def fig_architecture() -> Fig:
     f = Fig("图1-系统架构", 1400, 930)
     f.box(40, 24, 1320, 72, "浏览器 · 前端单页应用（React 18 + TypeScript + Vite）",
-          ["工作台（选方向 → 选岗位 → 选简历 → 投递）· 初筛结果与原文高亮 · 模拟面试 · 我的投递 · 我的简历"], tsize=16, dsize=13)
+          ["工作台（选方向 → 选岗位 → 选简历 → 投递）· 初筛结果与原文高亮 · 模拟面试 · 我的投递 · 我的简历 · 管理端（模型用量 / 模型设置）"], tsize=16, dsize=13)
     f.line([(508, 96), (508, 162)], both=True)
     f.text(518, 117, "HTTP 接口 / SSE 流式推送", 12, 400, INK2, "start")
 
@@ -118,7 +118,7 @@ def fig_architecture() -> Fig:
     f.line([(508, 222), (508, 250)])
 
     f.group(48, 250, 920, 540, "后端 · FastAPI（Python 3.13，uvicorn 单进程）")
-    f.box(72, 290, 872, 56, "接口层 api/", ["认证 · 简历 · 岗位 · 投递 · 具体建议 · 模拟面试 · 进度推送（SSE）"], dsize=13)
+    f.box(72, 290, 872, 56, "接口层 api/", ["认证 · 简历 · 岗位 · 投递 · 具体建议 · 模拟面试 · 进度推送（SSE）· 管理端"], dsize=13)
     f.line([(508, 346), (508, 362)])
     f.box(72, 362, 872, 56, "服务层 services/", ["读写数据库 · 后台任务 · 跑图并把每一步转成进度 · 中断任务清理"], dsize=13)
     f.line([(508, 418), (508, 434)])
@@ -141,7 +141,7 @@ def fig_architecture() -> Fig:
     f.group(1000, 250, 352, 540, "存储")
     f.rect(1016, 290, 320, 128)
     f.text(1176, 324, "MySQL 8.0", 16, 700)
-    for i, s in enumerate(["11 张表：用户、简历与解析块、", "诊断与问题、岗位、投递、技能词典、", "面试与问答、模型调用审计"]):
+    for i, s in enumerate(["12 张表：用户、简历与解析块、", "诊断与问题、岗位、投递、技能词典、", "面试与问答、模型调用审计、模型配置"]):
         f.text(1176, 352 + i * 19, s, 12, 400, INK2)
     f.box(1016, 434, 320, 74, "Redis", ["模型结果缓存 · 限流 · 进度推送（发布 / 订阅）"], tsize=15)
     f.box(1016, 524, 320, 74, "Chroma（嵌入式）", ["面经切段的向量（面经超过 3000 字才用）"], tsize=15)
@@ -155,9 +155,9 @@ def fig_architecture() -> Fig:
     f.text(768, 840, "HTTPS", 12, 400, INK2, "start")
     f.line([(900, 774), (900, 830), (1134, 830), (1134, 846)])
     f.text(1017, 825, "HTTPS", 12, 400, INK2)
-    f.box(480, 846, 560, 58, "DeepSeek API · deepseek-chat", ["诊断审阅 · 匹配判断 · JD 拆解 · 具体建议 · 面试出题与评分"],
+    f.box(480, 846, 560, 58, "对话模型 API · 默认 DeepSeek（管理端可换别家）", ["诊断审阅 · 匹配判断 · JD 拆解 · 具体建议 · 面试出题与评分"],
           dash=True, tsize=15, dsize=13)
-    f.box(1056, 846, 296, 58, "硅基流动 API", ["bge-m3 向量 · bge-reranker 重排"], dash=True, tsize=15)
+    f.box(1056, 846, 296, 58, "检索模型 API · 默认硅基流动", ["bge-m3 向量 · bge-reranker 重排（管理端可换）"], dash=True, tsize=15)
     f.text(72, 880, "外部模型服务（全部走 API，无本地模型）", 13, 400, INK2, "start")
     return f
 
@@ -324,6 +324,8 @@ TABLES = {  # 名字: (x, y, 中文, [(列, 说明)])
                                              ("report", "JSON")]),
     "interview_turns": (1100, 680, "问答", [("id", "PK"), ("session_id", "FK"), ("topic_idx / depth", ""),
                                           ("question", ""), ("answer", ""), ("evaluation", "JSON")]),
+    "llm_providers": (40, 290, "模型配置", [("id", "PK"), ("purpose", "对话 / 检索"), ("kind / name", "哪一家"), ("base_url / model", ""),
+                                         ("rerank_model", "只有检索有"), ("api_key_enc", "加密后存"), ("is_active", "对话最多一行")]),
     "skills": (40, 560, "技能词典", [("id", "PK"), ("canonical_name", "唯一"), ("aliases", "JSON")]),
     "llm_calls": (40, 700, "模型调用审计", [("id", "PK"), ("scene", ""), ("model_name", ""), ("token_input / output", ""),
                                          ("cost", ""), ("cache_hit", "")]),
@@ -367,7 +369,7 @@ def fig_er() -> Fig:
     rel([(630, 690), (1040, 690), (1040, 560), (1100, 560)])                        # jobs → interview_sessions
     rel([(990, 500), (1100, 500)])                                                  # match_reports → interview_sessions
     rel([(1225, 622), (1225, 680)])                                                 # interview_sessions → interview_turns
-    f.text(300, 900, "PK 主键 · FK 外键 · 连线两端 1 / N 表示一对多；skills、llm_calls 不建外键；简历和岗位在业务上是软删除",
+    f.text(300, 900, "PK 主键 · FK 外键 · 连线两端 1 / N 表示一对多；skills、llm_calls、llm_providers 不建外键；简历和岗位在业务上是软删除",
            12, 400, INK2, "start")
     return f
 

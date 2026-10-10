@@ -96,6 +96,26 @@ export function useCountUp(target: number, ms = 1400) {
   return value
 }
 
+/** 数字从现在显示的值缓动到 target，不取整（管理端的花费、token：换时间范围时接着滚过去，不从 0 重来） */
+export function useTween(target: number, ms = 800) {
+  const [value, setValue] = useState(0)
+  const shown = useRef(0)
+  useEffect(() => {
+    if (reducedMotion()) { shown.current = target; setValue(target); return }
+    const from = shown.current, t0 = performance.now()
+    let frame = 0
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - t0) / ms)
+      shown.current = from + (target - from) * (1 - Math.pow(1 - k, 3))
+      setValue(shown.current)
+      if (k < 1) frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [target, ms])
+  return value
+}
+
 /** 第一次滚动进视口时浮现；onReveal 用来触发里面的动画 */
 export function Reveal({ className = '', onReveal, children, id }: {
   className?: string

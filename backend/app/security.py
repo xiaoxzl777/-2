@@ -1,11 +1,14 @@
-"""密码哈希（bcrypt）与登录令牌（JWT，HS256）。"""
+"""密码哈希（bcrypt）、登录令牌（JWT，HS256）、存库的 API Key 加解密（Fernet）。"""
 from __future__ import annotations
 
+import base64
+import hashlib
 from datetime import datetime, timedelta, timezone
 from functools import cache
 
 import bcrypt
 import jwt
+from cryptography.fernet import Fernet, InvalidToken
 
 from app.config import settings
 
@@ -47,4 +50,27 @@ def decode_access_token(token: str) -> int | None:
         payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[ALGORITHM])
         return int(payload["sub"])
     except (jwt.PyJWTError, KeyError, ValueError):
+        return None
+
+
+# ───────────── 管理端填的 API Key：加密后才存库 ─────────────
+
+
+@cache
+def _fernet() -> Fernet:
+    """加密用的钥匙从 JWT_SECRET 派生，不另外多一个要保管的配置项。
+    代价：JWT_SECRET 换了，库里存的 Key 就解不开了，要在管理端重新填一遍。"""
+    digest = hashlib.sha256(f"llm-provider-key:{settings.JWT_SECRET}".encode("utf-8")).digest()
+    return Fernet(base64.urlsafe_b64encode(digest))
+
+
+def encrypt_secret(text: str) -> str:
+    return _fernet().encrypt(text.encode("utf-8")).decode("ascii")
+
+
+def decrypt_secret(token: str) -> str | None:
+    """解不开（JWT_SECRET 换过、数据被改过）返回 None，由调用方决定怎么提示。"""
+    try:
+        return _fernet().decrypt(token.encode("ascii")).decode("utf-8")
+    except (InvalidToken, ValueError):
         return None

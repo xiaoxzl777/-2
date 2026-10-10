@@ -1,4 +1,4 @@
-"""ORM 模型：11 张表，与 docs/02-database.md 一一对应。
+"""ORM 模型：12 张表，与 docs/02-database.md 一一对应。
 
 约定：
 - 所有 char_start / char_end 都是相对 resumes.full_text 的偏移，左闭右开 [start, end)。
@@ -458,4 +458,25 @@ class LlmCall(Base):
     cache_hit: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sql_text("0"))
     success: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sql_text("1"))
     error_msg: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[datetime] = _created_at()
+
+
+# ⑫ ────────────────────────────────────────────────
+class LlmProvider(Base):
+    """管理端保存的模型配置，一行一份。purpose = chat：对话模型，可以存几家、最多一行 is_active = 1；
+    purpose = retrieval：检索用的向量 + 重排，只有一份（存了就是启用）。没有启用的就用 .env 里的（llm/provider.py）。"""
+    __tablename__ = "llm_providers"
+
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    purpose: Mapped[str] = mapped_column(String(20), nullable=False, server_default="chat", comment="chat 对话模型 / retrieval 检索（向量 + 重排）")
+    kind: Mapped[str] = mapped_column(String(30), nullable=False, comment="deepseek / siliconflow / bailian / zhipu / moonshot / custom；限流分桶、审计里的 provider 用它")
+    name: Mapped[str] = mapped_column(String(50), nullable=False, comment="页面上显示的名字")
+    base_url: Mapped[str] = mapped_column(String(255), nullable=False, comment="OpenAI 兼容接口的地址")
+    model: Mapped[str] = mapped_column(String(50), nullable=False, comment="对话模型名；检索配置里是向量模型名")
+    rerank_model: Mapped[str | None] = mapped_column(String(100), comment="重排模型名，只有检索配置有")
+    api_key_enc: Mapped[str] = mapped_column(Text, nullable=False, comment="Fernet 加密后的 API Key（security.encrypt_secret）")
+    key_hint: Mapped[str] = mapped_column(String(20), nullable=False, comment="给页面看的：开头 3 位 + 后 4 位")
+    price_in: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False, comment="元 / 百万 token（输入）")
+    price_out: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False, comment="元 / 百万 token（输出）")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sql_text("0"))
     created_at: Mapped[datetime] = _created_at()

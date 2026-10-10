@@ -7,7 +7,7 @@
 | 角色 | 说明 |
 |---|---|
 | 求职者 seeker | 唯一业务角色 |
-| 管理员 admin | 查看系统用量〔未实现：`GET /system/info` 没做，`users.role` 只存不用〕 |
+| 管理员 admin | 管理端：看模型用量（按天 / 功能 / 用户）、换 API Key、换一家对话模型、换检索用的向量 / 重排模型（FR-H6、FR-H7）。固定一个账号，服务启动时自动建；登录后只看到管理端 |
 
 ## 1.2 解析路径分流
 
@@ -107,10 +107,12 @@ DOCX         → 只收 PDF，上传 .docx 直接 41501
 
 | 编号 | 需求 | 优先级 |
 |---|---|---|
-| FR-H1 | 对话模型可插拔：`llm/registry.py` 的注册表（目前只登记了 deepseek-chat）；向量 / 重排只是 config 里的模型名（`EMBEDDING_MODEL` / `RERANKER_MODEL`） | P0 |
+| FR-H1 | 对话模型可插拔：现在用哪一家由 `llm/provider.py` 决定——管理端启用的那一条，没有就用 `.env` 里的 DeepSeek；`llm/registry.py` 把它变成模型对象（DeepSeek 用自己的封装，别家走 OpenAI 兼容接口）。检索用的向量 / 重排模型同理（`provider.retrieval()`），没改过就是 `.env` 里的硅基流动（`EMBEDDING_MODEL` / `RERANKER_MODEL`） | P0 |
 | FR-H2 | Prompt 版本化常量，落库 `prompt_version` | P0 |
 | FR-H3 | 调用审计：对话（`llm/client.py`）与向量 / 重排（`llm/embedding.py`）每次调用落库 `llm_calls`，缓存命中也记一行 | P1 |
 | FR-H4 | 评测 CLI：`gen_eval_set.py`（`--domain cs / ops / finance` 生成计算机 / 运营 / 财会评测集）；`run_eval.py`（`--task diagnose / match / interview`，`--set` 选评测集或题库，`--domain` 选领域包，`--repeat N`，绕过缓存）；面试评分题库 `interview_answers.py`（计算机）/ `interview_answers_ops.py`（运营） | P1 |
+| FR-H6 | 模型用量（管理端）：`GET /admin/usage` 把 `llm_calls` 按天、按功能、按用户汇总，只算用户操作产生的调用（评测和脚本的另算） | P1 |
+| FR-H7 | 模型设置（管理端）：保存几家对话模型的配置（接口地址、模型名、API Key、单价），选一家用；保存、换 Key、切换之前先真调一次，调不通不改；Key 加密存库，页面只显示开头和后四位。检索用的向量 + 重排模型是另一份配置（只有一份），同样先试再存；换了向量模型，向量库里已有的面经切段一起清掉 | P1 |
 | FR-H5 | 数据种子：`scripts/dump_seed.py` 由 `data/skills_seed.csv`（技能词典）和 `data/job_templates.json`（岗位模板）生成 `backend/sql/seed.sql`（可重复执行；模板按标题更新）。`job_templates.json` 由 `scripts/build_job_templates.py` 解析 `data/job_templates/<方向>/*.txt`（`cs/`、`ops/`、`finance/`）生成 | P1 |
 
 ## 1.4 非功能需求

@@ -1,4 +1,4 @@
-"""FastAPI 依赖：当前登录用户、当前用户名下的简历 / 投递记录、其中已解析完成的简历。"""
+"""FastAPI 依赖：当前登录用户、管理员、当前用户名下的简历 / 投递记录、其中已解析完成的简历。"""
 from __future__ import annotations
 
 from fastapi import Depends
@@ -6,7 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.errors import CONFLICT, NOT_FOUND, PARSE_FAILED, UNAUTHORIZED, ApiError
+from app.errors import CONFLICT, FORBIDDEN, NOT_FOUND, PARSE_FAILED, UNAUTHORIZED, ApiError
 from app.models import MatchReport, Resume, User
 from app.security import decode_access_token
 
@@ -22,6 +22,13 @@ def get_current_user(
     user = db.get(User, user_id) if user_id is not None else None
     if user is None:
         raise ApiError(UNAUTHORIZED, "未登录或登录已过期")
+    return user
+
+
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    """管理端的接口（/admin/...）共用。用 403 不用 401：前端收到 401 会当成登录失效、直接退出。"""
+    if user.role != "admin":
+        raise ApiError(FORBIDDEN, "需要管理员权限")
     return user
 
 

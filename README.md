@@ -14,7 +14,8 @@
 | [05-evaluation-and-plan](docs/05-evaluation-and-plan.md) | 评测与计划：评测集、实验结果、验证方式、里程碑完成情况、不做与未来工作 |
 | [06-workflows](docs/06-workflows.md) | 产品流程（JD 优先）、两张 LangGraph 图；与 04 冲突时以此为准 |
 | [07-代码导读](docs/07-代码导读.md) | 后端各目录、各文件干什么，建议的阅读顺序 |
-| [08-实现思路与代码讲解](docs/08-实现思路与代码讲解.md) | 后端每件事为什么这么做、关键代码、踩过的坑、答辩问题速查 |
+| [08-实现思路与代码讲解](docs/08-实现思路与代码讲解.md) | 毕设答辩用：后端每件事为什么这么做、关键代码、踩过的坑、答辩问题速查 |
+| [09-简历与面试讲解](docs/09-简历与面试讲解.md) | 求职面试用：简历上怎么写的、每句话怎么讲、会被追问什么（实现细节链接到 08） |
 | [design/](docs/design/) | 前端样稿（独立 HTML，浏览器直接打开）；`archive/` 里是被取代或被否掉的 |
 | [figures/](docs/figures/) | 论文用图 9 张（架构、产品流程、图 A、图 B、E-R、四张评测图），各一份 SVG + PNG；`python docs/figures/make_figures.py` 重新生成（只用 Python 自带库，PNG 用本机 Chrome / Edge 截） |
 
@@ -45,7 +46,7 @@ pip install -r requirements.lock   # 锁定版本，与开发机完全一致（W
 uvicorn app.main:app --reload      # http://localhost:8000/docs
                                    # 自检：http://localhost:8000/api/v1/health
 
-# 5. 测试（在 backend 下）：446 个用例、约 30 秒；模型、向量库、Redis 全部打桩，数据库用内存 SQLite，不联网
+# 5. 测试（在 backend 下）：500 个用例、约 35 秒；模型、向量库、Redis 全部打桩，数据库用内存 SQLite，不联网
 .\.venv\Scripts\python.exe -m pytest -q
 
 # 6. 前端（另开一个终端）
@@ -62,6 +63,8 @@ npm run dev                        # http://localhost:5173，/api 由 Vite 转�
 ```powershell
 docker compose up -d --build       # 第一次要构建镜像，几分钟；之后几秒
 # 浏览器打开 http://localhost，注册一个账号就能用（首次启动自动建库，导入岗位模板和技能词典）
+# 管理端：用 admin / 88888888 登录（服务启动时自动建的账号），看模型用量、换 API Key 或换一家模型。
+#   「模型设置」里对话模型和检索用的向量 / 重排模型都能换。这个默认密码是公开的，只适合本机；给别人用之前在 .env 里设 ADMIN_PASSWORD，或登录后在页面上改
 
 docker compose ps                  # 看几个容器的状态
 docker compose logs -f backend     # 看后端日志
@@ -78,7 +81,7 @@ docker compose down -v             # 停掉并清空所有数据，下次启动�
 
 ```
 backend/             后端：app/（源码）、tests/、scripts/（生成种子数据、造评测集、跑评测）、sql/（建表与种子数据，脚本生成）、Dockerfile
-frontend/            前端：首页、工作台（选方向 → 选岗位 → 选简历 → 投递）、我的投递、我的简历、初筛结果、模拟面试（准备 / 面试 / 报告）；Dockerfile 打包后放进 Nginx
+frontend/            前端：首页、工作台（选方向 → 选岗位 → 选简历 → 投递）、我的投递、我的简历、初筛结果、模拟面试（准备 / 面试 / 报告）、管理端（模型用量 / 模型设置，只有管理员能进）；Dockerfile 打包后放进 Nginx
 data/                进仓库的只有技能词典（skills_seed.csv）和岗位模板（job_templates/ 下 cs/、ops/、finance/ 的原文 + job_templates.json）；
                      其余（上传的简历、向量库、面试检查点、简历样本、评测集、评测结果）是运行时或脚本生成的，不进仓库
 docs/                设计文档与前端样稿（见上表）

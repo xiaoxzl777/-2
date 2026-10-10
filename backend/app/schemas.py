@@ -1,6 +1,7 @@
 """接口的请求 / 响应模型（Pydantic）。所有响应统一包在 ApiResponse 里。"""
 from __future__ import annotations
 
+from datetime import date as Date  # 别名：下面有名为 date 的字段
 from datetime import datetime
 from typing import Annotated, Generic, Literal, TypeVar
 
@@ -426,3 +427,131 @@ class InterviewOut(BaseModel):
 
 class InterviewReportOut(InterviewOut):
     report: dict                            # {overall, verdict, topics[{idx,label,source,score}], strengths, weaknesses, links, ...}
+
+
+# ───────────── 管理端 ─────────────
+
+
+class UsageSum(BaseModel):
+    calls: int
+    cached: int                # 其中命中缓存的次数（没花钱）
+    failed: int
+    token_input: int
+    token_output: int
+    cost: float                # 元，按单价估算
+
+
+class UsageDay(UsageSum):
+    date: Date
+
+
+class UsageFeature(UsageSum):
+    key: str
+    name: str
+
+
+class UsageUser(UsageSum):
+    user_id: int | None        # None = 账号或它的东西已经删掉了，合成一行
+    username: str | None
+    resumes: int
+    applies: int
+    interviews: int
+    last_used: Date | None
+
+
+class UsageFailure(BaseModel):
+    at: datetime
+    feature: str
+    username: str | None       # None = 账号或它的东西已经删掉了
+    reason: str                # 归好类的一句话（余额不足、密钥无效、超时……）
+    detail: str                # 原始报错，Key 样子的串已经盖掉
+
+
+class UsageOut(BaseModel):
+    """GET /admin/usage。total / features / users 算的是选中的那一段：给了 day 就是那一天，否则是图上的整段。"""
+    days: int
+    day: Date | None
+    today: Date
+    total: UsageSum
+    window_cost: float         # 图上整段的花费（看某一天时用来算占比）
+    today_cost: float
+    by_day: list[UsageDay]
+    features: list[UsageFeature]
+    users: list[UsageUser]
+    failures: list[UsageFailure]   # 最近失败的几次（最多 20 条），和上面算的是同一段
+    registered: int
+    other_calls: int           # 评测和脚本的调用，不算在上面
+    other_cost: float
+
+
+class ProviderOut(BaseModel):
+    id: int                    # 0 = .env 里的那一家
+    kind: str
+    name: str
+    base_url: str
+    model: str
+    key_hint: str              # 只有开头和后四位
+    price_in: float
+    price_out: float
+    active: bool
+    from_env: bool
+    key_ok: bool               # False = Key 读不出来了（JWT_SECRET 换过），要重新填
+
+
+class ProviderPreset(BaseModel):
+    key: str
+    name: str
+    base_url: str
+    model: str
+    price_in: float | None = None
+    price_out: float | None = None
+
+
+class ProvidersOut(BaseModel):
+    current: ProviderOut
+    others: list[ProviderOut]
+    presets: list[ProviderPreset]
+
+
+class ProviderIn(BaseModel):
+    kind: str
+    name: str | None = Field(default=None, max_length=50)
+    base_url: str = Field(min_length=8, max_length=255, pattern=r"^https?://\S+$")
+    model: str = Field(min_length=1, max_length=50)
+    api_key: str = Field(min_length=8, max_length=300)
+    price_in: float = Field(ge=0, le=100000)
+    price_out: float = Field(ge=0, le=100000)
+
+
+class ProviderKeyIn(BaseModel):
+    api_key: str = Field(min_length=8, max_length=300)
+
+
+class ProviderTestOut(BaseModel):
+    ok: bool
+    message: str
+    latency_ms: int | None
+
+
+class ProviderStatusOut(BaseModel):
+    """现在用的这一家：能不能用、余额（只有 DeepSeek 查得到）。"""
+    available: bool
+    reason: str | None
+    balance: str | None
+
+
+class RetrievalOut(BaseModel):
+    """检索用的向量 + 重排模型：只有一份配置。from_env = 用的是 .env 里的。"""
+    from_env: bool
+    name: str
+    base_url: str
+    key_hint: str
+    embed_model: str
+    rerank_model: str
+
+
+class RetrievalIn(BaseModel):
+    base_url: str = Field(min_length=8, max_length=255, pattern=r"^https?://\S+$")
+    api_key: str | None = Field(default=None, max_length=300)      # 留空 = 沿用现在的那把
+    embed_model: str = Field(min_length=1, max_length=50)
+    rerank_model: str = Field(min_length=1, max_length=100)

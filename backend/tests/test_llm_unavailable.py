@@ -3,8 +3,10 @@ import httpx
 import openai
 import pytest
 
-from app.llm import status
+from app.config import settings
+from app.llm import provider, status
 from app.llm.client import LLM_DOWN, LLMError, unavailable_reason
+from app.llm.provider import Provider
 from tests.conftest import jd_item, jd_reply
 from tests.test_llm_client import MESSAGES, Harness
 
@@ -55,13 +57,18 @@ class FakeRedis:
             raise ConnectionError("Redis 连不上")
         self.store[key] = value
 
+    def delete(self, key):
+        self.store.pop(key, None)
+
 
 class FakeHttp:
     def __init__(self, reply, flaky=0):
         self.reply, self.calls, self.flaky = reply, 0, flaky        # flaky：前几次连不上
+        self.urls: list[str] = []
 
     def get(self, url, **_):
         self.calls += 1
+        self.urls.append(url)
         if self.calls <= self.flaky:
             raise httpx.ConnectTimeout("timed out")
         if isinstance(self.reply, Exception):
@@ -76,7 +83,7 @@ def probe(monkeypatch):
         http, redis = FakeHttp(reply, flaky), redis or FakeRedis()
         monkeypatch.setattr(status, "redis_client", redis)
         monkeypatch.setattr(status, "http_client", lambda: http)
-        monkeypatch.setattr(status.settings, "DEEPSEEK_API_KEY", "sk-test")
+        monkeypatch.setattr(settings, "DEEPSEEK_API_KEY", "sk-test")
         return http, redis
     return setup
 
@@ -108,11 +115,39 @@ def test_the_answer_is_kept_for_a_minute_and_a_failed_call_overrides_it(probe):
     assert status.unavailable_reason() == "余额不足（402）" and http.calls == 1
 
 
+def test_only_deepseek_has_a_balance_and_other_providers_are_just_pinged(probe):
+    """管理端的「模型设置」页现问一次：DeepSeek 问余额接口，顺便拿到余额；别家只问模型列表，看密钥对不对、连不连得上。"""
+    http, _ = probe((200, {"is_available": True, "balance_infos": [{"currency": "CNY", "total_balance": "0.85"}]}))
+    assert status.check(provider.env_provider()) == (None, "¥0.85") and http.urls == ["https://api.deepseek.com/user/balance"]
+
+    other = Provider(3, "bailian", "阿里云百炼", "https://dashscope.aliyuncs.com/compatible-mode/v1/", "qwen-plus", "sk-x", 1.0, 1.0)
+    http, _ = probe((200, {"data": []}))
+    assert status.check(other) == (None, None) and http.urls == ["https://dashscope.aliyuncs.com/compatible-mode/v1/models"]
+    probe((401, {}))
+    assert status.check(other) == ("密钥无效（401）", None)
+    probe((404, {}))                                              # 这家没有模型列表接口：按能用处理，不误报
+    assert status.check(other) == (None, None)
+    probe(httpx.ConnectError("refused"))
+    assert status.check(other) == ("连不上模型服务（ConnectError）", None)
+    http, _ = probe((200, {}))
+    assert status.check(Provider(3, "custom", "其他", "https://x.example.com/v1", "m", "", 1.0, 1.0)) == ("没有配置 API Key", None)
+    assert http.calls == 0
+
+
+def test_switching_provider_drops_the_remembered_answer(probe):
+    http, _ = probe((200, {"is_available": True}))
+    status.mark_down("余额不足（402）")
+    assert status.unavailable_reason() == "余额不足（402）" and http.calls == 0
+    status.forget()                                               # 换了 Key 或供应商：旧结论作废，下一次现问
+    assert status.unavailable_reason() is None and http.calls == 1
+
+
 def test_without_redis_it_still_answers(probe):
     http, _ = probe((200, {"is_available": False}), redis=FakeRedis(broken=True))
     assert status.unavailable_reason() == "余额不足" and status.unavailable_reason() == "余额不足"
     assert http.calls == 2
     status.mark_down("余额不足（402）")                            # 记不下也不抛
+    status.forget()
 
 
 def test_endpoint_needs_no_login(client, monkeypatch):

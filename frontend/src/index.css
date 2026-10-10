@@ -347,7 +347,7 @@ button { cursor: pointer; }
 
 /* ── 登录后的页面。先是导航右上角的头像菜单和改密码弹窗，再是工作台等页面的版式（.screen：同首页首屏，左边标题、右边操作卡；
    样稿 docs/design/岗位方向预览.html）。初筛结果另见下面的 .rv ── */
-/* 头像菜单（components/UserMenu.tsx）：修改密码、退出登录。样稿：docs/design/修改密码预览.html */
+/* 头像菜单（components/UserMenu.tsx）：配色、修改密码、退出登录。样稿：docs/design/修改密码预览.html */
 .um { position: relative; }
 .um-btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px 0 4px; border: none; border-radius: 999px; background: none; font-size: 14px; color: var(--color-ink-2); transition: background 0.2s; }
 .um-btn:hover, .um.open .um-btn { background: rgba(var(--ink-rgb), 0.06); }
@@ -359,12 +359,21 @@ button { cursor: pointer; }
   box-shadow: 0 18px 40px rgba(var(--sh-rgb), 0.18), inset 0 0 0 1px var(--line); opacity: 0; transform: translateY(-6px) scale(0.98); transform-origin: top right;
   pointer-events: none; transition: opacity 0.2s, transform 0.3s var(--spring); }
 .um.open .um-menu { opacity: 1; transform: none; pointer-events: auto; }
-.um-who { margin-bottom: 6px; padding: 10px 12px 12px; border-bottom: 1px solid var(--line); }
+.um-who { padding: 10px 12px 12px; border-bottom: 1px solid var(--line); }
 .um-who b { display: block; overflow: hidden; font-size: 15px; white-space: nowrap; text-overflow: ellipsis; }
 .um-who span { display: block; overflow: hidden; font-size: 12px; color: var(--color-ink-3); white-space: nowrap; text-overflow: ellipsis; }
 .um-menu button { display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; padding: 0 12px; border: none; border-radius: 10px; background: none; font-size: 14px; color: var(--color-ink); text-align: left; }
 .um-menu button:hover, .um-menu button:focus-visible { background: var(--color-bg); outline: none; }
 .um-menu svg { flex: none; color: var(--color-ink-3); }
+/* 「配色」一行：登录后配色收在头像菜单里（首页没登录时没有头像，还在导航栏上，见上面的 .pal）。三个色点直接点，点了菜单不收起 */
+.um-pal { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.um-pal small { display: block; margin-top: 2px; font-size: 12px; color: var(--color-ink-3); }
+.um-sws { display: flex; gap: 6px; }
+.um-menu .um-sws button { justify-content: center; width: 30px; height: 30px; padding: 0; border-radius: 50%; } /* 盖过上面「菜单里的按钮占一整行」 */
+.um-menu .um-sws button:hover, .um-menu .um-sws button:focus-visible { background: none; }
+.um-menu .um-sws button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.um-menu .um-sws button[aria-checked="true"] { box-shadow: inset 0 0 0 2px var(--color-ink); }
+.um-sws i { width: 20px; height: 20px; border-radius: 50%; }
 /* 修改密码弹窗（components/PasswordDialog.tsx）：面板、输入框、按钮沿用登录弹窗 */
 .pwd { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; pointer-events: none; }
 .pwd-bg { position: absolute; inset: 0; background: rgba(var(--ink-rgb), 0.3); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); opacity: 0; transition: opacity 0.3s; }
@@ -1220,6 +1229,212 @@ button { cursor: pointer; }
   .actions .ghost { display: none; } /* 首页的「登录」收起（旁边还有主按钮）；登录后这里只有头像菜单，不受影响 */
   .demo-hint { display: none; }
 }
+/* ── 管理端（components/AdminShell.tsx、pages/admin/*）：只有管理员看得到。内容是数字、图和表格，手感和用户端一套：
+   同一条导航和背景，大标题逐行升起，卡片一张接一张进场，数字滚过去，柱子长出来，按钮是磁吸的圆角按钮。
+   类名都带 adm- 前缀；里面的 .k / .v / .n 这类短名只在各自的 adm- 容器里用。样稿：docs/design/管理端用量预览.html ── */
+.nav-brand { display: flex; align-items: center; gap: 10px; }
+.adm-badge { padding: 3px 10px; border-radius: 999px; background: var(--color-paper); box-shadow: 0 0 0 1px var(--line); color: var(--color-ink-2); font-size: 12px; font-weight: 600; letter-spacing: 1px; white-space: nowrap; }
+.tabs .knob { transition: transform 0.45s var(--spring), opacity 0.2s; }
+.tabs.none .knob { opacity: 0; } /* 哪个都没选中（管理端只看图上点的某一天时） */
+.adm { padding-bottom: 56px; }
+.adm .btn { height: 40px; padding: 0 20px; font-size: 14px; white-space: nowrap; }
+.adm-page { padding: 30px 0 0; }
+.adm-loading, .adm-fail-box { margin: 8px 2px; font-size: 14px; color: var(--color-ink-3); }
+.adm-fail-box, .adm-stale { color: var(--color-bad); }
+
+/* 页头：大标题（同工具页的 .screen h1）+ 时间范围 */
+.adm-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px 40px; flex-wrap: wrap; margin-bottom: 22px; }
+.adm-head h1 { margin: 18px 0 14px; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.14; letter-spacing: -0.5px; font-weight: 800; }
+.adm-head h1 .line { display: block; overflow: hidden; padding-bottom: 6px; }
+.adm-head h1 .line > span { display: inline-block; transform: translateY(110%); animation: rise 0.9s var(--ease) forwards; }
+.adm-head h1 .line:nth-child(2) > span { animation-delay: 0.1s; }
+.adm-sub { margin: 0; max-width: 560px; font-size: 16px; line-height: 1.7; color: var(--color-ink-2); }
+.adm-head .tabs button { height: 34px; padding: 0 16px; font-size: 14px; }
+.adm-tabs-sm .tabs button { height: 28px; padding: 0 12px; }
+.adm-scope { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 34px; margin: 0 2px 12px; font-size: 14px; color: var(--color-ink-2); }
+.adm-scope b { color: var(--color-ink); }
+.adm-scope button { height: 30px; padding: 0 14px; border: none; border-radius: 999px; background: var(--color-paper); box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), 0.25); font-size: 13px; font-weight: 600; color: var(--color-ink); transition: box-shadow 0.2s, transform 0.3s var(--spring); animation: pickAsk 0.3s var(--ease); }
+.adm-scope button:hover { box-shadow: inset 0 0 0 1.5px var(--color-ink); transform: translateX(2px); }
+.adm-scope button:focus-visible, .adm-chips button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* 卡片：和「我的投递」的卡片一个样子，进场一张接一张，四个数的卡片鼠标停上去浮起来一点 */
+.adm-card { border-radius: 22px; background: var(--color-paper); box-shadow: 0 0 0 1px var(--line), 0 18px 36px -24px rgba(var(--sh-rgb), 0.35); transition: box-shadow 0.25s, transform 0.45s var(--spring); }
+.adm-in { animation: apIn 0.6s var(--ease) backwards; animation-delay: calc(0.3s + var(--i, 0) * 80ms); }
+.adm-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.adm-tile { padding: 18px 20px; }
+.adm-tile:hover { transform: translateY(-4px); box-shadow: 0 0 0 1.5px var(--color-ink-3), 0 26px 40px -22px rgba(var(--sh-rgb), 0.45); }
+.adm-tile .k { font-size: 13px; color: var(--color-ink-3); }
+.adm-tile .v { margin: 6px 0 4px; font-size: 30px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.adm-tile .v small { margin-left: 2px; font-size: 15px; font-weight: 600; }
+.adm-tile .s { font-size: 13px; color: var(--color-ink-2); font-variant-numeric: tabular-nums; }
+.adm-row { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 12px; margin-top: 12px; }
+.adm-box { padding: 22px; }
+.adm-box.adm-fill { display: flex; flex-direction: column; }
+.adm-box h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.adm-box-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.adm-note { margin: 4px 0 0; font-size: 13px; color: var(--color-ink-3); }
+.adm-note-side { margin: 0; }
+
+/* 柱状图：换时间范围时柱子一根接一根长出来；选某一天、切花费 / Token 只变高度和深浅 */
+.adm-chart { position: relative; flex: 1; min-height: 240px; margin-top: 18px; padding-left: 52px; }
+.adm-grid { position: absolute; left: 52px; right: 0; top: 0; bottom: 24px; }
+.adm-grid span { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); }
+.adm-grid em { position: absolute; right: calc(100% + 8px); transform: translateY(-50%); font-style: normal; font-size: 12px; color: var(--color-ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.adm-bars { position: absolute; left: 52px; right: 0; top: 0; bottom: 0; display: flex; align-items: stretch; gap: 2px; }
+.adm-bar { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 24px; outline: none; cursor: pointer; }
+.adm-bar i { display: block; width: 100%; max-width: 28px; min-height: 1px; margin: 0 auto; border-radius: 5px 5px 0 0; background: var(--color-accent); transform-origin: bottom;
+  animation: admGrow 0.7s var(--spring) backwards; animation-delay: calc(0.45s + var(--i) * 22ms); transition: height 0.5s var(--ease), opacity 0.3s, background 0.2s, transform 0.35s var(--spring); }
+@keyframes admGrow { from { transform: scaleY(0); } }
+.adm-bar:hover i, .adm-bar:focus-visible i { background: var(--color-accent-ink); transform: scaleX(1.12); }
+.adm-bars.picking .adm-bar:not(.sel) i { opacity: 0.3; } /* 只看某一天时：别的天调淡 */
+.adm-bars.picking .adm-bar:not(.sel):hover i { opacity: 0.6; }
+.adm-bar:focus-visible { border-radius: 4px; box-shadow: inset 0 0 0 2px var(--color-accent); }
+.adm-bar b { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); font-weight: 400; font-size: 12px; color: var(--color-ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; transition: color 0.2s; }
+.adm-bar.sel b { color: var(--color-ink); font-weight: 700; }
+.adm-tip { position: absolute; z-index: 5; min-width: 150px; padding: 10px 12px; border-radius: 12px; background: var(--color-ink); color: var(--color-bg); font-size: 13px; line-height: 1.6; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums;
+  opacity: 0; transform: translate(-50%, calc(-100% - 2px)) scale(0.94); transform-origin: bottom center; transition: opacity 0.15s, transform 0.3s var(--spring), left 0.25s var(--ease), top 0.25s var(--ease); }
+.adm-tip.on { opacity: 1; transform: translate(-50%, calc(-100% - 8px)); }
+.adm-tip b { display: block; font-size: 12px; font-weight: 400; opacity: 0.75; }
+
+/* 按功能：行不挪（按花费的先后用 order 排），条的宽度有过渡 */
+.adm-feat { display: flex; flex-direction: column; margin: 14px 0 0; padding: 0; list-style: none; }
+.adm-feat li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; margin: 0 -10px; padding: 10px; border-radius: 12px; transition: background 0.2s, transform 0.35s var(--spring); }
+.adm-feat li:hover { background: var(--color-bg); transform: translateX(4px); }
+.adm-feat .n { font-size: 14px; font-weight: 600; }
+.adm-feat .c { font-size: 14px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.adm-feat .d { font-size: 12px; color: var(--color-ink-3); font-variant-numeric: tabular-nums; }
+.adm-feat .p { font-size: 12px; color: var(--color-ink-3); text-align: right; font-variant-numeric: tabular-nums; }
+.adm-feat .t { grid-column: 1 / -1; height: 6px; margin-top: 4px; border-radius: 3px; background: var(--color-bg-2); overflow: hidden; }
+.adm-feat .t i { display: block; height: 100%; border-radius: 3px; background: var(--color-accent); transform-origin: left; animation: admFill 0.9s var(--ease) backwards; animation-delay: calc(0.6s + var(--i) * 70ms); transition: width 0.7s var(--ease); }
+@keyframes admFill { from { transform: scaleX(0); } }
+
+/* 按用户 */
+.adm-users { margin-top: 12px; }
+.adm-swipe { display: none; margin: 6px 0 0; font-size: 12px; color: var(--color-ink-3); }
+.adm-scroll { margin: 14px -22px -22px; overflow-x: auto; border-radius: 0 0 22px 22px; } /* 表格自己横向滚，页面不跟着溢出 */
+.adm-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.adm-table th { padding: 10px 12px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--color-bg); font-size: 12px; font-weight: 600; color: var(--color-ink-3); text-align: right; white-space: nowrap; }
+.adm-table td { padding: 12px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; transition: background 0.2s; }
+.adm-table th:first-child, .adm-table td:first-child { padding-left: 22px; text-align: left; }
+.adm-table th:last-child, .adm-table td:last-child { padding-right: 22px; }
+.adm-table tbody tr { animation: apIn 0.5s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 45ms); }
+.adm-table tbody tr:hover td { background: rgba(var(--ink-rgb), 0.035); }
+.adm-table tbody tr:hover .adm-who i { transform: scale(1.12) rotate(-6deg); background: var(--color-ink); color: var(--color-bg); }
+.adm-table tfoot td { border-bottom: none; font-weight: 700; }
+.adm-table td.adm-none { padding: 28px 20px; text-align: center; color: var(--color-ink-3); }
+.adm-who { display: inline-flex; align-items: center; gap: 10px; }
+.adm-who i { width: 26px; height: 26px; border-radius: 50%; background: var(--color-bg-2); color: var(--color-ink-2); display: grid; place-items: center; font-style: normal; font-size: 12px; font-weight: 700; transition: transform 0.35s var(--spring), background 0.2s, color 0.2s; }
+.adm-gone, .adm-zero { color: var(--color-ink-3); }
+.adm-fail { color: var(--color-bad); font-weight: 600; }
+.adm-extra { margin: 14px 2px 0; font-size: 13px; color: var(--color-ink-3); }
+/* 最近失败：一行一次，点开看原始报错。四个数里「失败」那一格的「看原因」会滚到这里 */
+.adm-fails { margin-top: 12px; scroll-margin-top: 96px; } /* 别被吸顶的导航栏挡住 */
+.adm-fails-none { margin: 14px 0 0; font-size: 14px; color: var(--color-ink-3); }
+.adm-fail-list { margin: 12px -12px -8px; padding: 0; list-style: none; }
+.adm-fail-list li { animation: apIn 0.5s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 40ms); }
+.adm-fail-row { display: grid; grid-template-columns: 104px 76px minmax(0, 150px) minmax(0, 1fr) 12px; align-items: center; gap: 14px; width: 100%; padding: 11px 12px; border: none; border-radius: 12px; background: none; font-size: 14px; color: var(--color-ink); text-align: left; transition: background 0.2s, transform 0.35s var(--spring); }
+.adm-fail-row:hover { background: var(--color-bg); transform: translateX(4px); }
+.adm-fail-row:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.adm-fail-row .at { color: var(--color-ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.adm-fail-row .ft { font-weight: 600; white-space: nowrap; }
+.adm-fail-row .who { overflow: hidden; color: var(--color-ink-2); white-space: nowrap; text-overflow: ellipsis; }
+.adm-fail-row .why { color: var(--color-bad); font-weight: 600; }
+.adm-fail-row svg { color: var(--color-ink-3); transition: transform 0.3s var(--spring); }
+.adm-fail-row[aria-expanded="true"] svg { transform: rotate(180deg); }
+.adm-fail-detail { margin: 2px 12px 10px; padding: 12px 14px; border-radius: 12px; background: var(--color-bg); font-family: ui-monospace, Consolas, monospace; font-size: 12px; line-height: 1.6; color: var(--color-ink-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.adm-tile-link { padding: 0; border: none; background: none; font-size: 13px; font-weight: 600; color: var(--color-accent-ink); }
+.adm-tile-link:hover { text-decoration: underline; }
+.adm-tile-link:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 4px; }
+
+/* 模型设置 */
+.adm-sec { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 30px 2px 12px; font-size: 20px; font-weight: 800; }
+.adm-sec.first { margin-top: 4px; }
+.adm-sec small { font-size: 13px; font-weight: 400; color: var(--color-ink-3); }
+.adm code { padding: 2px 8px; border-radius: 6px; background: var(--color-bg-2); color: var(--color-ink-2); font-family: ui-monospace, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; }
+.adm-pill { display: inline-flex; align-items: center; gap: 7px; min-height: 26px; padding: 2px 11px; border-radius: 999px; background: var(--color-bg-2); color: var(--color-ink-2); font-size: 12px; font-weight: 600; }
+.adm-pill::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--color-good); animation: admPulse 2s ease-out infinite; }
+@keyframes admPulse { 0% { box-shadow: 0 0 0 0 rgba(var(--good-rgb), 0.5); } 100% { box-shadow: 0 0 0 7px rgba(var(--good-rgb), 0); } }
+.adm-pill.wait::before { display: none; }
+.adm-pill.down { color: var(--color-bad); }
+.adm-pill.down::before { background: var(--color-bad); animation: none; }
+.adm-tagx { padding: 1px 9px; border-radius: 999px; box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), 0.2); font-size: 12px; font-weight: 500; color: var(--color-ink-2); white-space: nowrap; }
+.adm-new { padding: 1px 8px; border-radius: 999px; background: var(--color-accent); color: #fff; font-size: 11px; font-weight: 700; }
+.adm-now-name { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.adm-now-name.flat { margin-top: 0; }
+.adm-now-name b { font-size: 24px; font-weight: 800; }
+.adm-kv { display: grid; grid-template-columns: 1.1fr 1.4fr 1.1fr 0.9fr; gap: 14px 24px; margin: 16px 0 0; }
+.adm-kv > div { min-width: 0; }
+.adm-kv dt { font-size: 12px; color: var(--color-ink-3); }
+.adm-kv dd { margin: 4px 0 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.adm-kv dd small { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--color-ink-3); }
+.adm-btns { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+.adm-result { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--color-ink-2); }
+.adm-result:not(:empty) { animation: pickAsk 0.3s var(--ease); }
+.adm-result.ok { color: var(--color-good); font-weight: 600; }
+.adm-result.bad { color: var(--color-bad); font-weight: 600; }
+.adm-spin { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(var(--ink-rgb), 0.2); border-top-color: var(--color-ink); animation: spin 0.7s linear infinite; }
+.adm-card.flash { animation: admFlash 1.2s var(--ease); } /* 改成功了：这张卡片亮一下 */
+@keyframes admFlash { 0% { box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.55), 0 18px 36px -24px rgba(var(--sh-rgb), 0.35); } }
+.adm-others { margin-top: 12px; }
+.adm-provs { margin: 12px 0 0; padding: 0; list-style: none; }
+.adm-prov { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; align-items: center; margin: 0 -12px; padding: 14px 12px; border-radius: 16px; animation: apIn 0.5s var(--ease) backwards; transition: background 0.2s; }
+.adm-prov:hover { background: var(--color-bg); }
+.adm-prov + .adm-prov { margin-top: 2px; }
+.adm-prov .who { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.adm-prov .who b { font-size: 15px; }
+.adm-prov .meta { grid-column: 1; font-size: 13px; color: var(--color-ink-3); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.adm-prov .acts { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 6px; }
+.adm-prov .adm-ask { grid-column: 1 / -1; }
+.adm-ask { margin-top: 10px; padding: 16px 18px; border-radius: 16px; background: var(--color-bg); font-size: 14px; line-height: 1.7; animation: pickAsk 0.3s var(--ease); }
+.adm-prov:hover .adm-ask { background: var(--color-paper); box-shadow: inset 0 0 0 1px var(--line); }
+.adm-ask p { margin: 0; }
+.adm-ask .adm-btns { margin-top: 12px; }
+.adm-ask .adm-field { max-width: 460px; }
+/* 「添加一家」：几家的名字直接列出来，点哪家展开哪家的表单 */
+.adm-chips { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; padding-top: 16px; border-top: 1px dashed rgba(var(--ink-rgb), 0.2); font-size: 14px; color: var(--color-ink-2); }
+.adm-chips button { height: 34px; padding: 0 14px; border: none; border-radius: 999px; background: var(--color-paper); box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), 0.25); font-size: 13px; font-weight: 600; color: var(--color-ink); transition: transform 0.35s var(--spring), box-shadow 0.2s, background 0.2s; }
+.adm-chips button:hover { transform: translateY(-2px); box-shadow: inset 0 0 0 1.5px var(--color-ink); }
+.adm-chips button.on { background: var(--color-ink); color: var(--color-bg); box-shadow: none; }
+/* 展开 / 收起：高度过渡。收起时整块不可见、也 Tab 不进去（和全局的 .expand 比多了这一点，所以另起名字） */
+.adm-expand { display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition: grid-template-rows 0.45s var(--ease), opacity 0.3s, visibility 0s 0.45s; }
+.adm-expand > div { overflow: hidden; min-height: 0; }
+.adm-expand.open { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition: grid-template-rows 0.45s var(--ease), opacity 0.3s; }
+.adm-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; margin-top: 12px; padding: 18px; border-radius: 18px; background: var(--color-bg); }
+.adm-field { display: grid; gap: 6px; align-content: start; }
+.adm-field.full { grid-column: 1 / -1; }
+.adm-field label { font-size: 13px; font-weight: 600; color: var(--color-ink-2); }
+.adm-field input { width: 100%; height: 42px; padding: 0 14px; border: none; border-radius: 12px; outline: none; background: var(--color-field); box-shadow: inset 0 0 0 1.5px var(--line); font-size: 14px; color: var(--color-ink); transition: box-shadow 0.2s; }
+.adm-field input:hover { box-shadow: inset 0 0 0 1.5px var(--color-ink-3); }
+.adm-field input:focus { box-shadow: inset 0 0 0 2px var(--color-ink); }
+.adm-field small { font-size: 12px; color: var(--color-ink-3); }
+.adm-form .adm-btns { margin-top: 0; }
+.adm-warn { grid-column: 1 / -1; margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--color-paper); box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; line-height: 1.7; color: var(--color-ink-2); }
+
+@media (max-width: 900px) {
+  .adm-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adm-row { grid-template-columns: minmax(0, 1fr); }
+  .adm-swipe { display: block; }
+  .adm-kv { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .adm-badge { display: none; } /* 给两个链接腾地方（logo 的文字在 ≤420px 也会收掉，同用户端） */
+  .wrap.adm { padding-left: 16px; padding-right: 16px; }
+  .adm-head .tabs { width: 100%; }
+  .adm-head .tabs button { padding: 0 6px; }
+  .adm-head > div:last-child { width: 100%; }
+  .adm-tile { padding: 14px 16px; }
+  .adm-tile .v { font-size: 24px; }
+  .adm-box { padding: 16px; }
+  .adm-scroll { margin: 14px -16px -16px; }
+  .adm-fail-row { grid-template-columns: auto minmax(0, 1fr) 12px; grid-template-areas: "at who chev" "ft ft chev" "why why chev"; gap: 2px 12px; }
+  .adm-fail-row .at { grid-area: at; } .adm-fail-row .who { grid-area: who; } .adm-fail-row .ft { grid-area: ft; }
+  .adm-fail-row .why { grid-area: why; } .adm-fail-row svg { grid-area: chev; }
+  .adm-kv { grid-template-columns: minmax(0, 1fr); }
+  .adm-prov { grid-template-columns: minmax(0, 1fr); }
+  .adm-prov .acts { grid-column: 1; grid-row: auto; flex-wrap: wrap; margin-top: 4px; }
+  .adm-form { grid-template-columns: minmax(0, 1fr); padding: 14px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0s !important; transition-duration: 0.01ms !important; }
   .glow { display: none; }

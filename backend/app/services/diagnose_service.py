@@ -11,10 +11,9 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.diagnose.types import Finding as DomainFinding, severity_key
 from app.errors import CONFLICT, ApiError
-from app.llm import prompts
+from app.llm import prompts, provider
 from app.models import Diagnosis, Finding, LlmCall, ParsedBlock, Resume
 
 _IN_PROGRESS = ("pending", "running")
@@ -25,7 +24,7 @@ def create_diagnosis(db: Session, resume: Resume, mode: str, model: str | None, 
     running = db.scalar(select(Diagnosis.id).where(Diagnosis.resume_id == resume.id, Diagnosis.status.in_(_IN_PROGRESS)))
     if running:
         raise ApiError(CONFLICT, "这份简历已有诊断正在进行，请稍候")
-    diagnosis = Diagnosis(resume_id=resume.id, mode=mode, model_name=model or settings.CHAT_MODEL,
+    diagnosis = Diagnosis(resume_id=resume.id, mode=mode, model_name=model or provider.current().model,
                           prompt_version=prompts.DIAGNOSE_VERSION, job_title=job_title)
     db.add(diagnosis)
     db.commit()

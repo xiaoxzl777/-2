@@ -381,3 +381,52 @@ UPDATE match_reports      SET status='failed', error_msg='interrupted'          
 ### 4.20 配置
 
 `pydantic-settings` 读 `.env`，阈值与常数集中在 `config.py`，仓库只提交 `.env.example`。
+只有一项不在 `.env` 里定死：用哪一家的对话模型、哪一把 Key，可以在管理端换（4.21）。
+
+### 4.21 管理端：模型用量与模型设置
+
+只有管理员能进（`users.role = admin`，`deps.require_admin`，不是管理员 403）。管理员是一个固定账号：服务启动时按 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 建，已经有了就不动；这个用户名别人注册不了，已有的同名普通账号也不会被升成管理员。
+
+**模型用量**（`services/admin_service.usage`）：数据全部来自 `llm_calls`（4.6）。这张表记的是调用挂在哪个对象上（`ref_type` + `ref_id`），没有记用户，所以分两步：
+
+```
+① 一条 SQL：WHERE run_id IS NULL AND ref_id IS NOT NULL（只要用户操作产生的）
+            GROUP BY 日期, scene, ref_type, ref_id  → 调用数、缓存命中数、失败数、token、花费
+② 每种对象一条 IN 查询找主人：resume → user_id；diagnosis / match_report / finding → 简历 → user_id；job、interview 自己有 user_id
+③ 在内存里按天 / 按功能（scene 归成 简历解析、岗位解析、诊断、匹配、具体建议、模拟面试）/ 按用户各加一遍
+```
+
+- 评测批次（`run_id` 不为空）和脚本跑的（没挂对象）不算用户的，另给一个总数。
+- 对象或账号已经删掉、找不到主人的，合成一行「已删除的账号」：钱照样算进总数。
+- 「只看某一天」时四个数和两张表只算那一天，图仍然是整段（好和前后几天比）。
+- 花费是按单价 × token 估算的，不是账单；命中缓存的调用记次数、花费为 0。
+- 「最近失败」：同一段里 `success = 0` 的调用，新的在前、最多 20 条。`llm_calls.error_msg` 是给开发者看的（异常类型 + 服务商的原话），按里面的状态码和关键词归成一句人话（余额不足 402、密钥无效 401 / 403、被限流 429、模型服务出错 5xx、超时、连不上、页面中途关了没生成完……），原始报错点开才看；给之前把 Key 样子的串盖掉。
+
+**模型设置**（`llm/provider.py`、`services/provider_service.py`）：
+
+```
+现在用哪一家 = 进程里的一份 _current（管理端启用的那一条）；没有就用 .env 里的 DeepSeek
+  启动时从 llm_providers 读一次；管理端改了以后再读一次 → 改完马上生效，不用重启（依赖服务只有一个进程，4.18）
+  评测脚本不读库，一直用 .env：评测结果才能复现
+保存 / 换 Key / 切换之前：真调一次模型（JSON 模式、不重试、超时 20 秒），不通过就什么都不改
+  DeepSeek 用它自己的 LangChain 封装；别家都按 OpenAI 兼容接口（ChatOpenAI + base_url）
+API Key：Fernet 加密后存库，钥匙从 JWT_SECRET 派生；接口只返回开头 3 位 + 后 4 位
+  JWT_SECRET 换了 → 解不开 → 退回 .env 那一家，页面上那一条标「要重新填」
+切换后：默认模型名、单价、限流分桶、llm_calls.provider 都跟着换；缓存 key 里带模型名，旧缓存自然不命中
+        「模型服务不可用」的结论（Redis llm:status）作废，下一次现问
+```
+
+换成别家模型后，05 的评测数字不再直接适用（都是 deepseek-chat 上测的），页面在切换时会提醒。
+
+**检索模型**（向量 + 重排，只在面试贴了超过 3000 字的面经时用）是另一份配置，做法相同，但只有一份、没有「存几家再切换」：
+
+```
+现在用什么 = provider.retrieval()：管理端存了就用它，没存就是 .env 里的硅基流动（bge-m3 / bge-reranker-v2-m3）
+  llm/embedding.py 每次请求现取地址、Key、模型名 → 改完马上生效
+保存之前：真调一次向量（1 条）和重排（2 条），哪一步不通说哪一步（模型名不对 / 密钥无效 / 接口格式不一样），不通过不存
+  只支持接口格式和硅基流动一样的服务：向量走 /embeddings，重排走 /rerank（重排接口各家没有统一标准）
+换了向量模型（或接口地址）：向量库里已有的面经切段是按旧模型算的，和新模型的查询向量对不上（维度都可能不同）
+  → 整个集合删掉重建（Chroma 的集合维度在第一次写入时就定死，只删记录不够）
+  → 正在进行的面试之后检索不到东西，照样出题，只是不带面经（图 B 的 retrieve_context 查不到、出错都按没有处理）
+只换重排模型或 Key：不动向量库
+```

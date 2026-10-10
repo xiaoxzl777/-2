@@ -1,6 +1,6 @@
 # 二、数据库设计
 
-MySQL 8.0，11 张表。**完整建表语句以 `backend/sql/schema.sql` 为准**：它由 `scripts/dump_schema.py` 从 `backend/app/models.py` 生成（改表先改 models.py，再重新生成），`tests/test_schema_sync.py` 检查两者一致。本章不再抄建表语句，只写每张表的用途与要点、外键关系、JSON 字段结构和预留字段。
+MySQL 8.0，12 张表。**完整建表语句以 `backend/sql/schema.sql` 为准**：它由 `scripts/dump_schema.py` 从 `backend/app/models.py` 生成（改表先改 models.py，再重新生成），`tests/test_schema_sync.py` 检查两者一致。本章不再抄建表语句，只写每张表的用途与要点、外键关系、JSON 字段结构和预留字段。
 
 通用约定：
 
@@ -46,7 +46,7 @@ skills（技能词典）、llm_calls（调用审计）不建外键
 
 ### ① users
 
-账号。`username`、`email` 唯一；`password_hash` 是 bcrypt 哈希；`role` 取 seeker / admin，注册时一律是 seeker（admin 见 2.4）。
+账号。`username`、`email` 唯一；`password_hash` 是 bcrypt 哈希；`role` 取 seeker / admin，注册时一律是 seeker。admin 只有一个：服务启动时按 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 建（已经有了就不动，密码可能在页面上改过）；这个用户名别人注册不了。
 
 ### ② resumes
 
@@ -127,6 +127,16 @@ skills（技能词典）、llm_calls（调用审计）不建外键
 - `scene`：section / structure / diagnose / jd_parse / match / rewrite / gap / interview_plan / interview_ask / interview_eval / interview_report / embed / rerank。
 - `ref_type` + `ref_id` 指向业务记录（resume / job / diagnosis / match_report / finding / interview），不建外键。
 - `model_version` 取响应里的 system_fingerprint；`run_id` 是评测批次号，线上调用为 NULL；`cache_hit`、`success`、`error_msg`、`latency_ms`、token 数和 `cost` 用于成本统计和评测。
+
+### ⑫ llm_providers
+
+管理端保存的模型配置，一行一份，`purpose` 分两种：
+
+- `chat`（对话模型）：可以存几家，最多一行 `is_active = 1`。`kind`（预设：deepseek / siliconflow / bailian / zhipu / moonshot / custom，限流分桶和 `llm_calls.provider` 用它）、`name`、`base_url`（OpenAI 兼容接口的地址）、`model`、`price_in` / `price_out`（元 / 百万 token，估算花费用）。
+- `retrieval`（检索用的向量 + 重排）：只有一份，存了就是启用。`model` 是向量模型名，`rerank_model` 是重排模型名，单价恒为 0。
+
+API Key 不存明文：`api_key_enc` 是 Fernet 加密后的（钥匙从 `JWT_SECRET` 派生，`JWT_SECRET` 换了就解不开、要重新填），`key_hint` 另存一份「开头 3 位 + 后 4 位」给页面看，列表不用解密。
+没有启用的就用 `.env` 里的配置（`llm/provider.py`）。和别的表没有外键。
 
 ## 2.3 JSON 字段结构
 
@@ -270,7 +280,6 @@ skills（技能词典）、llm_calls（调用审计）不建外键
 | `jobs.parse_status` 的 pending、failed | JD 同步解析，失败不保存，只会写 success |
 | `match_reports.gap_summary` | 不写：未通过说明由 `GET /apply/{id}` 读取时组装 |
 | `interview_sessions.current_round`、`interview_turns.round` 的 hr | 只做一轮专业面，恒为 tech |
-| `users.role` 的 admin | 没有用到 admin 的接口（`GET /system/info` 未实现） |
 | `structure.skill_mentions[].matched_by` | 恒为 dict |
 
 ## 2.5 Chroma

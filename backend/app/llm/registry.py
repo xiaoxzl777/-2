@@ -1,57 +1,61 @@
-"""模型注册表：名字 → LangChain 聊天模型。换模型 / 做模型对比实验只改这里。"""
+"""把「现在用哪一家」（llm/provider.py）变成 LangChain 的聊天模型，并按它的单价估算花费。"""
 from __future__ import annotations
 
-from collections.abc import Callable
 from functools import cache
 
 import httpx
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_deepseek import ChatDeepSeek
+from langchain_openai import ChatOpenAI
 
 from app.config import settings
-
-# 元 / 百万 token（输入, 输出）。仅用于成本估算与熔断，实际以各平台账单为准。
-PRICES: dict[str, tuple[float, float]] = {
-    "deepseek-chat": (4.0, 12.0),
-}
-DEFAULT_PRICE = (4.0, 12.0)
-
-# 模型名 → 服务商，用于限流分桶与审计
-PROVIDERS: dict[str, str] = {"deepseek-chat": "deepseek"}
+from app.llm import provider
+from app.llm.provider import Provider
 
 
 @cache
 def http_client() -> httpx.Client:
-    # 全进程共用一个（线程安全；llm/status.py 问余额也用它）：每次新建要重新加载证书（实测约 0.23 秒）、重新握手，诊断时十几个并行调用都要付一遍
+    # 全进程共用一个（线程安全；llm/status.py 问余额也用它）：每次新建要重新加载证书（实测约 0.23 秒）、重新握手，诊断时十几个并行请求各付一次。
     # 本机若配了 HTTP(S)_PROXY，国内模型服务走代理反而慢数倍；默认直连
     return httpx.Client(trust_env=settings.LLM_USE_SYSTEM_PROXY, timeout=settings.LLM_TIMEOUT_SECONDS)
 
 
-def _deepseek(temperature: float) -> BaseChatModel:
-    return ChatDeepSeek(
-        model="deepseek-chat",
-        api_key=settings.DEEPSEEK_API_KEY,
-        api_base=settings.DEEPSEEK_BASE_URL,
+def build_chat_model(p: Provider, temperature: float, *, max_retries: int = 3, timeout: float | None = None) -> BaseChatModel:
+    """DeepSeek 用它自己的封装（一直用的那个，行为不变）；别家国内主流都提供 OpenAI 兼容接口，统一用 ChatOpenAI。"""
+    common = dict(
+        model=p.model,
+        api_key=p.api_key,
         temperature=temperature,
-        max_retries=3,                      # openai 客户端内置指数退避（NFR-3）
+        max_retries=max_retries,            # openai 客户端内置指数退避（NFR-3）
         stream_usage=True,                  # 流式调用时最后一个分块带 token 用量，记账要用
-        timeout=settings.LLM_TIMEOUT_SECONDS,
+        timeout=timeout or settings.LLM_TIMEOUT_SECONDS,
         http_client=http_client(),
     )
-
-
-MODEL_REGISTRY: dict[str, Callable[[float], BaseChatModel]] = {
-    "deepseek-chat": _deepseek,
-}
+    if p.is_deepseek:
+        return ChatDeepSeek(api_base=p.base_url, **common)
+    return ChatOpenAI(base_url=p.base_url, **common)
 
 
 def get_chat_model(name: str, temperature: float) -> BaseChatModel:
-    try:
-        return MODEL_REGISTRY[name](temperature)
-    except KeyError:
-        raise ValueError(f"未注册的模型：{name}（可用：{sorted(MODEL_REGISTRY)}）") from None
+    p = provider.current()
+    if name != p.model:
+        raise ValueError(f"未注册的模型：{name}（现在用的是 {p.model}）")
+    return build_chat_model(p, temperature)
+
+
+def available_models() -> list[str]:
+    """接口里 model 参数能填的值：只有现在启用的那一个。"""
+    return [provider.current().model]
+
+
+def provider_of(model: str) -> str:
+    """模型名 → 服务商，用于限流分桶与审计。"""
+    p = provider.current()
+    return p.kind if model == p.model else model
 
 
 def estimate_cost(model: str, token_input: int, token_output: int) -> float:
-    price_in, price_out = PRICES.get(model, DEFAULT_PRICE)
+    p = provider.current()
+    price_in, price_out = ((p.price_in, p.price_out) if model == p.model
+                           else provider.ENV_PRICES.get(model, provider.DEFAULT_PRICE))
     return round((token_input * price_in + token_output * price_out) / 1_000_000, 6)

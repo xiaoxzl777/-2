@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.errors import CONFLICT, ApiError
-from app.llm import prompts
+from app.llm import prompts, provider
 from app.models import Job, MatchReport, Resume
 
 _IN_PROGRESS = ("pending", "running")
@@ -25,7 +25,7 @@ def create_match(db: Session, resume: Resume, job: Job, mode: str, model: str | 
         MatchReport.resume_id == resume.id, MatchReport.job_id == job.id, MatchReport.status.in_(_IN_PROGRESS)))
     if running:
         raise ApiError(CONFLICT, "这份简历对该岗位的匹配正在进行，请稍候")
-    report = MatchReport(resume_id=resume.id, job_id=job.id, mode=mode, model_name=model or settings.CHAT_MODEL,
+    report = MatchReport(resume_id=resume.id, job_id=job.id, mode=mode, model_name=model or provider.current().model,
                          prompt_version=prompts.MATCH_VERSION)
     db.add(report)
     db.commit()

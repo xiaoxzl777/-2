@@ -71,6 +71,16 @@ def sweep_idle_interviews() -> int:
     return interview_service.cleanup_idle(SessionLocal, get_checkpointer(), get_context_store)
 
 
+def load_admin_settings() -> None:
+    """管理员账号没有就建一个；管理端选了哪家模型，读进内存（llm/provider.py）。"""
+    from app.llm import provider
+    from app.services import admin_service
+    with SessionLocal() as db:
+        admin_service.ensure_admin(db)
+        current = provider.load(db)
+    logger.info("对话模型：%s · %s（%s）", current.name, current.model, "管理端配置" if current.id else ".env")
+
+
 async def sweep_forever(interval: float) -> None:
     """服务一直开着时也定时给很久没动静的面试收尾。原来只在启动时清一次，长期不重启就一直显示「进行中」"""
     while True:
@@ -90,6 +100,7 @@ async def lifespan(_: FastAPI):
     if settings.JWT_SECRET.startswith("change-me"):
         logger.warning("JWT_SECRET 仍是示例值，部署前请在 .env 中改成随机长字符串")
     cleaned = cleanup_interrupted_tasks()
+    load_admin_settings()
     logger.info("启动完成：MySQL %d 张表，Redis ok，清理中断任务 %s", len(Base.metadata.tables), cleaned)
     sweeper = asyncio.create_task(sweep_forever(IDLE_SWEEP_SECONDS))
     yield

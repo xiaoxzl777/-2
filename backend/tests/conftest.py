@@ -179,6 +179,15 @@ def _fast_bcrypt(monkeypatch):
     monkeypatch.setattr(security, "BCRYPT_ROUNDS", 4)
 
 
+@pytest.fixture(autouse=True)
+def _env_provider():
+    """管理端切换过的模型配置是进程里的一份状态（llm/provider.py）：每个测试前后都回到 .env 的那一家。"""
+    from app.llm import provider
+    provider.reset()
+    yield
+    provider.reset()
+
+
 @pytest.fixture
 def client(db_session_factory, fake_llm, tmp_path, monkeypatch):
     from fastapi.testclient import TestClient

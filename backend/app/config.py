@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     # ---- 认证 ----
     JWT_SECRET: str = "change-me"
     JWT_EXPIRE_HOURS: int = 24
+    # 管理员账号：启动时发现没有就建一个（services/admin_service.ensure_admin）。这个默认密码是公开的，
+    # 只适合本机；放到公网之前在 .env 里改掉，或者登录后在页面上改。能进管理端的人可以换掉模型的 Key 和接口地址
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = "88888888"
 
     # ---- 模型 ----
     DEEPSEEK_API_KEY: str = ""
