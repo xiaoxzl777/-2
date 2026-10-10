@@ -20,8 +20,8 @@
 ⑤ 面试准备          可贴面经 / 公司介绍（选填）；创建会话时把话题定好
 ⑥ 模拟面试（图 B）   一轮专业面：计算机叫技术面、运营叫运营面、财会和「其他」叫专业面（5 个话题，每个最多追问 1 次）
 ⑦ 面试报告
-   ├ 通过   → "恭喜通过" + 完整总结 + 改进建议
-   ├ 未通过 → "很遗憾" + 同样完整的总结 + 改进建议 + 回到改简历
+   ├ 通过   → 开头说通过 + 完整总结 + 改进建议
+   ├ 未通过 → 开头说没过 + 同样完整的总结 + 改进建议 + 回到改简历
    └ 练习 / 没聊完 → 不给通过结论，其余相同
 
 我的投递（/app/applies）：所有投递新的在前，回看每次的结论；这次投递下的面试挂在卡片上，
@@ -61,13 +61,13 @@ extract ──► layout ──► section ──► basics ──► section_ll
             定 full_text                       （没有就跳过）   日期本地归一化
 ```
 
-版面不做 LLM 兜底，时间轴这类常见错误用规则修，理由见 04-design 4.8。
+版面不做 LLM 兜底，时间轴这类常见错误用规则修，理由与实测见 05-evaluation-and-plan 5.2。
 
 ### diagnose 子图
 
 ```
 rule_scan ──► plan_review ──Send×N──► review_unit ──► merge_findings ──► score
- 7 条规则      成本预检，选出要         每条描述一个分支；节点内部：      同一维度、证据区间      五维从 100 扣分（按经历条数摊薄），
+ 7 条规则      成本预检，选出要         每条描述一个分支；节点内部：      同一维度、证据区间      五维从 100 扣分（按描述条数摊薄），
  纯函数        送审的单元              LLM(json_mode) → locate_span   重叠超过一半的只留规则   无来源维度 null 并重归一
                                        校验 → 失败带原因重试 ≤2
 ```
@@ -190,14 +190,14 @@ class InterviewState(TypedDict, total=False):
 | 类型 | 节点 | 技术 |
 |---|---|---|
 | 纯函数（不调 API） | rule_scan · plan_review · merge_findings · score · rule_match · score_match · gate · pick_topic · decide | Python |
-| LLM | review_unit · judge_fulltext · plan_interview · ask_question · evaluate_answer · final_report | DeepSeek，经 `llm/client.py`（缓存 · 限流 · 记账） |
-| 检索 | 面试的 retrieve_context：只在用户贴的面经超过 3000 字时检索 | bge-m3 → Chroma → bge-reranker（`retrieval/context_store.py`） |
+| LLM | review_unit · judge_fulltext · plan_interview · ask_question · evaluate_answer · final_report | 默认 DeepSeek（管理端可换，04-design 4.21），经 `llm/client.py`（缓存 · 限流 · 记账） |
+| 检索 | 面试的 retrieve_context：只在用户贴的面经超过 3000 字时检索 | 默认 bge-m3 → Chroma → bge-reranker，管理端可换（`retrieval/context_store.py`） |
 | 证据校验 | review_unit / judge_fulltext / evaluate_answer 内部，以及图外的 JD 解析、结构化抽取 | `diagnose/evidence.locate_span`，同一个函数 |
 | 等人 | wait_answer | `interrupt()` + `SqliteSaver` |
 
 解析在图外（6.2）：section_llm、structure 两步调模型，其余是纯函数。
 
-**DB 读写全部在图外**：service 层消费 `graph.stream()` 的事件，每步落库并发布 SSE 进度。节点只收发纯数据（不变量④，见 00-overview）。
+**DB 读写全部在图外**：service 层消费 `graph.stream()` 的事件：图 A 每过一个节点发一次进度、跑完一次落库；图 B 每步落库并推送。节点只收发纯数据（不变量④，见 00-overview）。
 
 ## 6.5 RAG 的位置：只用在面试的长面经上
 

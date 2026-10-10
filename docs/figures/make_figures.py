@@ -229,7 +229,7 @@ def fig_graph_a() -> Fig:
             ("送审计划", ["成本预检，选出", "要送审的单元"], "plan_review", False),
             ("逐条审阅 × N", ["Send：每条描述一个分支", "模型审阅 → 引用逐字校验", "对不上带原因重试 ≤ 2 次"], "review_unit", True),
             ("合并去重", ["同一维度、证据重叠", "超过一半的只留规则"], "merge_findings", False),
-            ("五维打分", ["从 100 分往下扣", "按经历条数摊薄"], "score", False)]
+            ("五维打分", ["从 100 分往下扣", "按描述条数摊薄"], "score", False)]
     for i, (t, ls, code, llm) in enumerate(diag):
         if llm:  # 叠两层，表示分出了 N 个分支
             f.rect(col[i] + 8, 316 - 8, cw, 108, LLM_FILL)

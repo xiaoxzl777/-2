@@ -107,13 +107,13 @@ DOCX         → 只收 PDF，上传 .docx 直接 41501
 
 | 编号 | 需求 | 优先级 |
 |---|---|---|
-| FR-H1 | 对话模型可插拔：现在用哪一家由 `llm/provider.py` 决定——管理端启用的那一条，没有就用 `.env` 里的 DeepSeek；`llm/registry.py` 把它变成模型对象（DeepSeek 用自己的封装，别家走 OpenAI 兼容接口）。检索用的向量 / 重排模型同理（`provider.retrieval()`），没改过就是 `.env` 里的硅基流动（`EMBEDDING_MODEL` / `RERANKER_MODEL`） | P0 |
+| FR-H1 | 对话模型可插拔：默认用 `.env` 里的 DeepSeek，管理端可以换成别家（FR-H7）；检索用的向量 / 重排模型同理，默认是 `.env` 里的硅基流动。实现见 04-design 4.21 | P0 |
 | FR-H2 | Prompt 版本化常量，落库 `prompt_version` | P0 |
-| FR-H3 | 调用审计：对话（`llm/client.py`）与向量 / 重排（`llm/embedding.py`）每次调用落库 `llm_calls`，缓存命中也记一行 | P1 |
+| FR-H3 | 调用审计：对话（`llm/client.py`）与向量 / 重排（`llm/embedding.py`）每次调用落库 `llm_calls`，缓存命中也记一行（管理端保存前的试连不记） | P1 |
 | FR-H4 | 评测 CLI：`gen_eval_set.py`（`--domain cs / ops / finance` 生成计算机 / 运营 / 财会评测集）；`run_eval.py`（`--task diagnose / match / interview`，`--set` 选评测集或题库，`--domain` 选领域包，`--repeat N`，绕过缓存）；面试评分题库 `interview_answers.py`（计算机）/ `interview_answers_ops.py`（运营） | P1 |
 | FR-H6 | 模型用量（管理端）：`GET /admin/usage` 把 `llm_calls` 按天、按功能、按用户汇总，只算用户操作产生的调用（评测和脚本的另算） | P1 |
-| FR-H7 | 模型设置（管理端）：保存几家对话模型的配置（接口地址、模型名、API Key、单价），选一家用；保存、换 Key、切换之前先真调一次，调不通不改；Key 加密存库，页面只显示开头和后四位。检索用的向量 + 重排模型是另一份配置（只有一份），同样先试再存；换了向量模型，向量库里已有的面经切段一起清掉 | P1 |
-| FR-H5 | 数据种子：`scripts/dump_seed.py` 由 `data/skills_seed.csv`（技能词典）和 `data/job_templates.json`（岗位模板）生成 `backend/sql/seed.sql`（可重复执行；模板按标题更新）。`job_templates.json` 由 `scripts/build_job_templates.py` 解析 `data/job_templates/<方向>/*.txt`（`cs/`、`ops/`、`finance/`）生成 | P1 |
+| FR-H7 | 模型设置（管理端）：保存几家对话模型的配置（接口地址、模型名、API Key、单价），选一家用；保存、换 Key、切换之前先真调一次，调不通不改；Key 加密存库，页面只显示开头和后四位。检索用的向量 + 重排模型是另一份配置（只有一份），同样先试再存；换了向量模型或接口地址，向量库里已有的面经切段一起清掉 | P1 |
+| FR-H5 | 数据种子：`backend/scripts/dump_seed.py` 由 `data/skills_seed.csv`（技能词典）和 `data/job_templates.json`（岗位模板）生成 `backend/sql/seed.sql`（可重复执行；模板按标题更新）。`job_templates.json` 由 `backend/scripts/build_job_templates.py` 解析 `data/job_templates/<方向>/*.txt`（`cs/`、`ops/`、`finance/`）生成 | P1 |
 
 ## 1.4 非功能需求
 
@@ -123,13 +123,13 @@ DOCX         → 只收 PDF，上传 .docx 直接 41501
 | NFR-2 准确性 | 版面合成集（120 份，6 种版式，仅 PDF）line 级相邻行对顺序准确率 ≥ 95%；模型引用的拦截率与定位准确率在降质集上自动统计（不做人工复核）。结果见 05-evaluation-and-plan 5.2–5.3 |
 | NFR-3 可靠性 | LLM 调用指数退避重试 3 次；模型服务调不通（余额不足、密钥无效、连不上）时登录后页面顶上提示，出错处单独说明是「模型服务暂时不可用，请稍后再试」，不再和别的失败一样说「调用大模型失败」（04-design 4.6）；启动时把中断的解析 / 诊断 / 匹配标为失败；面试会话可续答，很久没动静的启动时和之后每小时收尾一次（04-design 4.18） |
 | NFR-4 成本 | 单份诊断 `DIAGNOSE_COST_LIMIT`；单场面试 `INTERVIEW_COST_LIMIT`（默认 0.3 元），超限提前结束并出报告 |
-| NFR-5 安全与隐私 | JWT；上传校验清单；UUID 落盘；按用户隔离；**PII 不进 LLM prompt**（04-design 4.5）；岗位模板为手写、不含公司名；软删除（30 天物理删除〔未实现〕）；面试回答只用于本会话 |
-| NFR-6 可复现 | `temperature=0` 仅降低随机性；可复现靠 固定 prompt_version + 记录 `model_version` 与运行日期 + 每组重复 3 次报均值±标准差 + 评测绕过缓存（05-evaluation-and-plan 5.5） |
+| NFR-5 安全与隐私 | JWT；上传校验清单；UUID 落盘；按用户隔离；**简历里的个人信息掩码后才发给模型**（04-design 4.5；用户自己贴的面经、面试回答原样发）；岗位模板为手写、不含公司名；软删除（30 天物理删除〔未实现〕）；面试回答只用于本会话 |
+| NFR-6 可复现 | `temperature=0` 仅降低随机性；可复现靠 固定 prompt_version + 记录 `model_version` 与运行日期 + 主要几组重复 3 次 + 评测绕过缓存（各组实际跑了几次、怎么报见 05-evaluation-and-plan 5.5） |
 | NFR-7 可维护 | 规则插件化；prompt 与代码分离；领域层零 DB 依赖；加一个求职方向只需登记领域包、补词条和模板，流程代码不改 |
 
 ## 1.5 诊断规则清单（确定性通道，纯函数）
 
-四个求职方向（含「其他」）用同一套规则（领域包可以按方向关掉个别规则，目前都没关）。
+四个求职方向（含「其他」）用同一套规则（领域包可以按方向关掉个别规则，目前都没关；还可以加本方向的「结果词」，判断写没写结果时多认这些词：运营 21 个、财会 7 个、「其他」取两者并集、计算机不加）。
 
 | 规则码 | category | 判定逻辑 |
 |---|---|---|

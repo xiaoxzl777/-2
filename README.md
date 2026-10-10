@@ -21,7 +21,7 @@
 
 ## 技术栈
 
-后端 Python 3.13 / FastAPI / SQLAlchemy 2.0 / LangGraph + LangChain · 前端 React 18 + TS + Vite + Tailwind v4 + Zustand · 存储 MySQL 8.0 + Chroma + Redis · 模型 DeepSeek（对话）+ 硅基流动 bge-m3（向量）· 部署 Nginx + Docker Compose
+后端 Python 3.13 / FastAPI / SQLAlchemy 2.0 / LangGraph + LangChain · 前端 React 18 + TS + Vite + Tailwind v4 + Zustand · 存储 MySQL 8.0 + Chroma + Redis · 模型 DeepSeek（对话）+ 硅基流动 bge-m3（向量）、bge-reranker-v2-m3（重排），都能在管理端换 · 部署 Nginx + Docker Compose
 
 ## 开发环境（本地跑 API 与前端，MySQL/Redis 用本机或容器）
 
@@ -84,7 +84,7 @@ backend/             后端：app/（源码）、tests/、scripts/（生成种�
 frontend/            前端：首页、工作台（选方向 → 选岗位 → 选简历 → 投递）、我的投递、我的简历、初筛结果、模拟面试（准备 / 面试 / 报告）、管理端（模型用量 / 模型设置，只有管理员能进）；Dockerfile 打包后放进 Nginx
 data/                进仓库的只有技能词典（skills_seed.csv）和岗位模板（job_templates/ 下 cs/、ops/、finance/ 的原文 + job_templates.json）；
                      其余（上传的简历、向量库、面试检查点、简历样本、评测集、评测结果）是运行时或脚本生成的，不进仓库
-docs/                设计文档与前端样稿（见上表）
+docs/                设计文档、前端样稿、论文用图（见上表）
 nginx/               Nginx 配置：托管前端页面，把 /api 转发给后端
 docker-compose.yml   部署用的四个容器（mysql、redis、backend、nginx）
 .env.example         环境变量模板，复制成 .env 后填写

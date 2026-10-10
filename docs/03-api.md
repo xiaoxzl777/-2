@@ -13,11 +13,11 @@
 | code | 含义 | 什么时候抛 | HTTP |
 |---|---|---|---|
 | 0 | 成功 | | 200 |
-| 40001 | 参数错误 | 请求体或查询参数校验不过；未知的求职方向、模型、任务类型；面试回答为空或超过 `INTERVIEW_ANSWER_MAX`（3000 字）；JD 里识别不出任何要求 | 400 |
+| 40001 | 参数错误 | 请求体或查询参数校验不过；未知的求职方向、模型、任务类型；面试回答为空或超过 `INTERVIEW_ANSWER_MAX`（3000 字）；JD 里识别不出任何要求；改密码时当前密码不对或新旧一样；管理端保存 / 换 Key / 切换前试连不通过、未知的供应商、`days` 取值不对 | 400 |
 | 40301 | 没有权限 | 普通用户访问管理端的接口（`/admin/...`）。不用 401：前端收到 401 会当成登录失效、直接退出 | 403 |
 | 40101 | 未认证 | 没带令牌、令牌失效或过期；登录时用户名或密码错误（不区分是哪个错） | 401 |
-| 40401 | 资源不存在 | 不存在、不属于当前用户、已软删除的一律按不存在处理，不暴露是否存在；包括简历、岗位（含删除内置模板）、投递 / 匹配报告、诊断记录、问题条目、没满足的要求、面试、任务 | 404 |
-| 40901 | 状态冲突 | 注册时用户名或邮箱已被占用；简历还在解析时读它的块 / 结构；投递时同一份简历已有诊断在跑，或同一份简历对同一岗位的匹配在跑；初筛还没完成（或失败了）就建面试；面试已经结束还要继续 / 提前结束，还没开始或已结束时提交回答，还没出题，这道题已经答过，上一步还在进行；面试还没结束就取报告 | 409 |
+| 40401 | 资源不存在 | 不存在、不属于当前用户、已软删除的一律按不存在处理，不暴露是否存在；包括简历、岗位（含删除内置模板）、投递 / 匹配报告、诊断记录、问题条目、没满足的要求、面试、任务、管理端的模型配置 | 404 |
+| 40901 | 状态冲突 | 注册时用户名或邮箱已被占用；简历还在解析时读它的块 / 结构；投递时同一份简历已有诊断在跑，或同一份简历对同一岗位的匹配在跑；初筛还没完成（或失败了）就建面试；面试已经结束还要继续 / 提前结束，还没开始或已结束时提交回答，还没出题，这道题已经答过，上一步还在进行；面试还没结束就取报告；删除正在用的模型配置 | 409 |
 | 41301 | 文件太大 | 超过 `MAX_UPLOAD_MB`（20MB） | 413 |
 | 41501 | 不支持的文件 | 扩展名不是 .pdf；文件头不是 PDF；打不开（文件损坏）；PDF 加密 | 415 |
 | 42201 | 篇幅超限 | 页数超过 `MAX_PDF_PAGES`（10 页） | 422 |
@@ -25,11 +25,11 @@
 | 50002 | 模型调用失败 | 同步调模型的接口失败：JD 解析、建面试时定话题；具体建议、面试流里的 error 事件也用这个 code。模型服务调不通（余额不足、密钥无效、连不上、服务端 429 / 5xx）时 message 是「模型服务暂时不可用……」，其余失败是「……请稍后重试」 | 500 |
 | 50003 | 简历解析失败 | 简历解析已经失败，还去读它的块 / 结构，或拿它投递；message 按失败原因给（扫描件、加密、模型失败、服务重启打断等） | 500 |
 
-接口请求本身不限流（没有 429）。限流管的是调模型：每次调模型（对话、向量、重排）前，在 Redis 里按服务商、按分钟占一个名额（`DEEPSEEK_RPM` / `SILICONFLOW_RPM`，各 300），满了就等到下一分钟再抢；等过了 120 秒还抢不到就放弃，放弃或 Redis 不通都按模型调用失败处理，同步接口返回 50002，后台任务按各自的失败或降级逻辑处理。
+接口请求本身不限流（没有 429）。限流管的是调模型：每次调模型（对话、向量、重排）前，在 Redis 里按服务商、按分钟占一个名额（每分钟上限：对话用 `DEEPSEEK_RPM`，向量 / 重排用 `SILICONFLOW_RPM`，各 300；管理端换了供应商也还是这两个数），满了就等到下一分钟再抢；等过了 120 秒还抢不到就放弃，放弃或 Redis 不通都按模型调用失败处理，同步接口返回 50002，后台任务按各自的失败或降级逻辑处理。
 
 后台任务（解析、投递分析）里的失败不走错误码，落成记录的 failed 状态，通过 SSE 的 error 事件或轮询状态告诉前端（3.3）。
 
-## 3.2 接口清单（45 个；已实现 43 个，标〔未实现〕的留给后续里程碑）
+## 3.2 接口清单（45 个；已实现 43 个，标〔未实现〕的见 05-evaluation-and-plan 5.8 未来工作）
 
 另有 `GET /api/v1/health`，不计入 45 个，不用登录。它是运行时探针：逐项探测 MySQL、Redis，返回 `{mysql, redis, version}`，每项为 `ok` 或 `error: <异常类型>`；任一依赖异常时 code 为 50001、HTTP 503。部署出问题时先看它。启动时的检查是另一回事：在 `main.py` 的 lifespan 里，连不上 MySQL、缺表、连不上 Redis 都直接报错退出。
 
@@ -116,7 +116,9 @@
 系统 1    GET /system/info〔未实现〕       模型列表 + 规则清单（用量已经由管理端的 GET /admin/usage 提供）
 
 管理端 14 都要管理员登录（users.role = admin），不是管理员 40301。管理员账号在服务启动时自动建（ADMIN_USERNAME / ADMIN_PASSWORD）
-          GET  /admin/usage                ?days=7|30|0（图上画最近几天；0 = 从第一条记录起）&day=YYYY-MM-DD（四个数和两张表只算这一天）
+          GET  /admin/usage                ?days=7|30|0（图上画最近几天；0 = 从第一条记录起）&day=YYYY-MM-DD
+                                           day 给了就只算这一天：total / features / users / failures；by_day、window_cost 仍是整段；
+                                           不在这段范围里的 day 当作没给
                                            → {days, day, today, total, window_cost, today_cost, by_day[], features[], users[],
                                               failures[], registered, other_calls, other_cost}
                                            failures：这一段里最近失败的几次（最多 20 条）{at, feature, username, reason, detail}；
@@ -131,14 +133,14 @@
           PUT  /admin/providers/{id}/key   {api_key}：先用新 Key 试，通过了才换。id = 0：照 .env 的配置在库里另存一条并启用
           POST /admin/providers/{id}/activate  换成这一家（0 = 换回 .env 那一家）：先试，通过了才换；马上生效，不用重启
           DELETE /admin/providers/{id}     正在用的 40901；.env 那一家（0）40401。以前的用量记录不受影响
-          以上 7 个管的是对话模型。检索用的向量 + 重排模型是另一份配置，只有一份：
+          以上 8 个管的是对话模型。检索用的向量 + 重排模型是另一份配置，只有一份：
           GET  /admin/retrieval            → {from_env, name, base_url, key_hint, embed_model, rerank_model}；from_env = 用的是 .env 里的
           GET  /admin/retrieval/status     现问一次（只问模型列表，不花钱）→ {available, reason, balance: null}
           POST /admin/retrieval/test       不带请求体 = 试现在用的；带 {base_url, api_key?, embed_model, rerank_model} = 试表单里填的
                                            （api_key 留空用现在的那把）。真调一次向量和重排 → {ok, message, latency_ms}
-          PUT  /admin/retrieval            请求体同上；先试，通过了才存（不通过 40001）。向量模型换了的话，向量库里已有的面经切段一起清掉：
+          PUT  /admin/retrieval            请求体同上；先试，通过了才存（不通过 40001）。向量模型或接口地址换了的话，向量库里已有的面经切段一起清掉：
                                            正在进行的面试照样能面，只是不再带面经
-          DELETE /admin/retrieval          换回 .env 里的配置
+          DELETE /admin/retrieval          换回 .env 里的配置（向量模型或接口地址因此变了的，同样清掉面经切段）
 ```
 
 ## 3.3 异步任务与 SSE 契约
@@ -223,18 +225,10 @@ data: {"turn_id":204,"text":"你刚说先更新数据库再删缓存，删失败
     "topics": [ … ],
     "turns": [ { "id": 203, "topic_idx": 0, "depth": 0, "question": "…", "answer": "…", "skipped": false, "evaluation": { … } } ],
     "waiting": false, "report_ready": true,
-    "report": {
-      "overall": 71, "verdict": "pass", "threshold": 60.0, "mode": "normal", "early": false, "answered": 8, "summary_ok": true,
-      "topics": [ { "idx": 0, "label": "二手交易平台 · 缓存", "source": "project", "score": 73 },
-                  { "idx": 2, "label": "消息队列", "source": "requirement", "score": 47 } ],
-      "strengths":  [ { "title": "定位问题有方法", "detail": "慢查询那题：用 EXPLAIN 找到全表扫描……" } ],
-      "weaknesses": [ { "title": "说不出成果数据", "detail": "订单模块两次被问到效果……" } ],
-      "links": [ { "kind": "requirement", "ref_id": 9, "topic_idx": 2, "label": "了解消息队列", "text": "先补……" } ],
-      "prompt_version": "interview-v2", "created_at": "2026-10-07T11:45:59"
-    }
+    "report": { "overall": 71, "verdict": "pass", "threshold": 60.0, … }
 } }
 ```
 
-`verdict`：pass / fail / practice（练习模式不下结论）/ incomplete（没聊完所有话题就结束，不下结论）。`links` 只挑得分低于 60、来源是简历问题或岗位要求的话题，前端点过去是结果页上对应的那一条。
+`report` 各字段的含义见 02 2.3；`links` 里的每一条，前端点过去是结果页上对应的那一条。
 
 **GET /resumes/{id}/diagnosis**：诊断状态、mode、overall_score、五维 score_detail、统计（stats，含拦截率 intercept_rate）、花费，以及 findings[]（来源、规则码 / 风险类型、严重度、证据原文与 char 区间、verify_result、rewrite）；字段以 `schemas.DiagnosisOut` 为准。

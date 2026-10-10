@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     MAX_PDF_PAGES: int = 10
     SCANNED_PDF_MIN_CHARS: int = 100
 
-    # ---- 版面分栏常数（5.1）----
+    # ---- 版面分栏常数（04-design 4.8）----
     LAYOUT_HEADER_FOOTER_RATIO: float = 0.06   # 页顶/页底比例内视为页眉页脚候选
     LAYOUT_MIN_GAP_RATIO: float = 0.03         # 空白带最小宽度 / 页宽
     LAYOUT_SINGLE_MAX_C: float = 0.30          # c 低于此值判 single

@@ -23,6 +23,7 @@ rapidfuzz>=3.9
 # LLM
 langchain-core>=0.3
 langchain-deepseek>=0.1
+langchain-openai>=0.3        # llm/registry.py 用它的 ChatOpenAI 接 DeepSeek 以外的服务；原来只靠 langchain-deepseek 间接带进来
 openai>=1.40                 # llm/client.py 用它的异常类型判断「模型服务不可用」；原来只靠 langchain-deepseek 间接带进来
 langgraph>=0.2.50
 langgraph-checkpoint-sqlite>=2.0   # 图 B 的检查点（本地文件，零部署）

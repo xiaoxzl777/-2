@@ -13,7 +13,7 @@
 | 1 | 章节归类兜底 | 解析期 | LLM | 0 | 词典认不出的候选标题（字号更大，或与词典标题同样式，见 4.10）一次送审，可判"不是标题" |
 | 2 | 结构化抽取 | 解析期 | LLM | 0 | 按章节送带编号块；条目输出 `block_ids`；**basics 不送** |
 | 3 | **语义诊断** ★ | 诊断期 | LLM | 0 | 逐条经历描述送审（掩码文本），json_mode，evidence 必须能在这条描述里逐字定位（4.3） |
-| 4 | JD 解析 | 匹配期 | LLM | 0 | 拆要求项；每条带 JD 原话，经 locate_span 核对（4.12） |
+| 4 | JD 解析 | 保存岗位时 | LLM | 0 | 拆要求项；每条带 JD 原话，经 locate_span 核对（4.12） |
 | 5 | **技能匹配判定** ★ | 匹配期 | LLM | 0 | 规则判不了的要求项一次送审；逐项输出 status + 逐字引用的简历原文，经 locate_span 校验 |
 | 6 | 具体建议 | 点开时 | LLM | 0.3 | 简历问题：【问题】【改成】【为什么】；岗位差距：【考察什么】【怎么补】【面试怎么答】。流式输出纯文本；占位符 + 确定性复检（4.14）；本期不检索（06-workflows 6.5） |
 | 7 | **面试计划** ★ | 面试创建 | LLM | 0.7 | 输入：岗位要求 + 初筛判定、经历（掩码）、最多 6 条简历问题、不长的面经 → N 个（默认 5）topics，每个带来源编号（P / R / F），代码核对；能用的不够 N 个就带原因重试一次 |
@@ -110,10 +110,10 @@ client.invoke(scene, messages, prompt_version, schema?, ref?, model?, temperatur
   ① 渲染 prompt（messages + schema 名 + temperature 序列化）→ key = llm:{scene}:{model}:{prompt_ver}:{sha256(rendered_prompt)}
   ② 缓存命中 → 记 llm_calls 一行（cache_hit=TRUE, token/cost=0）→ 返回      （面试 interview_plan / ask / eval / report 都不走缓存：每次对话都不同）
   ③ Redis 限流（按分钟固定窗口计数，DeepSeek 每分钟 300 次：官方不限速率，这里只防一次发太多）；Redis 不通或排队超时按调用失败处理，抛 LLMError
-  ④ 调模型；token 取自 AIMessage.usage_metadata；cost 按单价表；取 system_fingerprint
-  ⑤ 写缓存（TTL 7d；空内容、解析失败的不缓存）+ llm_calls 落库 → Result{parsed, raw, cost, tokens}
+  ④ 调模型；token 取自 AIMessage.usage_metadata；cost 按现在这一家的单价估算（管理端填的；.env 那一家用 provider.ENV_PRICES）；取 system_fingerprint
+  ⑤ 写缓存（TTL 7d；空内容、解析失败的不缓存）+ llm_calls 落库 → 返回 LLMResult
 invoke_json(llm, scene, messages, schema, prompt_version, …) → (parsed | None, 两次总花费, 错误)：不合格时把上一次输出和原因（prompts.JSON_RETRY）发回去重试一次；
-  结构化抽取 / 章节归类 / JD 解析 / 匹配用它；面试出题、评分、诊断重试前还要核对编号 / 证据 / 引用，自己写循环，只共用 JSON_RETRY
+  结构化抽取 / 章节归类 / JD 解析 / 匹配用它；面试定话题、评分、诊断重试前还要核对编号 / 证据 / 引用，自己写循环，只共用 JSON_RETRY
 向量与重排走 llm/embedding.py 的 EmbeddingClient：同样限流、记账，不做结果缓存；失败抛 LLMError，调用方降级（4.4）
 评测模式：设了评测批次号（ContextVar current_run_id）⇒ 跳过缓存，llm_calls 每行带 run_id；评测脚本把汇总结果写 data/eval_runs/{task}-{时间}.json
 ```
@@ -126,8 +126,9 @@ invoke_json(llm, scene, messages, schema, prompt_version, …) → (parsed | Non
 ```
 认出来   client.py 把服务商的错误分成两类：402 余额不足 / 401、403 密钥无效 / 429、5xx 服务繁忙 / 连不上、超时 → LLMError.unavailable = 原因；
          其余（请求本身的问题等）unavailable = None。前一类再试也没用，页面上统一说「模型服务暂时不可用……」，后一类照旧「请稍后重试」
-记下来   碰上前一类就把原因写进 Redis 的 llm:status（存 60 秒）；GET /system/llm 先看它，没有就问 DeepSeek 的 GET /user/balance
-         （不花钱：is_available=false → 余额不足，401 → 密钥无效，连不上 → 连不上；超时 10 秒，连不上再试一次），结论同样存 60 秒；余额接口自己出状况按能用处理
+记下来   碰上前一类就把原因写进 Redis 的 llm:status（存 60 秒）；GET /system/llm 先看它，没有就问现在用的那一家
+         （不花钱。DeepSeek 问 GET /user/balance：is_available=false → 余额不足；别家没有余额接口，只问 GET /models；
+          两种都是 401 / 403 → 密钥无效，连不上 → 连不上；超时 10 秒，连不上再试一次），结论同样存 60 秒；接口自己出状况按能用处理
 页面上   登录后每个页面内容最上面一条横幅，每分钟问一次；投递失败时 error_msg 写成「模型服务不可用：<原因>」，结果页、我的投递按这个前缀单独说；
          简历解析时调不通记成 parse_error=llm_unavailable，投递等到它时也按模型服务不可用报（不叫用户换简历）
 ```
@@ -249,7 +250,7 @@ none（项目名、公司名）→ 并回上一节；其余 → matched_by=llm�
 
 ```
 先按「date 连接符 date」整体匹配（- – — ~ ～ 至 到 to），失败再单个 date
-去空白后匹配；month 后 (?!\d) 且 1–12 校验
+日期内部允许有空白（正则里 \s*）；month 后 (?!\d) 且 1–12 校验
 支持 2023.9 / 2023.09 / 2023/9 / 2023年9月 / Sep 2023 / 2023；至今/Present/现在 → end=null, is_present=true
 两端精度不一致取粗；单个日期 end=null；失败整字段 null；输出 "YYYY-MM" 或 "YYYY"
 ```
@@ -291,7 +292,7 @@ mode：dict_only / llm_fulltext / hybrid 见 06-workflows 6.2「match 子图」�
 
 ```
 dim_score[d] = max(0, 100 − Σ penalty × scale)，penalty：high 25 / medium 12 / low 5；只算通过证据校验的 finding
-scale = 4 / max(送审单元数, 4)：4 个以内不摊薄，超过的按比例缩放（经历写得多的简历被查的地方也多）
+scale = 4 / max(单元数, 4)，单元 = 每条经历描述 + 自我评价（iter_units 的总数，和送没送审无关）：4 个以内不摊薄，超过的按比例缩放（经历写得多的简历被查的地方也多）
 五个维度与权重：completeness 0.25 / quantification 0.25 / expression 0.20 / consistency 0.20 / ats 0.10
 本次 mode 下没有来源的维度为 null（llm_only 只有 expression、consistency）；overall 只对非 null 维度加权归一
 ```
@@ -342,7 +343,7 @@ links（和简历问题的关联）= 得分 < 60、来源是简历问题或岗�
   `test_domains.py` 和快照逐字比对。所以引入领域包不需要升提示词版本、缓存不失效，评测数字仍然对应现在的代码。
 - **加一个方向的步骤**：照 `cs.py` 写 `domains/<key>.py`（片段要和 cs 一一对应，测试会查）→ 在 `DOMAINS` 登记 → `skills_seed.csv` 加词条
   → `data/job_templates/<key>/*.txt` 写模板 → `build_job_templates.py`（只解析新的或改过的模板）→ `dump_seed.py` → 导入 seed.sql。
-- 现状：计算机（默认）、运营、财会金融三个方向。运营 5 份模板（内容、用户、活动、电商、产品）、51 个词条；财会 4 份模板（会计、审计、财务分析、行业研究）、35 个词条（软件和业务方法，**证书不进词典**：证书多半写在「技能证书」一栏，解析时归到技能，「技能栏写了、经历里没用过」这条规则会对每个证书报一次；JD 里的证书要求记成 other，交给模型判断）。两套评测集的结果见 05-evaluation-and-plan 5.3 (7)(8)。
+- 现状：计算机（默认）、运营、财会金融三个专门方向。运营 5 份模板（内容、用户、活动、电商、产品）、51 个词条；财会 4 份模板（会计、审计、财务分析、行业研究）、35 个词条（软件和业务方法，**证书不进词典**：证书多半写在「技能证书」一栏，解析时归到技能，「技能栏写了、经历里没用过」这条规则会对每个证书报一次；JD 里的证书要求记成 other，交给模型判断）。两套评测集的结果见 05-evaluation-and-plan 5.3 (7)(8)。
 - 「其他」（`general.py`，通用包）：方向少，别的专业（设计、教育、法律、医药……）也要能测，就给一个不带行业的包兜底，排在下拉框最后。说法写成中性的（招聘官 / 面试官，示例用办公软件、毕业设计、职业资格证），结果词取运营和财会的并集，没有模板；规则照常跑，模型只凭常识和岗位原文判断，所以页面上明说「可能不够准，仅供参考」。和专门包差多少见 05 5.3 (9)。
 
 ## 后端设计
@@ -381,7 +382,7 @@ UPDATE match_reports      SET status='failed', error_msg='interrupted'          
 ### 4.20 配置
 
 `pydantic-settings` 读 `.env`，阈值与常数集中在 `config.py`，仓库只提交 `.env.example`。
-只有一项不在 `.env` 里定死：用哪一家的对话模型、哪一把 Key，可以在管理端换（4.21）。
+有两项不在 `.env` 里定死、可以在管理端换（4.21）：对话模型用哪一家、哪一把 Key；检索用的向量 / 重排模型。
 
 ### 4.21 管理端：模型用量与模型设置
 

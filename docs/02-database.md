@@ -1,12 +1,12 @@
 # 二、数据库设计
 
-MySQL 8.0，12 张表。**完整建表语句以 `backend/sql/schema.sql` 为准**：它由 `scripts/dump_schema.py` 从 `backend/app/models.py` 生成（改表先改 models.py，再重新生成），`tests/test_schema_sync.py` 检查两者一致。本章不再抄建表语句，只写每张表的用途与要点、外键关系、JSON 字段结构和预留字段。
+MySQL 8.0，12 张表。**完整建表语句以 `backend/sql/schema.sql` 为准**：它由 `backend/scripts/dump_schema.py` 从 `backend/app/models.py` 生成（改表先改 models.py，再重新生成），`backend/tests/test_schema_sync.py` 检查两者一致。本章不再抄建表语句，只写每张表的用途与要点、外键关系、JSON 字段结构和预留字段。
 
 通用约定：
 
 - 所有 `char_start / char_end` 都是左闭右开区间 `[start, end)`。没有特别说明的，都相对 `resumes.full_text`；JD 要求项的区间相对 `jobs.raw_text`，面试评分依据的区间相对这一题的回答文本。
 - JSON 字段只整体读写，不按里面的键查询。
-- 枚举存为 MySQL ENUM；时间列为 DATETIME（本地时间）。
+- 枚举存为 MySQL ENUM（`jobs.domain`、`llm_providers.purpose` / `kind` 例外，是 VARCHAR，取值跟着代码里的登记走）；时间列为 DATETIME（本地时间）。
 
 ## 2.1 表与外键关系
 
@@ -20,7 +20,7 @@ users ─┬─< resumes ─┬─< parsed_blocks
        ├─< jobs（内置模板 user_id 为 NULL）
        └─< interview_sessions
 另有两条：match_reports.diagnosis_id → diagnoses；interview_sessions.match_report_id → match_reports
-skills（技能词典）、llm_calls（调用审计）不建外键
+skills（技能词典）、llm_calls（调用审计）、llm_providers（管理端的模型配置）不建外键
 ```
 
 | 外键 | 指向 | 父行被删时 |
@@ -122,7 +122,7 @@ skills（技能词典）、llm_calls（调用审计）不建外键
 
 ### ⑪ llm_calls
 
-每次模型调用一行审计，命中缓存的、失败的也记。
+每次业务上的模型调用一行审计，命中缓存的、失败的也记（管理端保存前的试连不记）。
 
 - `scene`：section / structure / diagnose / jd_parse / match / rewrite / gap / interview_plan / interview_ask / interview_eval / interview_report / embed / rerank。
 - `ref_type` + `ref_id` 指向业务记录（resume / job / diagnosis / match_report / finding / interview），不建外键。
@@ -221,7 +221,7 @@ API Key 不存明文：`api_key_enc` 是 Fernet 加密后的（钥匙从 `JWT_SE
 ```json
 [ { "requirement_id": 1, "content": "熟悉 Redis", "req_type": "hard", "category": "skill", "weight": 1.0, "skill": "Redis",
     "status": "hit", "matched_by": "fulltext", "reason": "…",
-    "evidence_quote": "<full_text[char_start:char_end]>", "char_start": 560, "char_end": 590, "unit_id": "work[0]",
+    "evidence_quote": "<full_text[char_start:char_end]>", "char_start": 560, "char_end": 590, "unit_id": null,
     "advice": null } ]
 ```
 
@@ -279,6 +279,7 @@ API Key 不存明文：`api_key_enc` 是 Fernet 加密后的（钥匙从 `JWT_SE
 | `diagnoses.status` 的 cancelled | 没有取消功能 |
 | `jobs.parse_status` 的 pending、failed | JD 同步解析，失败不保存，只会写 success |
 | `match_reports.gap_summary` | 不写：未通过说明由 `GET /apply/{id}` 读取时组装 |
+| `match_reports.items[].unit_id` | 恒为 null，目前没有代码填它 |
 | `interview_sessions.current_round`、`interview_turns.round` 的 hr | 只做一轮专业面，恒为 tech |
 | `structure.skill_mentions[].matched_by` | 恒为 dict |
 
@@ -296,7 +297,7 @@ cases          优秀描述案例      暂缓：改写本期不检索（06-workf
 
 ## 2.6 初始数据与建库
 
-- skills 表和岗位模板（`jobs.is_template = 1`，16 份：计算机 7、运营 5、财会金融 4；「其他」方向没有模板）在 `backend/sql/seed.sql` 里，由 `scripts/dump_seed.py` 生成：技能来自 `data/skills_seed.csv`，模板原文在 `data/job_templates/`，先由 `scripts/build_job_templates.py` 解析成 `data/job_templates.json`（导入时不调模型，每次导入的要求项都一样）。
+- skills 表和岗位模板（`jobs.is_template = 1`，16 份：计算机 7、运营 5、财会金融 4；「其他」方向没有模板）在 `backend/sql/seed.sql` 里，由 `backend/scripts/dump_seed.py` 生成：技能来自 `data/skills_seed.csv`，模板原文在 `data/job_templates/`，先由 `scripts/build_job_templates.py` 解析成 `data/job_templates.json`（导入时不调模型，每次导入的要求项都一样）。
 - 本机：在 MySQL 里先执行 `schema.sql`，再执行 `seed.sql`。
 - Docker：`docker-compose.yml` 把两个文件挂到 MySQL 镜像的 `/docker-entrypoint-initdb.d/`，数据卷为空（首次启动）时自动按顺序执行；数据卷里已有数据就不会再执行，改了表结构要自己迁移或清空数据卷。
 - 后端启动时只检查表是否齐全，缺表直接报错退出，不会自动建表。

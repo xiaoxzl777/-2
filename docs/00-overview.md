@@ -30,7 +30,8 @@
 ② 每个块满足 full_text[char_start:char_end] == text（解析器单测断言）。
 ③ 解析（上传时触发，一次性）产出坐标系；诊断 / 匹配 / 面试只读坐标系，不改它。
 ④ 领域层（parser/ diagnose/ matching/ interview/ rewrite/ domains/ graphs/）不碰 DB、不直接 import langchain / httpx；
-   模型调用都经 llm/ 包：对话用 client.py，向量 / 重排用 embedding.py（都过限流、记审计）。
+   模型调用都经 llm/ 包：对话用 client.py，向量 / 重排用 embedding.py（都过限流、记审计；
+   管理端保存前的试连除外：services/provider_service.py 直接调，不限流、不记 llm_calls）。
 ⑤ PII：basics 本地抽取，不单独发给模型；外发的简历文本一律先做长度不变的掩码（匹配判定、差距建议发的是掩码后的全文，basics 那几行也在内）。
 ⑥ 模型的判断性输出必须附带可定位的原文引用。定位不到时：
    诊断 finding   带原因重试 ≤2 次，仍不行就丢弃（落库标 failed，不展示，评测统计拦截率用）
@@ -44,13 +45,13 @@
 |---|---|
 | 后端 | Python 3.13+ FastAPI + SQLAlchemy 2.0 + Pydantic v2 + pydantic-settings |
 | 前端 | React 18 + TS + Vite + Tailwind v4（样式以手写 CSS 为主，集中在 `index.css`）+ Zustand + react-router；SSE 用 fetch 读流 |
-| 对话模型 | DeepSeek `deepseek-chat`（LangChain `ChatDeepSeek`）；结构化输出 = JSON 模式作答 + Pydantic 校验，解析失败不抛异常而是带原因重试；直连不走系统代理；面试问题用流式 |
-| Embedding | 硅基流动 `BAAI/bge-m3`：检索第一阶段召回，只用在模拟面试里用户贴的长面经（匹配、建议都不检索，理由见 06-workflows 6.5） |
-| Reranker | 硅基流动 `BAAI/bge-reranker-v2-m3`：检索第二阶段精排（召回 → 精排 top-3） |
+| 对话模型 | 默认 DeepSeek `deepseek-chat`（LangChain `ChatDeepSeek`；管理端可换成别家，走 OpenAI 兼容接口，04-design 4.21）；结构化输出 = JSON 模式作答 + Pydantic 校验，解析失败不抛异常而是带原因重试；直连不走系统代理；面试问题用流式 |
+| Embedding | 默认硅基流动 `BAAI/bge-m3`：检索第一阶段召回，只用在模拟面试里用户贴的长面经（匹配、建议都不检索，理由见 06-workflows 6.5） |
+| Reranker | 默认硅基流动 `BAAI/bge-reranker-v2-m3`：检索第二阶段精排（召回 → 精排 top-3） |
 | AI 编排 | LangGraph：图 A 投递流水线（diagnose ∥ match 两个子图并行 → 初筛；解析在图外，上传时触发）；图 B 模拟面试（`interrupt()` 等人输入 + `SqliteSaver` 检查点） |
 | 存储 | MySQL 8.0 + Chroma 嵌入式 + Redis（缓存 / 限流 / SSE 推送）；图 B 的检查点是本地 SQLite 文件 `data/checkpoints.sqlite` |
 | 异步 | FastAPI BackgroundTasks（解析、诊断、匹配），`uvicorn --workers 1`；面试逐轮为同步流式响应；很久没动静的面试启动时收尾一次、之后每小时一次 |
 | 部署 | 本机 Docker Compose（`docker compose up -d --build`：Nginx 反向代理 + 前端静态文件、API、MySQL、Redis）；开发期本地跑 API / 前端 |
 
-DeepSeek 不提供 embedding，向量走硅基流动。全部走 API，无本地模型。
+DeepSeek 不提供 embedding，向量默认走硅基流动。全部走 API，无本地模型。对话模型和检索模型都可以在管理端换（04-design 4.21）。
 诊断与匹配的模式开关（`rule_only / llm_only / hybrid`、`dict_only / llm_fulltext / hybrid`）只为对照实验服务，见 05-evaluation-and-plan 5.3。
