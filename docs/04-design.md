@@ -40,7 +40,7 @@
 - **诊断**：子图节点（rule_scan → plan_review → review_unit × N → merge_findings → score）与三种 mode 见 06-workflows 6.2「diagnose 子图」，State 见 `graphs/state.py` 的 `DiagnoseState`；prompt 见 4.3，评分见 4.13。
   落库在图外（`diagnose_service.save_result`）：一次查出 parsed_blocks，把证据位置映射到 page_no / bbox；写 findings（含证据定位失败的 failed 行，不展示、供评测统计）；
   统计首轮（attempt_no=1）条数与其中的定位失败数（hallucination_count）；成本预检截掉了部分经历时 status=partial；status 与 `resumes.overall_score` 同一事务。
-- **面试**：只做一轮专业面（计算机方向叫技术面、运营方向叫运营面），不做 HR 面；默认 5 个话题、每个最多追问 1 次。
+- **面试**：只做一轮专业面（计算机方向叫技术面、运营方向叫运营面、财会金融和「其他」叫专业面），不做 HR 面；默认 5 个话题、每个最多追问 1 次。
   创建 / 开始 / 作答 / 提前结束 / 放弃的流程、图 B 的节点和两份状态（MySQL 为准、SQLite 检查点续跑）见 06-workflows 6.3；这里只写 prompt（4.7）和评分聚合（4.15）。
 
 ### 4.3 语义诊断 Prompt 骨架（`prompts.DIAGNOSE_*`，diagnose-v1；流程在 `diagnose/llm_review.py`）
@@ -134,7 +134,7 @@ invoke_json(llm, scene, messages, schema, prompt_version, …) → (parsed | Non
 
 ### 4.7 面试 Prompt 骨架（`prompts.INTERVIEW_*`，interview-v2）
 
-`[[interviewer]]` 计算机方向为「技术面试官」、运营为「运营面试官」；`[[interview_name]]` 为「技术面试 / 运营岗面试」；其余标记同样按方向替换（4.16）。
+`[[interviewer]]` 计算机方向为「技术面试官」、运营为「运营面试官」、财会为「财会面试官」、「其他」为「面试官」；`[[interview_name]]` 为「技术面试 / 运营岗面试 / 财会岗面试 / 专业面试」；其余标记同样按方向替换（4.16）。
 
 ```
 [plan · temp 0.7，不走缓存]
@@ -323,13 +323,14 @@ links（和简历问题的关联）= 得分 < 60、来源是简历问题或岗�
 方向存在岗位上（`jobs.domain`），之后各环节按岗位的方向取一个「领域包」。**加一个方向 = 加一套规则和数据，流程代码不改。**
 
 ```
-领域包（domains/cs.py、ops.py）
+领域包（domains/cs.py、ops.py、finance.py、general.py）
   TEXTS          25 个键：24 个对应 prompts.py 里的 [[标记]]（招聘官 / 面试官角色、JD 解析的技能说明、评分的「正确性」定义、各处示例 JSON……）；
                  另 1 个 risk_depth_title 不是提示词片段，是 depth_mismatch 问题给用户看的标题
-  DISABLED_RULES 这个方向不跑的规则（rule_code，如设计类可关掉 SKILL_PROJECT_MISMATCH「技能要在经历里用过」）；计算机、运营目前都为空
+  DISABLED_RULES 这个方向不跑的规则（rule_code，如设计类可关掉 SKILL_PROJECT_MISMATCH「技能要在经历里用过」）；四个方向目前都为空
   RESULT_WORDS   规则判断「写没写结果」时，在通用结果词（提升、降低、缩短……偏技术）之外这个方向还认的词；计算机为空，
-                 运营 21 个，只收指标名（涨粉、阅读量、转化率、留存率、GMV……），不收单独出现时多半在说做了什么的「留存、转化」
-  页面文案       名称、图标、一行说明、诊断标准 / 面试内容提示、面试称呼（技术面 / 运营面）、示例 JD（GET /domains 给前端）
+                 运营 21 个，只收指标名（涨粉、阅读量、转化率、留存率、GMV……），不收单独出现时多半在说做了什么的「留存、转化」；
+                 财会 7 个（差错率、回款率、节税……）；「其他」取运营和财会的并集 28 个
+  页面文案       名称、图标、一行说明、诊断标准 / 面试内容提示、面试称呼（技术面 / 运营面 / 专业面）、示例 JD（GET /domains 给前端）
   NOTE           「结果可能不够准」的提醒，只有通用包有；前端有就显示（选方向的说明框、结果页分数卡、诊断报告），专门方向不写
 ```
 

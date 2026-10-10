@@ -53,7 +53,7 @@ skills（技能词典）、llm_calls（调用审计）不建外键
 一份上传的简历和它的解析结果。
 
 - **文件**：`file_path` 是相对 `DATA_DIR` 的路径 `uploads/{user_id}/{uuid}.pdf`；`title` 是消毒后的原文件名（或上传时另给的标题），只用于展示；`file_hash`（SHA-256）用来去重：同一用户重复上传同一文件时复用这条记录（规则见 03 的 POST /resumes）。`page_count` 上传校验时就写入。
-- **解析状态**：`parse_status` 为 pending → parsing → success / failed；失败原因 `parse_error` 取 `scanned_pdf`（扫描件）/ `encrypted_pdf` / `llm_failed` / `interrupted`（服务重启打断）/ `exception:<异常类型>`。
+- **解析状态**：`parse_status` 为 pending → parsing → success / failed；失败原因 `parse_error` 取 `scanned_pdf`（扫描件）/ `encrypted_pdf` / `llm_failed` / `llm_unavailable`（解析时模型服务调不通）/ `interrupted`（服务重启打断）/ `exception:<异常类型>`。
 - **版面**：`layout_type` 是第 1 页的判定（single / double / sidebar / table / unknown）；`layout_confidence` 取各页最小值，低于 0.7 表示有规则拿不准的页（不做大模型兜底，见 04-design 4.8）；`layout_detail` 是逐页明细（2.3）。
 - **内容**：`full_text` 是坐标系基准，解析完成后不再改变（00-overview 不变量①）；`structure`、`sections` 的结构见 2.3。
 - `overall_score`：最近一次成功诊断的总分，和诊断结果在同一事务里回写，列表页直接用。
@@ -86,7 +86,7 @@ skills（技能词典）、llm_calls（调用审计）不建外键
 
 岗位：用户粘贴的 JD，或内置模板（`is_template = 1`，`user_id` 为 NULL）。
 
-- `domain`：求职方向，取 `app/domains` 的 key（cs / ops），决定 JD 解析、诊断、匹配、建议、面试用哪套提示词（04-design 4.16）。
+- `domain`：求职方向，取 `app/domains` 的 key（cs / ops / finance / general），决定 JD 解析、诊断、匹配、建议、面试用哪套提示词（04-design 4.16）。
 - `raw_text` 是清洗后的 JD 原文，`requirements` 里的区间相对它；`requirements` 的结构见 2.3。
 - `parse_status`：JD 同步解析，失败就不保存，所以目前只会写 success（2.4）。
 - 软删除 `is_deleted`；模板不能删。
@@ -111,7 +111,7 @@ skills（技能词典）、llm_calls（调用审计）不建外键
 
 - `mode`：normal / practice。初筛没过的一律 practice，过了的也可以主动选 practice。
 - `status`：planned（话题已定、还没开始）→ in_progress → completed / abandoned。很久没动静（`INTERVIEW_IDLE_HOURS`，默认 24 小时）的面试在服务启动时扫一次、之后每小时扫一次，按已答的题出报告（不调模型写总结），标成 abandoned。
-- 只做一轮专业面（计算机方向叫技术面，运营方向叫运营面），`current_round` 恒为 tech。`current_topic` 是正在问的话题 idx（从 0 起），`current_depth` 为 0 表示主问题、1 表示追问。
+- 只做一轮专业面（计算机方向叫技术面、运营方向叫运营面、财会金融和「其他」叫专业面），`current_round` 恒为 tech。`current_topic` 是正在问的话题 idx（从 0 起），`current_depth` 为 0 表示主问题、1 表示追问。
 - `company_name` 默认取岗位的公司名；`extra_context` 是用户贴的面经或公司介绍，超过 3000 字时切段进 Chroma（2.5）。
 - `cost` / `cost_limit`：本场累计花费和上限（元，默认 0.3）。
 - 本表和 interview_turns 是面试进度的权威来源。图 B 另用 SQLite 检查点（`checkpoints.sqlite`）续跑，检查点丢了就按这两张表重建（06-workflows 6.3）。`plan`、`report` 的结构见 2.3。

@@ -38,7 +38,7 @@ current_run_id: ContextVar[str | None] = ContextVar("current_run_id", default=No
 _CODE_FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.I)
 
 
-# 模型服务调不通时给用户看的话：这种情况再试也没用，和"请稍后重试"分开说
+# 模型服务调不通时给用户看的话：马上重试没用、得等服务恢复，所以单独说明原因，不和别的失败一样说"调用大模型失败"
 LLM_DOWN = "模型服务暂时不可用，请稍后再试"
 
 

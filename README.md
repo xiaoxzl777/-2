@@ -79,7 +79,7 @@ docker compose down -v             # 停掉并清空所有数据，下次启动�
 ```
 backend/             后端：app/（源码）、tests/、scripts/（生成种子数据、造评测集、跑评测）、sql/（建表与种子数据，脚本生成）、Dockerfile
 frontend/            前端：首页、工作台（选方向 → 选岗位 → 选简历 → 投递）、我的投递、我的简历、初筛结果、模拟面试（准备 / 面试 / 报告）；Dockerfile 打包后放进 Nginx
-data/                进仓库的只有技能词典（skills_seed.csv）和岗位模板（job_templates/ 下 cs/、ops/ 的原文 + job_templates.json）；
+data/                进仓库的只有技能词典（skills_seed.csv）和岗位模板（job_templates/ 下 cs/、ops/、finance/ 的原文 + job_templates.json）；
                      其余（上传的简历、向量库、面试检查点、简历样本、评测集、评测结果）是运行时或脚本生成的，不进仓库
 docs/                设计文档与前端样稿（见上表）
 nginx/               Nginx 配置：托管前端页面，把 /api 转发给后端

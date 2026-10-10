@@ -31,7 +31,7 @@
 ③ 解析（上传时触发，一次性）产出坐标系；诊断 / 匹配 / 面试只读坐标系，不改它。
 ④ 领域层（parser/ diagnose/ matching/ interview/ rewrite/ domains/ graphs/）不碰 DB、不直接 import langchain / httpx；
    模型调用都经 llm/ 包：对话用 client.py，向量 / 重排用 embedding.py（都过限流、记审计）。
-⑤ PII：basics 章节本地抽取，不外发；其余外发文本经长度不变的掩码。
+⑤ PII：basics 本地抽取，不单独发给模型；外发的简历文本一律先做长度不变的掩码（匹配判定、差距建议发的是掩码后的全文，basics 那几行也在内）。
 ⑥ 模型的判断性输出必须附带可定位的原文引用。定位不到时：
    诊断 finding   带原因重试 ≤2 次，仍不行就丢弃（落库标 failed，不展示，评测统计拦截率用）
    匹配判定       该条按 miss 处理，依据作废

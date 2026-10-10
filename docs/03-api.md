@@ -75,7 +75,7 @@
 方向 1    GET  /domains    不用登录 → [{key, name, icon, desc, rule_hint, interview_hint, interview_label, interviewer, sample_jd, note}]
                        工作台第一步「选方向」的下拉框；顺序即下拉顺序（app/domains，目前 cs 计算机 / ops 运营 / finance 财会金融 / general 其他）；
                        note 只有 general 有（「结果可能不够准」，页面上照原文显示），其余为空
-                       interview_label / interviewer 是页面上对面试的称呼（技术面 / 运营面、技术面试官 / 运营面试官）
+                       interview_label / interviewer 是页面上对面试的称呼（技术面 / 运营面 / 专业面，技术面试官 / 运营面试官 / 财会面试官 / 面试官）
 
 岗位 4    POST /jobs   {title, company?, raw_text, domain?}  同步解析（一次模型调用，约 2–4 秒）→ 岗位 + requirements[]
                                                            raw_text 30–10000 字；domain 默认 cs，未知方向 40001
@@ -96,7 +96,7 @@
                        已满足的要求、证据校验没通过的问题都按不存在处理（40401）
                        本期不做检索：模型针对原句写建议 + 数字占位符复检（06-workflows 6.5；提示词见 llm/prompts.py 的 ADVICE_*）
 
-面试 6    一轮专业面（计算机方向叫技术面、运营方向叫运营面），库里 round 恒为 tech；
+面试 6    一轮专业面（计算机方向叫技术面、运营方向叫运营面、财会金融和「其他」叫专业面），库里 round 恒为 tech；
           默认 5 个话题（INTERVIEW_TOPICS），每个最多追问 1 次（docs/06-workflows 6.3）
           POST /interviews                 {apply_id, company_name?, extra_context?, practice?}
                                            → {id, mode, gate:{passed, overall_match, threshold}, topic_count, context_mode}
