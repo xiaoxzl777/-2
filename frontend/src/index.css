@@ -1,4 +1,9 @@
-@import "tailwindcss";
+/* 只要 Tailwind 的色板变量机制（@theme）和基础样式（preflight），不要它的工具类：整份样式都是手写的，而 Tailwind 会扫源码、
+   把 outline / hidden / inline / underline 这些词当成工具类生成规则，落到我们自己的同名类上（.btn.outline 多出一圈 1px 外框，
+   以前踩过的 collapse 也是这么来的）。只引这两部分，类名就不会再撞。 */
+@layer theme, base;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
 
 /* 配色：三套，用户在导航栏「配色」里选（components/PalettePicker.tsx），记在 localStorage；
    <html data-pal> 由 index.html 里的小脚本在渲染前设好，刷新不会先闪一下默认色。没有 data-pal 就是领英蓝。
