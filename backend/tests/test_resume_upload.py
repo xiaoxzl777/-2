@@ -151,3 +151,28 @@ def test_nothing_is_stored_when_validation_fails(client, auth_headers, db_sessio
 
 def test_upload_requires_login(client, single_column_pdf):
     assert _upload(client, {}, single_column_pdf).status_code == 401
+
+
+def test_upload_returns_its_connection_before_the_parse_starts(client, auth_headers, single_column_pdf,
+                                                               db_session_factory, monkeypatch):
+    """同 test_apply_api 里那条：上传的请求也要在后台解析开工前把数据库连接还回去，否则同时上传的人多了会互相等死。"""
+    from app.api import resume as resume_api
+    from app.database import get_db
+    from app.main import app
+
+    order = []
+
+    def tracking_get_db():
+        db = db_session_factory()
+        close = db.close
+        db.close = lambda: (order.append("请求的会话关了"), close())[1]
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = tracking_get_db
+    monkeypatch.setattr(resume_api, "parse_resume", lambda *_: order.append("后台解析开工"))
+
+    assert _upload(client, auth_headers, single_column_pdf).json()["data"]["parse_status"] == "pending"
+    assert order[:2] == ["请求的会话关了", "后台解析开工"]

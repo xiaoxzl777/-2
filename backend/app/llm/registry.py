@@ -1,7 +1,7 @@
 """把「现在用哪一家」（llm/provider.py）变成 LangChain 的聊天模型，并按它的单价估算花费。"""
 from __future__ import annotations
 
-from functools import cache
+import threading
 
 import httpx
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -13,11 +13,21 @@ from app.llm import provider
 from app.llm.provider import Provider
 
 
-@cache
+_client: httpx.Client | None = None
+_client_lock = threading.Lock()
+
+
 def http_client() -> httpx.Client:
     # 全进程共用一个（线程安全；llm/status.py 问余额也用它）：每次新建要重新加载证书（实测约 0.23 秒）、重新握手，诊断时十几个并行请求各付一次。
-    # 本机若配了 HTTP(S)_PROXY，国内模型服务走代理反而慢数倍；默认直连
-    return httpx.Client(trust_env=settings.LLM_USE_SYSTEM_PROXY, timeout=settings.LLM_TIMEOUT_SECONDS)
+    # 本机若配了 HTTP(S)_PROXY，国内模型服务走代理反而慢数倍；默认直连。
+    # 建的时候加锁，不用 @cache：它挡不住「还没建好时几十个线程同时第一次来要」，每个线程都会各建一个、各加载一遍证书；
+    # Windows 上并发加载系统证书还会让整个进程直接崩掉（压测时服务刚起来就来了一批投递，测出来的）。
+    global _client
+    if _client is None:
+        with _client_lock:
+            if _client is None:
+                _client = httpx.Client(trust_env=settings.LLM_USE_SYSTEM_PROXY, timeout=settings.LLM_TIMEOUT_SECONDS)
+    return _client
 
 
 def build_chat_model(p: Provider, temperature: float, *, max_retries: int = 3, timeout: float | None = None) -> BaseChatModel:

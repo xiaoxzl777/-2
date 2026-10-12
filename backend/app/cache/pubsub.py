@@ -10,7 +10,7 @@ import logging
 import time
 from collections.abc import Callable
 
-from app.cache.redis_client import redis_client
+from app.cache.redis_client import pubsub_client, redis_client
 
 logger = logging.getLogger("app.pubsub")
 
@@ -37,7 +37,7 @@ class Subscription:
     """订阅一个任务的进度频道。用完必须 close（SSE 接口在 finally 里关）。"""
 
     def __init__(self, task_id: str):
-        self._pubsub = redis_client.pubsub(ignore_subscribe_messages=True)
+        self._pubsub = pubsub_client.pubsub(ignore_subscribe_messages=True)    # 订阅长期占着连接，用单独的池
         self._pubsub.subscribe(channel(task_id))
 
     def get(self, timeout: float) -> dict | None:

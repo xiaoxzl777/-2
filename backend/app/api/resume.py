@@ -38,12 +38,14 @@ def upload_resume(
         resume = resume_service.create_resume(
             db, user.id, upload, resume_service.display_title(file.filename or "", title))
 
+    uploaded = UploadOut(id=resume.id, task_id=f"parse:{resume.id}",
+                         parse_status=resume.parse_status, deduplicated=deduplicated)
+    db.close()      # 后台解析另开会话，请求自己的连接先还回去（原因同 api/apply.py 的 start_apply）
     # 复用旧记录时只有 failed 才重新解析：pending / parsing 说明已有任务在路上，再排一个会并发写出重复的块
-    if not deduplicated or resume.parse_status == "failed":
-        background.add_task(parse_resume, resume.id, session_factory, llm)
+    if not deduplicated or uploaded.parse_status == "failed":
+        background.add_task(parse_resume, uploaded.id, session_factory, llm)
 
-    return ok(UploadOut(id=resume.id, task_id=f"parse:{resume.id}",
-                        parse_status=resume.parse_status, deduplicated=deduplicated))
+    return ok(uploaded)
 
 
 @router.get("", response_model=ApiResponse[Page[ResumeListItem]])

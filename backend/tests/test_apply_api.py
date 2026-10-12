@@ -312,3 +312,31 @@ def test_list_shows_my_applies_newest_first_with_their_interviews(client, auth_h
     assert client.get(API, headers=other_headers).json()["data"]["total"] == 0
     client.delete(f"/api/v1/resumes/{rid}", headers=auth_headers)
     assert client.get(API, headers=auth_headers).json()["data"] == {"items": [], "total": 0, "page": 1, "page_size": 20}
+
+
+def test_the_request_returns_its_connection_before_the_background_job_starts(client, auth_headers, resume_and_job,
+                                                                             db_session_factory, monkeypatch):
+    """请求自己占的数据库连接要在后台任务开工前还回去。不还的话，同时投递的人数到了连接池的大小就互相等死：
+    请求等后台任务结束才放连接，后台任务等连接才能开工（压测 30 人同时投递时测出来的，08 第 14 章）。"""
+    from app.database import get_db
+    from app.main import app
+    from app.services import apply_service
+
+    rid, jid = resume_and_job
+    order = []
+
+    def tracking_get_db():
+        db = db_session_factory()
+        close = db.close
+        db.close = lambda: (order.append("请求的会话关了"), close())[1]
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = tracking_get_db
+    monkeypatch.setattr(apply_service, "run_apply", lambda *_: order.append("后台任务开工"))
+
+    assert _apply(client, auth_headers, rid, jid)["data"]["status"] == "pending"
+    # 测试库是 SQLite，插入时就把默认值带回来了，会话里本来就没有开着的事务，所以这里查的是「先关会话、后开工」这个顺序
+    assert order[:2] == ["请求的会话关了", "后台任务开工"]

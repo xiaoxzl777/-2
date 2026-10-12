@@ -19,6 +19,7 @@ from app.cache import redis_client
 from app.config import settings
 from app.database import SessionLocal, engine
 from app.errors import register_error_handlers
+from app.gate import RequestGate
 from app.models import Base
 
 logger = logging.getLogger("app")
@@ -109,6 +110,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="智能求职辅助系统", version=__version__, lifespan=lifespan)
+app.add_middleware(RequestGate)     # 同时处理中的请求有上限，多的排队（gate.py）
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Vite 开发服务器

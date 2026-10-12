@@ -18,8 +18,10 @@ engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,      # MySQL 空闲连接被服务端断开时自动重连
     pool_recycle=3600,
-    pool_size=5,
-    max_overflow=10,
+    # 最多 20 + 30 = 50 个连接，要比同时处理中的请求数（gate.py 的 MAX_ACTIVE，40）多：请求在等线程时手里占着连接，
+    # 连接池和它一样大或更小的话，连接会被等线程的请求占光，线程又都在等连接（原来是 5 + 10，压测时 30 人同时投递就卡死）
+    pool_size=20,
+    max_overflow=30,
     echo=False,
 )
 

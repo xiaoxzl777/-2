@@ -39,9 +39,14 @@ def start_apply(
         raise ApiError(BAD_REQUEST, f"未知的模型：{body.model}（可用：{available_models()}）")
 
     report = apply_service.create_apply(db, resume, job, body.diagnose_mode, body.match_mode, body.model)
-    background.add_task(apply_service.run_apply, report.id, session_factory, llm, publish)
-    return ok(ApplyStartOut(id=report.id, diagnosis_id=report.diagnosis_id, task_id=f"apply:{report.id}",
-                            status=report.status))
+    started = ApplyStartOut(id=report.id, diagnosis_id=report.diagnosis_id, task_id=f"apply:{report.id}",
+                            status=report.status)
+    # 请求自己的连接先还回去。get_db 的收尾排在后台任务之后，而上面读 report.status（数据库给的默认值，MySQL 要再查一次）
+    # 又开了一个事务：不还的话，同时投递的人数到了连接池的大小，请求等后台任务结束才放连接、后台任务等连接才能开工，
+    # 互相等到超时（压测 30 人同时投递时测出来的）
+    db.close()
+    background.add_task(apply_service.run_apply, started.id, session_factory, llm, publish)
+    return ok(started)
 
 
 @router.get("", response_model=ApiResponse[Page[ApplyBrief]])

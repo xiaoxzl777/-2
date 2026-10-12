@@ -93,3 +93,61 @@ def test_a_broken_cache_counts_as_a_miss_instead_of_failing_the_call(monkeypatch
     monkeypatch.setattr(llm_cache, "redis_client", FakeRedis(broken=True))
     assert llm_cache.get("llm:x") is None
     llm_cache.put("llm:x", {"text": "t"})                     # 不抛
+
+
+def test_the_shared_http_client_is_built_once_when_many_threads_ask_at_the_same_time(monkeypatch):
+    """共用的 HTTP 客户端只能建一个：服务刚起来就来一批投递时，几十个线程会同时第一次来要。
+    各建各的不光白白多加载几十遍证书，Windows 上并发加载系统证书还会让进程直接崩掉（压测测出来的）。"""
+    import threading
+    import time
+
+    from app.llm import registry
+
+    built = []
+
+    class SlowClient:
+        def __init__(self, **_):
+            time.sleep(0.05)        # 建得慢一点，让别的线程有机会在它建好之前也闯进来
+            built.append(self)
+
+    monkeypatch.setattr(registry, "_client", None)
+    monkeypatch.setattr(registry.httpx, "Client", SlowClient)
+    together, got = threading.Barrier(20), []
+
+    def ask():
+        together.wait()
+        got.append(registry.http_client())
+
+    threads = [threading.Thread(target=ask) for _ in range(20)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(built) == 1 and all(client is built[0] for client in got)
+
+
+def test_short_redis_operations_queue_for_a_connection_and_subscriptions_use_their_own_pool(monkeypatch):
+    """缓存、限流这些一问一答的操作：连接都被占着时排队等，不能直接报错（30 人同时投递时，三百来个并行调用一起来占
+    限流名额，默认的连接池到 100 个就抛 Too many connections，分析成片失败）。进度流的订阅长期占着连接，另用一个池。"""
+    import redis
+
+    from app.cache import pubsub
+    from app.cache.redis_client import pubsub_client, redis_client
+
+    assert isinstance(redis_client.connection_pool, redis.BlockingConnectionPool)
+    assert pubsub_client.connection_pool is not redis_client.connection_pool
+
+    opened = []
+
+    class FakePubSub:
+        def subscribe(self, name):
+            opened.append(name)
+
+    class FakeClient:
+        def pubsub(self, **_):
+            return FakePubSub()
+
+    monkeypatch.setattr(pubsub, "redis_client", None)           # 订阅要是还去用它，这里就会报错
+    monkeypatch.setattr(pubsub, "pubsub_client", FakeClient())
+    pubsub.Subscription("apply:7")
+    assert opened == ["task:apply:7"]

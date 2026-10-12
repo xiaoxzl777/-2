@@ -11,7 +11,7 @@
 | [02-database](docs/02-database.md) | 数据库设计：每张表的用途与要点、外键、JSON 字段结构、预留字段、Chroma collection（完整建表语句以 `backend/sql/schema.sql` 为准） |
 | [03-api](docs/03-api.md) | 接口设计：接口清单（标了哪些未实现）、错误码、SSE 契约、示例 |
 | [04-design](docs/04-design.md) | AI 模块、核心算法与后端设计 |
-| [05-evaluation-and-plan](docs/05-evaluation-and-plan.md) | 评测与计划：评测集、实验结果、验证方式、里程碑完成情况、不做与未来工作 |
+| [05-evaluation-and-plan](docs/05-evaluation-and-plan.md) | 评测与计划：评测集、实验结果、验证方式、里程碑完成情况、不做与未来工作、压测（很多人同时用时的表现） |
 | [06-workflows](docs/06-workflows.md) | 产品流程（JD 优先）、两张 LangGraph 图；与 04 冲突时以此为准 |
 | [07-代码导读](docs/07-代码导读.md) | 后端各目录、各文件干什么，建议的阅读顺序 |
 | [08-实现思路与代码讲解](docs/08-实现思路与代码讲解.md) | 毕设答辩用：后端每件事为什么这么做、关键代码、踩过的坑、答辩问题速查 |
@@ -46,7 +46,7 @@ pip install -r requirements.lock   # 锁定版本，与开发机完全一致（W
 uvicorn app.main:app --reload      # http://localhost:8000/docs
                                    # 自检：http://localhost:8000/api/v1/health
 
-# 5. 测试（在 backend 下）：500 个用例、约 35 秒；模型、向量库、Redis 全部打桩，数据库用内存 SQLite，不联网
+# 5. 测试（在 backend 下）：508 个用例、约 35 秒；模型、向量库、Redis 全部打桩，数据库用内存 SQLite，不联网
 .\.venv\Scripts\python.exe -m pytest -q
 
 # 6. 前端（另开一个终端）
