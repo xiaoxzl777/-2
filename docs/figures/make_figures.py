@@ -1,11 +1,11 @@
-"""论文用图：系统架构、产品流程、图 A、图 B、E-R 图，以及四张评测图。只用 Python 标准库。
+"""论文用图：系统架构、产品流程、图 A、图 B、E-R 图，四张评测图，以及压测前后对比。只用 Python 标准库。
 
     python docs/figures/make_figures.py
 
 输出到本目录：每张图一份 SVG（矢量，Word 里「插入 → 图片」可以直接插，放大不糊）和一份 2 倍分辨率的 PNG。
 PNG 用本机 Chrome / Edge 的无头模式截出来；找不到浏览器就只出 SVG。
 风格：白底黑字、只用灰度（黑白打印也分得清）；调用模型的节点灰底，纯函数白底，外部服务虚线框。
-内容的出处：流程和节点 docs/06-workflows.md，外键 backend/sql/schema.sql，评测数字 docs/05-evaluation-and-plan.md 5.2–5.4。
+内容的出处：流程和节点 docs/06-workflows.md，外键 backend/sql/schema.sql，评测数字 docs/05-evaluation-and-plan.md 5.2–5.4，压测数字 5.9。
 那几处改了，这里要跟着改。
 """
 from __future__ import annotations
@@ -471,12 +471,34 @@ def fig_interview_eval() -> Fig:
     return f
 
 
+def fig_loadtest() -> Fig:
+    f = Fig("图10-压测前后对比", 1200, 590)
+    before, after = ("改之前", SERIES[0]), ("改之后", SERIES[2])
+    chart_legend(f, 100, 34, [before, after])
+    f.text(100, 74, "(a) 很多人同时刷页面（每两次操作之间停 1–2 秒）", 13, 700, INK, "start")
+    bars(f, 100, 112, 420, 300,
+         [["50 人", "P95 42 → 33 ms"], ["100 人", "P95 360 → 48 ms"], ["200 人", "P95 31 s → 0.8 s", "失败 13% → 0"]],
+         [(*before, [31, 58, 8], ["31", "58", "8（卡死）"]), (*after, [32, 63, 105], ["32", "63", "105"])],
+         ymax=120, ylabel="每秒处理的请求数", bw_max=46)
+    f.text(660, 74, "(b) N 个人同一秒点「投递」", 13, 700, INK, "start")
+    bars(f, 660, 112, 480, 300, [["10 人"], ["30 人"], ["45 人 *"], ["60 人 *"], ["90 人", "（限流放开）"]],
+         [(*before, [100, 0, 26 / 45 * 100, 20 / 60 * 100, 0], ["10/10", "0/30", "26/45", "20/60", "没测"]),
+          (*after, [100] * 5, ["10/10", "30/30", "45/45", "60/60", "90/90"])],
+         ylabel="投递成功的比例（%）", bw_max=40)
+    notes = ["本机、后端单进程，模型换成假模型（每次调用等 1.5–2.5 秒），压测工具和服务在同一台机器上，每组跑一次。",
+             "(a) P95 = 95% 的请求在这个时间以内，箭头两边是改之前、改之后。200 人「改之前」：线程和数据库连接互相等到超时，请求等 31 秒后报错。",
+             "(b) 柱顶是 成功人数 / 投递人数。* 45 人、60 人的「改之前」分别是只修了前两处、只修了第一处时测的（最初的代码 30 人就全部失败）。"]
+    for i, s in enumerate(notes):
+        f.text(100, 508 + i * 24, s, 12.5, 400, INK2, "start")
+    return f
+
+
 def main() -> None:
     browser = find_browser()
     if not browser:
         print("没找到 Chrome / Edge，只出 SVG")
     for make in (fig_architecture, fig_product_flow, fig_graph_a, fig_graph_b, fig_er,
-                 fig_layout_eval, fig_match_eval, fig_diagnose_eval, fig_interview_eval):
+                 fig_layout_eval, fig_match_eval, fig_diagnose_eval, fig_interview_eval, fig_loadtest):
         make().save(browser)
 
 
